@@ -12,9 +12,16 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Use the user's external Supabase for Vipe-generated apps storage
+    const vipeSupabaseUrl = Deno.env.get("VIPE_SUPABASE_URL")!;
+    const vipeSupabaseKey = Deno.env.get("VIPE_SUPABASE_ANON_KEY")!;
+    
+    // Internal Supabase for looking up project info
+    const internalSupabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const internalSupabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    const internalSupabase = createClient(internalSupabaseUrl, internalSupabaseKey);
+    const vipeSupabase = createClient(vipeSupabaseUrl, vipeSupabaseKey);
 
     const { action, projectSlug, key, value, collection, item, itemId } = await req.json();
 
@@ -25,8 +32,8 @@ serve(async (req) => {
       );
     }
 
-    // Get project by slug
-    const { data: project, error: projectError } = await supabase
+    // Get project by slug from internal Supabase
+    const { data: project, error: projectError } = await internalSupabase
       .from("projects")
       .select("id, is_published")
       .eq("slug", projectSlug)
@@ -43,7 +50,7 @@ serve(async (req) => {
 
     const projectId = project.id;
 
-    // Handle different actions
+    // Handle different actions - use vipeSupabase for data storage
     switch (action) {
       // ============ KEY-VALUE STORAGE ============
       case "get": {
@@ -54,7 +61,7 @@ serve(async (req) => {
           );
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await vipeSupabase
           .from("project_data")
           .select("value")
           .eq("project_id", projectId)
@@ -84,7 +91,7 @@ serve(async (req) => {
         }
 
         // Upsert the data
-        const { data: existing } = await supabase
+        const { data: existing } = await vipeSupabase
           .from("project_data")
           .select("id")
           .eq("project_id", projectId)
@@ -92,7 +99,7 @@ serve(async (req) => {
           .maybeSingle();
 
         if (existing) {
-          const { error } = await supabase
+          const { error } = await vipeSupabase
             .from("project_data")
             .update({ value: value ?? null })
             .eq("id", existing.id);
@@ -105,7 +112,7 @@ serve(async (req) => {
             );
           }
         } else {
-          const { error } = await supabase
+          const { error } = await vipeSupabase
             .from("project_data")
             .insert({
               project_id: projectId,
@@ -136,7 +143,7 @@ serve(async (req) => {
           );
         }
 
-        const { error } = await supabase
+        const { error } = await vipeSupabase
           .from("project_data")
           .delete()
           .eq("project_id", projectId)
@@ -165,7 +172,7 @@ serve(async (req) => {
           );
         }
 
-        const { data, error } = await supabase
+        const { data, error } = await vipeSupabase
           .from("project_data")
           .select("value")
           .eq("project_id", projectId)
@@ -195,7 +202,7 @@ serve(async (req) => {
         }
 
         // Get existing collection
-        const { data: existing } = await supabase
+        const { data: existing } = await vipeSupabase
           .from("project_data")
           .select("id, value")
           .eq("project_id", projectId)
@@ -211,12 +218,12 @@ serve(async (req) => {
         items.push(newItem);
 
         if (existing) {
-          await supabase
+          await vipeSupabase
             .from("project_data")
             .update({ value: items })
             .eq("id", existing.id);
         } else {
-          await supabase
+          await vipeSupabase
             .from("project_data")
             .insert({
               project_id: projectId,
@@ -239,7 +246,7 @@ serve(async (req) => {
           );
         }
 
-        const { data: existing } = await supabase
+        const { data: existing } = await vipeSupabase
           .from("project_data")
           .select("id, value")
           .eq("project_id", projectId)
@@ -269,7 +276,7 @@ serve(async (req) => {
           updatedAt: new Date().toISOString(),
         };
 
-        await supabase
+        await vipeSupabase
           .from("project_data")
           .update({ value: items })
           .eq("id", existing.id);
@@ -288,7 +295,7 @@ serve(async (req) => {
           );
         }
 
-        const { data: existing } = await supabase
+        const { data: existing } = await vipeSupabase
           .from("project_data")
           .select("id, value")
           .eq("project_id", projectId)
@@ -305,7 +312,7 @@ serve(async (req) => {
         const items = (existing.value as any[]) || [];
         const filtered = items.filter((i: any) => i.id !== itemId);
 
-        await supabase
+        await vipeSupabase
           .from("project_data")
           .update({ value: filtered })
           .eq("id", existing.id);
