@@ -3,9 +3,12 @@ import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/componen
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { Preview } from "./Preview";
+import { DataPanel } from "./DataPanel";
 import { Project } from "@/hooks/useProjects";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { MessageSquare, Database } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Message {
   id: string;
@@ -18,10 +21,13 @@ interface EditorProps {
   onUpdateCode: (code: string) => void;
 }
 
+type LeftTab = "chat" | "data";
+
 export function Editor({ project, onUpdateCode }: EditorProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [leftTab, setLeftTab] = useState<LeftTab>("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -139,65 +145,91 @@ export function Editor({ project, onUpdateCode }: EditorProps) {
 
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full">
-      {/* Chat Panel */}
+      {/* Left Panel - Chat & Data */}
       <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
         <div className="flex flex-col h-full bg-card">
-          {/* Chat Header */}
-          <div className="px-4 py-3 border-b border-border">
-            <h2 className="font-semibold text-foreground">{project.name}</h2>
-            <p className="text-xs text-muted-foreground">
-              Describe what you want to build
-            </p>
+          {/* Tab Header */}
+          <div className="flex border-b border-border">
+            <button
+              onClick={() => setLeftTab("chat")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+                leftTab === "chat"
+                  ? "text-primary border-b-2 border-primary bg-primary/5"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <MessageSquare className="w-4 h-4" />
+              Chat
+            </button>
+            <button
+              onClick={() => setLeftTab("data")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+                leftTab === "data"
+                  ? "text-primary border-b-2 border-primary bg-primary/5"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Database className="w-4 h-4" />
+              Data
+            </button>
           </div>
 
-          {/* Messages */}
-          <ScrollArea className="flex-1">
-            <div ref={scrollRef} className="p-4 space-y-4">
-              {messages.length === 0 && !isGenerating && (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow">
-                    <span className="text-2xl">✨</span>
-                  </div>
-                  <h3 className="text-lg font-medium text-foreground mb-2">
-                    Ready to build
-                  </h3>
-                  <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                    Describe your idea and I'll generate the code. You can iterate
-                    and refine with follow-up messages.
-                  </p>
+          {leftTab === "chat" ? (
+            <>
+              {/* Messages */}
+              <ScrollArea className="flex-1">
+                <div ref={scrollRef} className="p-4 space-y-4">
+                  {messages.length === 0 && !isGenerating && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow">
+                        <span className="text-2xl">✨</span>
+                      </div>
+                      <h3 className="text-lg font-medium text-foreground mb-2">
+                        Ready to build
+                      </h3>
+                      <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                        Describe your idea and I'll generate the code. You can iterate
+                        and refine with follow-up messages.
+                      </p>
+                    </div>
+                  )}
+
+                  {messages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      role={message.role}
+                      content={message.content}
+                    />
+                  ))}
+
+                  {isGenerating && streamingContent && (
+                    <ChatMessage
+                      role="assistant"
+                      content="Generating your code..."
+                      isStreaming
+                    />
+                  )}
                 </div>
-              )}
+              </ScrollArea>
 
-              {messages.map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  role={message.role}
-                  content={message.content}
+              {/* Input */}
+              <div className="p-4 border-t border-border">
+                <ChatInput
+                  onSend={handleSendMessage}
+                  disabled={isGenerating}
+                  placeholder={
+                    messages.length === 0
+                      ? "Describe what you want to build..."
+                      : "Make changes or add features..."
+                  }
                 />
-              ))}
-
-              {isGenerating && streamingContent && (
-                <ChatMessage
-                  role="assistant"
-                  content="Generating your code..."
-                  isStreaming
-                />
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Input */}
-          <div className="p-4 border-t border-border">
-            <ChatInput
-              onSend={handleSendMessage}
-              disabled={isGenerating}
-              placeholder={
-                messages.length === 0
-                  ? "Describe what you want to build..."
-                  : "Make changes or add features..."
-              }
-            />
-          </div>
+              </div>
+            </>
+          ) : (
+            <DataPanel projectId={project.id} />
+          )}
         </div>
       </ResizablePanel>
 
