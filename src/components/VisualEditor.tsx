@@ -219,46 +219,54 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
   };
 
   // Helper to build clean HTML using original structure but updated body
-  const buildCleanHtml = useCallback((doc: Document) => {
-    // Get the current body content with all changes
-    const updatedBody = doc.body.innerHTML;
+  const buildCleanHtml = useCallback(
+    (doc: Document) => {
+      // Get the current body content with all changes
+      const updatedBody = doc.body.innerHTML;
 
-    // Start from original HTML prop so we keep <html>, <head> and attributes intact
-    let baseHtml = html;
+      // Start from original HTML prop so we keep <html>, <head> and attributes intact
+      let baseHtml = html;
 
-    const bodyMatch = baseHtml.match(/<body[^>]*>[\s\S]*?<\/body>/i);
-    if (bodyMatch) {
-      const bodyOpenTagMatch = baseHtml.match(/<body[^>]*>/i);
-      const bodyOpenTag = bodyOpenTagMatch ? bodyOpenTagMatch[0] : "<body>";
+      const bodyMatch = baseHtml.match(/<body[^>]*>[\s\S]*?<\/body>/i);
+      if (bodyMatch) {
+        const bodyOpenTagMatch = baseHtml.match(/<body[^>]*>/i);
+        const bodyOpenTag = bodyOpenTagMatch ? bodyOpenTagMatch[0] : "<body>";
+        baseHtml = baseHtml.replace(
+          /<body[^>]*>[\s\S]*?<\/body>/i,
+          `${bodyOpenTag}\n${updatedBody}\n</body>`
+        );
+      } else {
+        // Fallback: use full document HTML
+        baseHtml = "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+      }
+
+      // If text content was edited, also patch the raw HTML string so inline JS/markup stay in sync
+      if (selectedElement?.text && editedText && editedText !== selectedElement.text) {
+        baseHtml = baseHtml.replace(selectedElement.text, editedText);
+      }
+
+      // Remove our injected visual editor style tag only
       baseHtml = baseHtml.replace(
-        /<body[^>]*>[\s\S]*?<\/body>/i,
-        `${bodyOpenTag}\n${updatedBody}\n</body>`
+        /<style[^>]*id=["']vipe-visual-editor-styles["'][^>]*>[\s\S]*?<\/style>/gi,
+        ""
       );
-    } else {
-      // Fallback: use full document HTML
-      baseHtml = "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
-    }
 
-    // Remove our injected visual editor style tag only
-    baseHtml = baseHtml.replace(
-      /<style[^>]*id=["']vipe-visual-editor-styles["'][^>]*>[\s\S]*?<\/style>/gi,
-      ""
-    );
+      // Strip any vipe-* helper classes from class attributes
+      baseHtml = baseHtml.replace(/class="([^"]*)"/g, (_match, classNames: string) => {
+        const filtered = classNames
+          .split(/\s+/)
+          .filter((name) => name && !name.startsWith("vipe-"))
+          .join(" ");
+        return filtered ? `class="${filtered}"` : "";
+      });
 
-    // Strip any vipe-* helper classes from class attributes
-    baseHtml = baseHtml.replace(/class="([^"]*)"/g, (_match, classNames: string) => {
-      const filtered = classNames
-        .split(/\s+/)
-        .filter((name) => name && !name.startsWith("vipe-"))
-        .join(" ");
-      return filtered ? `class="${filtered}"` : "";
-    });
+      // Also clean up empty class attributes
+      baseHtml = baseHtml.replace(/\s*class=""\s*/g, " ");
 
-    // Also clean up empty class attributes
-    baseHtml = baseHtml.replace(/\s*class=""\s*/g, " ");
-
-    return baseHtml;
-  }, [html]);
+      return baseHtml;
+    },
+    [html, selectedElement, editedText]
+  );
 
   // Listen for messages from iframe
   useEffect(() => {
