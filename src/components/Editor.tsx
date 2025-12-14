@@ -36,8 +36,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
   const [chatMode, setChatMode] = useState<ChatMode>("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load messages from database on mount
+  // Load messages from database on project change - clear first!
   useEffect(() => {
+    setMessages([]); // Clear messages immediately when switching projects
+    setStreamingContent("");
     loadMessages();
   }, [project.id]);
 
