@@ -15,6 +15,8 @@ export function Dashboard() {
     createProject,
     updateProject,
     deleteProject,
+    publishProject,
+    unpublishProject,
   } = useProjects();
 
   const handleCreateProject = async () => {
@@ -39,6 +41,20 @@ export function Dashboard() {
     if (currentProject) {
       await updateProject(currentProject.id, { html_code: code });
     }
+  };
+
+  const handlePublish = async () => {
+    if (currentProject) {
+      return await publishProject(currentProject.id);
+    }
+    return null;
+  };
+
+  const handleUnpublish = async () => {
+    if (currentProject) {
+      return await unpublishProject(currentProject.id);
+    }
+    return null;
   };
 
   const handleSignOut = async () => {
@@ -68,7 +84,12 @@ export function Dashboard() {
 
       <div className="flex-1 overflow-hidden">
         {currentProject ? (
-          <Editor project={currentProject} onUpdateCode={handleUpdateCode} />
+          <Editor 
+            project={currentProject} 
+            onUpdateCode={handleUpdateCode} 
+            onPublish={handlePublish}
+            onUnpublish={handleUnpublish}
+          />
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
