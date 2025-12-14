@@ -32,7 +32,7 @@ export function Preview({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (iframeRef.current) {
+    if (iframeRef.current && html) {
       const doc = iframeRef.current.contentDocument;
       if (doc) {
         doc.open();
