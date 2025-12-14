@@ -10,15 +10,52 @@
     <meta property="og:title" content="Vipe - AI Code Generation Platform" />
     <meta property="og:description" content="Build beautiful web apps with AI. Describe your idea and watch it come to life instantly." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta property="og:image" content="/og-image.png" />
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@VipeAI" />
-    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <meta name="twitter:image" content="/og-image.png" />
   </head>
 
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Hide Lovable branding completely
+      (function(){
+        const hide = () => {
+          const selectors = [
+            'a[href*="lovable.dev"]',
+            'a[href*="lovable.app"]',
+            '[class*="lovable"]',
+            '[class*="Lovable"]',
+            '#lovable-badge',
+            '.lovable-badge',
+            '[data-lovable]',
+            'img[src*="lovable"]',
+            'div[id*="lovable"]'
+          ];
+          selectors.forEach(sel => {
+            document.querySelectorAll(sel).forEach(el => {
+              el.style.cssText = 'display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important;position:absolute!important;left:-9999px!important;';
+            });
+          });
+        };
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', hide);
+        } else {
+          hide();
+        }
+        setTimeout(hide, 100);
+        setTimeout(hide, 500);
+        setTimeout(hide, 1000);
+        setTimeout(hide, 2000);
+        setTimeout(hide, 5000);
+        
+        // MutationObserver to catch dynamically added elements
+        const observer = new MutationObserver(hide);
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      })();
+    </script>
   </body>
 </html>
