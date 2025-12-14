@@ -4,10 +4,11 @@ import { User, Zap } from "lucide-react";
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
+  imageUrl?: string;
   isStreaming?: boolean;
 }
 
-export function ChatMessage({ role, content, isStreaming }: ChatMessageProps) {
+export function ChatMessage({ role, content, imageUrl, isStreaming }: ChatMessageProps) {
   const isUser = role === "user";
 
   return (
@@ -34,12 +35,21 @@ export function ChatMessage({ role, content, isStreaming }: ChatMessageProps) {
 
       <div
         className={cn(
-          "max-w-[80%] rounded-xl px-4 py-3",
+          "max-w-[80%] rounded-xl px-4 py-3 space-y-2",
           isUser
             ? "bg-primary text-primary-foreground"
             : "bg-secondary text-foreground"
         )}
       >
+        {/* Image if present */}
+        {imageUrl && (
+          <img 
+            src={imageUrl} 
+            alt="Shared image" 
+            className="max-w-full h-auto rounded-lg max-h-48 object-cover"
+          />
+        )}
+        
         <p className="text-sm whitespace-pre-wrap">
           {content}
           {isStreaming && (

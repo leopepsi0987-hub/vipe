@@ -7,13 +7,15 @@ import { DataPanel } from "./DataPanel";
 import { Project } from "@/hooks/useProjects";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database } from "lucide-react";
+import { MessageSquare, Database, Zap, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
+  imageUrl?: string;
 }
 
 interface EditorProps {
@@ -22,13 +24,20 @@ interface EditorProps {
 }
 
 type LeftTab = "chat" | "data";
+type ChatMode = "chat" | "build";
 
 export function Editor({ project, onUpdateCode }: EditorProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [leftTab, setLeftTab] = useState<LeftTab>("chat");
+  const [chatMode, setChatMode] = useState<ChatMode>("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load messages from database on mount
+  useEffect(() => {
+    loadMessages();
+  }, [project.id]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -36,36 +45,99 @@ export function Editor({ project, onUpdateCode }: EditorProps) {
     }
   }, [messages, streamingContent]);
 
-  const handleSendMessage = async (content: string) => {
+  const loadMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("project_data")
+        .select("value")
+        .eq("project_id", project.id)
+        .eq("key", "chat_messages")
+        .single();
+
+      if (data && !error) {
+        const savedMessages = data.value as unknown as Message[];
+        if (Array.isArray(savedMessages)) {
+          setMessages(savedMessages);
+        }
+      }
+    } catch (error) {
+      // No messages saved yet, that's fine
+    }
+  };
+
+  const saveMessages = async (newMessages: Message[]) => {
+    try {
+      const { data: existing } = await supabase
+        .from("project_data")
+        .select("id")
+        .eq("project_id", project.id)
+        .eq("key", "chat_messages")
+        .single();
+
+      if (existing) {
+        await supabase
+          .from("project_data")
+          .update({ value: newMessages as any })
+          .eq("id", existing.id);
+      } else {
+        await supabase
+          .from("project_data")
+          .insert({
+            project_id: project.id,
+            key: "chat_messages",
+            value: newMessages as any,
+          });
+      }
+    } catch (error) {
+      console.error("Error saving messages:", error);
+    }
+  };
+
+  const handleSendMessage = async (content: string, imageUrl?: string) => {
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
       content,
+      imageUrl,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const newMessages = [...messages, userMessage];
+    setMessages(newMessages);
     setIsGenerating(true);
     setStreamingContent("");
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
+      // Determine which endpoint to use based on mode
+      const endpoint = chatMode === "build" 
+        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`
+        : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+      const body = chatMode === "build"
+        ? JSON.stringify({
             prompt: content,
             currentCode: project.html_code,
-          }),
-        }
-      );
+          })
+        : JSON.stringify({
+            messages: newMessages.map(m => ({
+              role: m.role,
+              content: m.content,
+              imageUrl: m.imageUrl,
+            })),
+            imageUrl,
+          });
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body,
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate code");
+        throw new Error(errorData.error || "Failed to get response");
       }
 
       const reader = response.body?.getReader();
@@ -106,37 +178,51 @@ export function Editor({ project, onUpdateCode }: EditorProps) {
         }
       }
 
-      // Clean up the response - extract HTML from code blocks if present
-      let cleanedCode = fullContent;
-      const htmlMatch = fullContent.match(/```html\n?([\s\S]*?)```/);
-      if (htmlMatch) {
-        cleanedCode = htmlMatch[1];
+      if (chatMode === "build") {
+        // Clean up the response - extract HTML from code blocks if present
+        let cleanedCode = fullContent;
+        const htmlMatch = fullContent.match(/```html\n?([\s\S]*?)```/);
+        if (htmlMatch) {
+          cleanedCode = htmlMatch[1];
+        } else {
+          cleanedCode = fullContent.replace(/```\w*\n?/g, "").trim();
+        }
+
+        onUpdateCode(cleanedCode);
+
+        const assistantMessage: Message = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: "I've updated your app! Check the preview to see the changes. 🚀",
+        };
+        const finalMessages = [...newMessages, assistantMessage];
+        setMessages(finalMessages);
+        saveMessages(finalMessages);
       } else {
-        // Remove any markdown code fences
-        cleanedCode = fullContent.replace(/```\w*\n?/g, "").trim();
+        // Chat mode - just add the response
+        const assistantMessage: Message = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: fullContent,
+        };
+        const finalMessages = [...newMessages, assistantMessage];
+        setMessages(finalMessages);
+        saveMessages(finalMessages);
       }
 
-      // Update the code
-      onUpdateCode(cleanedCode);
-
-      // Add assistant message
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: "I've updated your app! Check the preview to see the changes.",
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
       setStreamingContent("");
     } catch (error) {
-      console.error("Error generating code:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to generate code");
+      console.error("Error:", error);
+      toast.error(error instanceof Error ? error.message : "Something went wrong");
       
       const errorMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "Sorry, I encountered an error. Please try again.",
+        content: "Oops, something went wrong! Try again? 😅",
       };
-      setMessages((prev) => [...prev, errorMessage]);
+      const finalMessages = [...newMessages, errorMessage];
+      setMessages(finalMessages);
+      saveMessages(finalMessages);
     } finally {
       setIsGenerating(false);
       setStreamingContent("");
@@ -178,20 +264,56 @@ export function Editor({ project, onUpdateCode }: EditorProps) {
 
           {leftTab === "chat" ? (
             <>
+              {/* Mode Toggle */}
+              <div className="p-3 border-b border-border">
+                <div className="flex bg-secondary rounded-lg p-1">
+                  <button
+                    onClick={() => setChatMode("chat")}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                      chatMode === "chat"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => setChatMode("build")}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                      chatMode === "build"
+                        ? "bg-gradient-primary text-primary-foreground shadow-glow"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Zap className="w-4 h-4" />
+                    Build
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  {chatMode === "chat" 
+                    ? "Chat mode: Talk with Vipe about your ideas"
+                    : "Build mode: Generate and update code"}
+                </p>
+              </div>
+
               {/* Messages */}
               <ScrollArea className="flex-1">
                 <div ref={scrollRef} className="p-4 space-y-4">
                   {messages.length === 0 && !isGenerating && (
                     <div className="text-center py-12">
                       <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow">
-                        <span className="text-2xl">✨</span>
+                        <span className="text-2xl">👋</span>
                       </div>
                       <h3 className="text-lg font-medium text-foreground mb-2">
-                        Ready to build
+                        Hey! I'm Vipe
                       </h3>
                       <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                        Describe your idea and I'll generate the code. You can iterate
-                        and refine with follow-up messages.
+                        {chatMode === "chat" 
+                          ? "Let's chat! Tell me about what you want to build and I'll help you figure it out."
+                          : "Ready to build! Describe your app and I'll generate the code."}
                       </p>
                     </div>
                   )}
@@ -201,13 +323,22 @@ export function Editor({ project, onUpdateCode }: EditorProps) {
                       key={message.id}
                       role={message.role}
                       content={message.content}
+                      imageUrl={message.imageUrl}
                     />
                   ))}
 
                   {isGenerating && streamingContent && (
                     <ChatMessage
                       role="assistant"
-                      content="Generating your code..."
+                      content={streamingContent}
+                      isStreaming
+                    />
+                  )}
+
+                  {isGenerating && !streamingContent && (
+                    <ChatMessage
+                      role="assistant"
+                      content={chatMode === "build" ? "Generating code..." : "Thinking..."}
                       isStreaming
                     />
                   )}
@@ -220,9 +351,11 @@ export function Editor({ project, onUpdateCode }: EditorProps) {
                   onSend={handleSendMessage}
                   disabled={isGenerating}
                   placeholder={
-                    messages.length === 0
-                      ? "Describe what you want to build..."
-                      : "Make changes or add features..."
+                    chatMode === "chat"
+                      ? "Chat with Vipe..."
+                      : messages.length === 0
+                        ? "Describe what you want to build..."
+                        : "Make changes or add features..."
                   }
                 />
               </div>
