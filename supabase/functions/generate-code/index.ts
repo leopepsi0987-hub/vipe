@@ -11,12 +11,19 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, currentCode, projectSlug } = await req.json();
+    const { prompt, currentCode, projectSlug, dbChoice } = await req.json();
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     
     if (!GOOGLE_GEMINI_API_KEY) {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
+
+    const dbChoiceContext =
+      dbChoice === "BUILT_IN_DB"
+        ? "The user has chosen to use the BUILT-IN VIPE DATABASE (Cloud Storage API + app-api backend). You MUST implement all data persistence and auth using the provided Cloud Storage and auth helpers, NOT plain localStorage. Only use the Supabase JS client helpers when the app truly needs advanced SQL features beyond simple key/value or collection storage."
+        : dbChoice === "CUSTOM_DB"
+        ? "The user has chosen to use THEIR OWN SUPABASE DATABASE. They will provide SUPABASE_URL and SUPABASE_ANON_KEY in their description. You MUST initialize the Supabase JS client with those values and use it for all database, auth, and storage operations. Do NOT use the built-in Cloud Storage helper for core app data in this mode."
+        : "The user has not explicitly chosen a database option. Prefer the built-in Cloud Storage API helper for data persistence, and only introduce direct Supabase JS usage when they explicitly mention a custom Supabase project or advanced SQL/database requirements.";
 
     const systemPrompt = `## ROLE & IDENTITY
 
@@ -298,6 +305,9 @@ document.getElementById('list').addEventListener('click', (e) => {
 ---
 
 ## 🔥 CLOUD STORAGE API - ALWAYS USE FOR DATA!
+
+### Current database choice
+${dbChoiceContext}
 
 **CRITICAL: ALWAYS use this Cloud Storage API for ANY app that needs to save data!**
 **NEVER use plain localStorage! Always use the storage helper that auto-detects backend availability!**
