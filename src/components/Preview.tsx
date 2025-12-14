@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code, Save, X, PanelLeftClose, PanelLeft, Edit3 } from "lucide-react";
+import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code, Save, X, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Editor from "@monaco-editor/react";
 import { FileExplorer } from "./FileExplorer";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { VisualEditor } from "./VisualEditor";
 
 interface PreviewProps {
   html: string;
@@ -94,7 +93,6 @@ export function Preview({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [activeSection, setActiveSection] = useState<FileSection>("full");
   const [showExplorer, setShowExplorer] = useState(true);
-  const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [openTabs, setOpenTabs] = useState<{name: string; section: FileSection}[]>([
     { name: "index.html", section: "full" }
   ]);
@@ -348,19 +346,6 @@ export function Preview({
           {/* Device mode buttons - only show in preview mode */}
           {currentView === "preview" && (
             <>
-              {/* Visual Editor Button */}
-              <Button
-                variant="glow"
-                size="sm"
-                className="h-8 px-3 text-xs mr-2"
-                onClick={() => setShowVisualEditor(true)}
-              >
-                <Edit3 className="w-3 h-3 mr-1" />
-                Edit
-              </Button>
-
-              <div className="w-px h-4 bg-border mx-1" />
-
               <Button
                 variant="ghost"
                 size="icon"
@@ -616,17 +601,6 @@ export function Preview({
             </div>
           )}
         </div>
-      )}
-
-      {/* Visual Editor Modal */}
-      {showVisualEditor && onCodeChange && (
-        <VisualEditor
-          html={html}
-          onUpdate={(newHtml) => {
-            onCodeChange(newHtml);
-          }}
-          onClose={() => setShowVisualEditor(false)}
-        />
       )}
     </div>
   );

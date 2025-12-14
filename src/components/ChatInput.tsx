@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Loader2, Image, X } from "lucide-react";
+import { Send, Loader2, Image, X, Edit3, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onSend: (message: string, imageUrl?: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  currentPath?: string;
+  onVisualEdit?: () => void;
 }
 
-export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, placeholder, currentPath = "/", onVisualEdit }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -76,6 +78,24 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
             <X className="w-3 h-3" />
           </button>
         </div>
+      )}
+      
+      {/* Visual Edit Button with Path */}
+      {onVisualEdit && (
+        <button
+          onClick={onVisualEdit}
+          disabled={disabled}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border hover:bg-secondary hover:border-primary/50 transition-all group w-full"
+        >
+          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+            <Edit3 className="w-3.5 h-3.5" />
+          </div>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            <span className="text-foreground font-medium">Visual Edits</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+            <span className="text-xs bg-muted px-2 py-0.5 rounded font-mono">{currentPath}</span>
+          </div>
+        </button>
       )}
       
       <div className="relative flex items-end gap-2">
