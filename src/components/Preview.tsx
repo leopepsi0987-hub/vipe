@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code, Save } from "lucide-react";
+import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code, Save, X, PanelLeftClose, PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Editor from "@monaco-editor/react";
+import { FileExplorer } from "./FileExplorer";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 
 interface PreviewProps {
   html: string;
@@ -19,6 +21,40 @@ interface PreviewProps {
 }
 
 type DeviceMode = "desktop" | "tablet" | "mobile";
+type FileSection = "html" | "css" | "js" | "full";
+
+// Extract CSS from HTML
+function extractCSS(html: string): string {
+  const styleMatches = html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+  if (!styleMatches) return "/* No styles found */";
+  
+  return styleMatches
+    .map(match => match.replace(/<\/?style[^>]*>/gi, "").trim())
+    .join("\n\n");
+}
+
+// Extract JS from HTML
+function extractJS(html: string): string {
+  const scriptMatches = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
+  if (!scriptMatches) return "// No scripts found";
+  
+  return scriptMatches
+    .filter(match => !match.includes("src=")) // Exclude external scripts
+    .map(match => match.replace(/<\/?script[^>]*>/gi, "").trim())
+    .filter(content => content.length > 0)
+    .join("\n\n");
+}
+
+// Extract HTML structure (body content)
+function extractHTML(html: string): string {
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (!bodyMatch) return html;
+  
+  let content = bodyMatch[1];
+  // Remove script tags
+  content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+  return content.trim();
+}
 
 export function Preview({ 
   html, 
@@ -40,6 +76,11 @@ export function Preview({
   const [localView, setLocalView] = useState<"preview" | "code">(activeView);
   const [editedCode, setEditedCode] = useState(html);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [activeSection, setActiveSection] = useState<FileSection>("full");
+  const [showExplorer, setShowExplorer] = useState(true);
+  const [openTabs, setOpenTabs] = useState<{name: string; section: FileSection}[]>([
+    { name: "index.html", section: "full" }
+  ]);
   
   const currentView = onViewChange ? activeView : localView;
   const handleViewChange = (view: "preview" | "code") => {
@@ -47,6 +88,36 @@ export function Preview({
       onViewChange(view);
     } else {
       setLocalView(view);
+    }
+  };
+
+  // Get content for current section
+  const getEditorContent = () => {
+    switch (activeSection) {
+      case "css": return extractCSS(html);
+      case "js": return extractJS(html);
+      case "html": return extractHTML(html);
+      default: return html;
+    }
+  };
+
+  // Get language for current section
+  const getEditorLanguage = () => {
+    switch (activeSection) {
+      case "css": return "css";
+      case "js": return "javascript";
+      case "html": return "html";
+      default: return "html";
+    }
+  };
+
+  // Get file name for current section
+  const getFileName = () => {
+    switch (activeSection) {
+      case "css": return "index.css";
+      case "js": return "main.tsx";
+      case "html": return "App.tsx";
+      default: return "index.html";
     }
   };
 
@@ -118,7 +189,7 @@ export function Preview({
   };
 
   const handleEditorChange = (value: string | undefined) => {
-    if (value !== undefined) {
+    if (value !== undefined && activeSection === "full") {
       setEditedCode(value);
       setHasUnsavedChanges(value !== html);
     }
@@ -129,6 +200,26 @@ export function Preview({
       onCodeChange(editedCode);
       setHasUnsavedChanges(false);
       toast.success("Code saved!");
+    }
+  };
+
+  const handleFileSelect = (section: FileSection) => {
+    setActiveSection(section);
+    const fileName = section === "full" ? "index.html" 
+      : section === "css" ? "index.css"
+      : section === "js" ? "main.tsx"
+      : "App.tsx";
+    
+    if (!openTabs.find(t => t.section === section)) {
+      setOpenTabs([...openTabs, { name: fileName, section }]);
+    }
+  };
+
+  const handleCloseTab = (section: FileSection) => {
+    const newTabs = openTabs.filter(t => t.section !== section);
+    setOpenTabs(newTabs);
+    if (activeSection === section && newTabs.length > 0) {
+      setActiveSection(newTabs[newTabs.length - 1].section);
     }
   };
 
@@ -154,7 +245,7 @@ export function Preview({
             <div className="w-3 h-3 rounded-full bg-green-500/80" />
           </div>
           <span className="text-muted-foreground text-sm ml-2">
-            {currentView === "preview" ? "Preview" : "index.html"}
+            {currentView === "preview" ? "Preview" : getFileName()}
           </span>
           {hasUnsavedChanges && (
             <span className="text-xs text-yellow-500 ml-2">• Unsaved</span>
@@ -191,7 +282,7 @@ export function Preview({
           </div>
 
           {/* Save button - only show in code mode with changes */}
-          {currentView === "code" && hasUnsavedChanges && (
+          {currentView === "code" && hasUnsavedChanges && activeSection === "full" && (
             <Button
               variant="glow"
               size="sm"
@@ -200,6 +291,22 @@ export function Preview({
             >
               <Save className="w-3 h-3 mr-1" />
               Save
+            </Button>
+          )}
+
+          {/* Toggle file explorer */}
+          {currentView === "code" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setShowExplorer(!showExplorer)}
+            >
+              {showExplorer ? (
+                <PanelLeftClose className="w-4 h-4" />
+              ) : (
+                <PanelLeft className="w-4 h-4" />
+              )}
             </Button>
           )}
 
@@ -323,31 +430,143 @@ export function Preview({
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-hidden">
-          <Editor
-            height="100%"
-            defaultLanguage="html"
-            value={editedCode}
-            onChange={handleEditorChange}
-            theme="vs-dark"
-            options={{
-              minimap: { enabled: true },
-              fontSize: 14,
-              lineNumbers: "on",
-              wordWrap: "on",
-              automaticLayout: true,
-              scrollBeyondLastLine: false,
-              padding: { top: 16 },
-              fontFamily: "'Fira Code', 'Monaco', 'Consolas', monospace",
-              fontLigatures: true,
-              renderWhitespace: "selection",
-              bracketPairColorization: { enabled: true },
-              guides: {
-                bracketPairs: true,
-                indentation: true,
-              },
-            }}
-          />
+        <div className="flex-1 flex overflow-hidden">
+          {/* File Explorer */}
+          {showExplorer && (
+            <ResizablePanelGroup direction="horizontal" className="flex-1">
+              <ResizablePanel defaultSize={25} minSize={15} maxSize={40}>
+                <FileExplorer 
+                  onFileSelect={handleFileSelect}
+                  activeFile={getFileName()}
+                />
+              </ResizablePanel>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize={75}>
+                <div className="flex flex-col h-full">
+                  {/* File Tabs */}
+                  <div className="flex bg-[#252526] border-b border-[#3c3c3c] overflow-x-auto">
+                    {openTabs.map((tab) => (
+                      <div
+                        key={tab.section}
+                        className={cn(
+                          "flex items-center gap-2 px-3 py-2 text-sm border-r border-[#3c3c3c] cursor-pointer min-w-max",
+                          activeSection === tab.section
+                            ? "bg-[#1e1e1e] text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                        onClick={() => setActiveSection(tab.section)}
+                      >
+                        <span>{tab.name}</span>
+                        {openTabs.length > 1 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCloseTab(tab.section);
+                            }}
+                            className="hover:bg-secondary rounded p-0.5"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Editor */}
+                  <div className="flex-1">
+                    <Editor
+                      height="100%"
+                      language={getEditorLanguage()}
+                      value={activeSection === "full" ? editedCode : getEditorContent()}
+                      onChange={handleEditorChange}
+                      theme="vs-dark"
+                      options={{
+                        minimap: { enabled: true },
+                        fontSize: 14,
+                        lineNumbers: "on",
+                        wordWrap: "on",
+                        automaticLayout: true,
+                        scrollBeyondLastLine: false,
+                        padding: { top: 16 },
+                        fontFamily: "'Fira Code', 'Monaco', 'Consolas', monospace",
+                        fontLigatures: true,
+                        renderWhitespace: "selection",
+                        bracketPairColorization: { enabled: true },
+                        guides: {
+                          bracketPairs: true,
+                          indentation: true,
+                        },
+                        readOnly: activeSection !== "full",
+                      }}
+                    />
+                  </div>
+                </div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          )}
+          
+          {/* Editor only (no explorer) */}
+          {!showExplorer && (
+            <div className="flex flex-col flex-1">
+              {/* File Tabs */}
+              <div className="flex bg-[#252526] border-b border-[#3c3c3c] overflow-x-auto">
+                {openTabs.map((tab) => (
+                  <div
+                    key={tab.section}
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-2 text-sm border-r border-[#3c3c3c] cursor-pointer min-w-max",
+                      activeSection === tab.section
+                        ? "bg-[#1e1e1e] text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                    onClick={() => setActiveSection(tab.section)}
+                  >
+                    <span>{tab.name}</span>
+                    {openTabs.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCloseTab(tab.section);
+                        }}
+                        className="hover:bg-secondary rounded p-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+              {/* Editor */}
+              <div className="flex-1">
+                <Editor
+                  height="100%"
+                  language={getEditorLanguage()}
+                  value={activeSection === "full" ? editedCode : getEditorContent()}
+                  onChange={handleEditorChange}
+                  theme="vs-dark"
+                  options={{
+                    minimap: { enabled: true },
+                    fontSize: 14,
+                    lineNumbers: "on",
+                    wordWrap: "on",
+                    automaticLayout: true,
+                    scrollBeyondLastLine: false,
+                    padding: { top: 16 },
+                    fontFamily: "'Fira Code', 'Monaco', 'Consolas', monospace",
+                    fontLigatures: true,
+                    renderWhitespace: "selection",
+                    bracketPairColorization: { enabled: true },
+                    guides: {
+                      bracketPairs: true,
+                      indentation: true,
+                    },
+                    readOnly: activeSection !== "full",
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
