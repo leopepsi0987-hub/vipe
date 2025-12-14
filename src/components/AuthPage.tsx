@@ -64,7 +64,7 @@ export function AuthPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow">
-              <Zap className="w-7 h-7 text-primary-foreground" />
+              <Zap className="w-7 h-7 text-white" />
             </div>
           </div>
           <h1 className="text-4xl font-bold text-gradient">Vipe</h1>
@@ -74,40 +74,40 @@ export function AuthPage() {
         </div>
 
         {/* Auth Card */}
-        <div className="bg-card border border-border rounded-2xl p-8 shadow-xl">
+        <div className="bg-card border border-border rounded-2xl p-8 shadow-xl backdrop-blur-sm">
           <h2 className="text-2xl font-semibold text-foreground mb-6">
             {isLogin ? "Welcome back" : "Create your account"}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-foreground">Email</Label>
               <Input
                 id="email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-secondary border-border"
+                className="bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-foreground">Password</Label>
               <Input
                 id="password"
                 type="password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-secondary border-border"
+                className="bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground"
               />
             </div>
 
             <Button
               type="submit"
               variant="glow"
-              className="w-full"
+              className="w-full mt-2"
               disabled={loading}
             >
               {loading ? (
@@ -115,7 +115,7 @@ export function AuthPage() {
               ) : (
                 <>
                   {isLogin ? "Sign In" : "Create Account"}
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 ml-2" />
                 </>
               )}
             </Button>
@@ -125,7 +125,7 @@ export function AuthPage() {
             <button
               type="button"
               onClick={() => setIsLogin(!isLogin)}
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm"
+              className="text-muted-foreground hover:text-primary transition-colors text-sm"
             >
               {isLogin
                 ? "Don't have an account? Sign up"
