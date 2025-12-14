@@ -218,6 +218,43 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
     // Helper functions already defined above - removed duplicates
   };
 
+  // Helper to build clean HTML using original structure but updated body
+  const buildCleanHtml = (doc: Document) => {
+    // Start from original HTML prop so we keep <html>, <head> and attributes intact
+    let baseHtml = html;
+
+    const bodyMatch = baseHtml.match(/<body[^>]*>[\s\S]*?<\/body>/i);
+    if (bodyMatch) {
+      const bodyOpenTagMatch = baseHtml.match(/<body[^>]*>/i);
+      const bodyOpenTag = bodyOpenTagMatch ? bodyOpenTagMatch[0] : "<body>";
+      const updatedBody = doc.body.innerHTML;
+      baseHtml = baseHtml.replace(
+        /<body[^>]*>[\s\S]*?<\/body>/i,
+        `${bodyOpenTag}\n${updatedBody}\n<\/body>`
+      );
+    } else {
+      // Fallback: use full document HTML
+      baseHtml = "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
+    }
+
+    // Remove our injected visual editor style tag only
+    baseHtml = baseHtml.replace(
+      /<style[^>]*id=["']vipe-visual-editor-styles["'][^>]*>[\s\S]*?<\/style>/i,
+      ""
+    );
+
+    // Strip any vipe-* helper classes from class attributes
+    baseHtml = baseHtml.replace(/class="([^"]*)"/g, (_match, classNames: string) => {
+      const filtered = classNames
+        .split(/\s+/)
+        .filter((name) => name && !name.startsWith("vipe-"))
+        .join(" ");
+      return filtered ? `class="${filtered}"` : "";
+    });
+
+    return baseHtml;
+  };
+
   // Listen for messages from iframe
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -238,13 +275,9 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
         }
 
         toast.success(`Selected: <${e.data.data.tagName}>`);
-      } else if (e.data?.type === "html-updated") {
-        // Clean up the HTML before updating
-        let newHtml = e.data.html;
-        // Remove our injected styles and classes
-        newHtml = newHtml.replace(/class="[^"]*vipe-[^"]*"/g, (match: string) => {
-          return match.replace(/vipe-\w+\s*/g, '').replace(/\s+"/g, '"');
-        });
+      } else if (e.data?.type === "html-updated" && iframeRef.current?.contentDocument) {
+        // Use the live document plus original HTML to build a clean update
+        const newHtml = buildCleanHtml(iframeRef.current.contentDocument);
         onUpdate(newHtml);
         toast.success("Element updated!");
       }
@@ -408,15 +441,12 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
     if (!doc) return;
 
     // Remove selection classes before saving
-    doc.querySelectorAll(".vipe-selected, .vipe-hover, .vipe-editing").forEach(el => {
+    doc.querySelectorAll(".vipe-selected, .vipe-hover, .vipe-editing").forEach((el) => {
       el.classList.remove("vipe-selected", "vipe-hover", "vipe-editing");
     });
 
-    // Get clean HTML
-    let newHtml = "<!DOCTYPE html>\n" + doc.documentElement.outerHTML;
-    
-    // Remove injected style tag
-    newHtml = newHtml.replace(/<style>[\s\S]*?\.vipe-[\s\S]*?<\/style>/g, '');
+    // Build clean HTML based on the original structure + current body content
+    const newHtml = buildCleanHtml(doc);
     
     onUpdate(newHtml);
     toast.success("Changes saved!");
