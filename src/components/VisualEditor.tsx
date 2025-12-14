@@ -300,7 +300,35 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
 
   // AI-assisted editing
   const handleAiEdit = async () => {
-    if (!aiPrompt.trim() || !selectedElement || !iframeRef.current) return;
+    if (!aiPrompt.trim()) return;
+    if (!iframeRef.current) return;
+
+    const doc = iframeRef.current.contentDocument;
+    if (!doc) return;
+
+    const selected = doc.querySelector(".vipe-selected") as HTMLElement | null;
+    if (!selected) {
+      toast.error("Select an element in the preview first");
+      return;
+    }
+
+    // Build element info and current styles directly from the DOM
+    const computed = doc.defaultView?.getComputedStyle(selected) || window.getComputedStyle(selected);
+
+    const elementInfo = {
+      tagName: selected.tagName.toLowerCase(),
+      text: selected.innerText || "",
+    };
+
+    const currentStyles = {
+      color: computed.color,
+      backgroundColor: computed.backgroundColor,
+      fontSize: computed.fontSize,
+      fontWeight: computed.fontWeight,
+      padding: computed.padding,
+      margin: computed.margin,
+      borderRadius: computed.borderRadius,
+    };
 
     setIsAiLoading(true);
     
@@ -313,11 +341,8 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
         },
         body: JSON.stringify({
           instruction: aiPrompt,
-          elementInfo: {
-            tagName: selectedElement.tagName,
-            text: selectedElement.text,
-          },
-          currentStyles: editedStyles,
+          elementInfo,
+          currentStyles,
         }),
       });
 
@@ -406,6 +431,45 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="w-4 h-4" />
           </Button>
+        </div>
+
+        {/* AI Edit - always visible */}
+        <div className="p-4 border-b border-border">
+          <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+            <Label className="text-xs flex items-center gap-2 mb-2">
+              <Sparkles className="w-3 h-3 text-primary" />
+              AI Edit
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                placeholder="e.g., make this button bigger and blue"
+                className="text-xs h-8 flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isAiLoading) {
+                    handleAiEdit();
+                  }
+                }}
+                disabled={isAiLoading}
+              />
+              <Button
+                size="sm"
+                className="h-8 px-2"
+                onClick={handleAiEdit}
+                disabled={isAiLoading || !aiPrompt.trim()}
+              >
+                {isAiLoading ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Send className="w-3 h-3" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Select an element in the preview, then describe the change
+            </p>
+          </div>
         </div>
 
         {/* Instructions or Element Properties */}
