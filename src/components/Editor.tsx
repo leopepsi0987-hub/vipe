@@ -4,6 +4,7 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { Preview } from "./Preview";
 import { DataPanel } from "./DataPanel";
+import { VisualEditor } from "./VisualEditor";
 import { Project } from "@/hooks/useProjects";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
@@ -37,6 +38,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
   const [leftTab, setLeftTab] = useState<LeftTab>("chat");
   const [chatMode, setChatMode] = useState<ChatMode>("build"); // Default to build mode
   const [previewView, setPreviewView] = useState<"preview" | "code">("preview");
+  const [showVisualEditor, setShowVisualEditor] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keyboard shortcuts
@@ -383,6 +385,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
                         ? "Describe what you want to build..."
                         : "Make changes or add features..."
                   }
+                  currentPath="/"
+                  onVisualEdit={() => setShowVisualEditor(true)}
                 />
               </div>
             </>
@@ -412,6 +416,18 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
           <BuildingOverlay isBuilding={isGenerating && chatMode === "build"} />
         </div>
       </ResizablePanel>
+
+      {/* Visual Editor Modal */}
+      {showVisualEditor && (
+        <VisualEditor
+          html={project.html_code}
+          onUpdate={(newHtml) => {
+            onUpdateCode(newHtml);
+            setShowVisualEditor(false);
+          }}
+          onClose={() => setShowVisualEditor(false)}
+        />
+      )}
     </ResizablePanelGroup>
   );
 }
