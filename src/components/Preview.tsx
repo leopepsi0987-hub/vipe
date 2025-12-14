@@ -92,10 +92,10 @@ export function Preview({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const deviceWidths = {
-    desktop: "100%",
-    tablet: "768px",
-    mobile: "375px",
+  const deviceConfig = {
+    desktop: { width: "100%", height: "100%" },
+    tablet: { width: "768px", height: "1024px" },
+    mobile: { width: "375px", height: "667px" },
   };
 
   return (
@@ -209,21 +209,23 @@ export function Preview({
       </div>
 
       {/* Preview Area */}
-      <div className="flex-1 flex items-start justify-center p-4 bg-[#1a1a2e] overflow-auto">
+      <div className="flex-1 flex items-center justify-center p-4 bg-[#1a1a2e] overflow-auto">
         <div
-          className="bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300"
+          className={cn(
+            "bg-white rounded-lg shadow-2xl overflow-hidden transition-all duration-300",
+            deviceMode !== "desktop" && "border-4 border-gray-800"
+          )}
           style={{
-            width: deviceWidths[deviceMode],
+            width: deviceConfig[deviceMode].width,
+            height: deviceConfig[deviceMode].height,
             maxWidth: "100%",
-            height: deviceMode === "desktop" ? "100%" : "auto",
-            minHeight: deviceMode !== "desktop" ? "600px" : undefined,
+            maxHeight: "100%",
           }}
         >
           <iframe
             ref={iframeRef}
             title="Preview"
-            className="w-full h-full border-0"
-            style={{ minHeight: "100%" }}
+            className="w-full h-full border-0 bg-white"
             sandbox="allow-scripts allow-same-origin"
           />
         </div>
