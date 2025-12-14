@@ -13,12 +13,19 @@ import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
 
+interface QuickAction {
+  id: string;
+  label: string;
+  icon?: string;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   imageUrl?: string;
-  hasCode?: boolean; // Flag to show action buttons for build responses
+  hasCode?: boolean;
+  actions?: QuickAction[];
 }
 
 interface EditorProps {
@@ -217,11 +224,30 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         setMessages(finalMessages);
         saveMessages(finalMessages);
       } else {
-        // Chat mode - just add the response
+        // Chat mode - parse for [VIPE_ACTIONS] blocks
+        let parsedActions: QuickAction[] | undefined;
+        const actionsMatch = fullContent.match(/\[VIPE_ACTIONS\]([\s\S]*?)\[\/VIPE_ACTIONS\]/);
+        if (actionsMatch) {
+          try {
+            const actionsContent = actionsMatch[1].trim();
+            const actionLines = actionsContent.split('\n').filter(line => line.trim());
+            parsedActions = actionLines.map(line => {
+              const match = line.match(/\[(.+?)\]\s*\((.+?)\)(?:\s*icon:(\w+))?/);
+              if (match) {
+                return { id: match[2], label: match[1], icon: match[3] };
+              }
+              return null;
+            }).filter(Boolean) as QuickAction[];
+          } catch (e) {
+            console.error("Failed to parse actions:", e);
+          }
+        }
+
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",
           content: fullContent,
+          actions: parsedActions,
         };
         const finalMessages = [...newMessages, assistantMessage];
         setMessages(finalMessages);
@@ -350,8 +376,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       content={message.content}
                       imageUrl={message.imageUrl}
                       hasCode={message.hasCode}
+                      actions={message.actions}
                       onViewPreview={() => setPreviewView("preview")}
                       onViewCode={() => setPreviewView("code")}
+                      onActionSelect={(actionId) => {
+                        // Send the action reply as a user message
+                        handleSendMessage(`[[${actionId}]]`);
+                      }}
                     />
                   ))}
 
