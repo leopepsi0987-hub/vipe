@@ -18,7 +18,7 @@ export function Dashboard() {
     updateProject,
     deleteProject,
     publishProject,
-    unpublishProject,
+    updatePublishedProject,
   } = useProjects();
 
   // When in a project, hide the sidebar and show the editor with back button
@@ -58,16 +58,16 @@ export function Dashboard() {
     }
   };
 
-  const handlePublish = async () => {
+  const handlePublish = async (customSlug?: string) => {
     if (currentProject) {
-      return await publishProject(currentProject.id);
+      return await publishProject(currentProject.id, customSlug);
     }
     return null;
   };
 
-  const handleUnpublish = async () => {
+  const handleUpdatePublished = async () => {
     if (currentProject) {
-      return await unpublishProject(currentProject.id);
+      return await updatePublishedProject(currentProject.id);
     }
     return null;
   };
@@ -130,7 +130,7 @@ export function Dashboard() {
           project={currentProject} 
           onUpdateCode={handleUpdateCode} 
           onPublish={handlePublish}
-          onUnpublish={handleUnpublish}
+          onUpdatePublished={handleUpdatePublished}
         />
       </div>
     </div>

@@ -152,9 +152,23 @@ export function useProjects() {
     return true;
   };
 
-  const publishProject = async (id: string) => {
-    // Generate a unique slug
-    const slug = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+  const publishProject = async (id: string, customSlug?: string) => {
+    // Use custom slug or generate a unique one
+    const slug = customSlug || `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+    
+    // Check if slug is already taken
+    if (customSlug) {
+      const { data: existing } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("slug", customSlug)
+        .neq("id", id)
+        .single();
+      
+      if (existing) {
+        throw new Error("This domain name is already taken");
+      }
+    }
     
     const { data, error } = await supabase
       .from("projects")
@@ -177,16 +191,17 @@ export function useProjects() {
     return data;
   };
 
-  const unpublishProject = async (id: string) => {
+  const updatePublishedProject = async (id: string) => {
+    // Just trigger an update to refresh the published content
     const { data, error } = await supabase
       .from("projects")
-      .update({ is_published: false })
+      .update({ updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
       .single();
 
     if (error) {
-      console.error("Error unpublishing project:", error);
+      console.error("Error updating published project:", error);
       return null;
     }
 
@@ -208,7 +223,7 @@ export function useProjects() {
     updateProject,
     deleteProject,
     publishProject,
-    unpublishProject,
+    updatePublishedProject,
     refreshProjects: fetchProjects,
   };
 }

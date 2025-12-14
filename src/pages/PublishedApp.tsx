@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, Zap } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function PublishedApp() {
   const { slug } = useParams<{ slug: string }>();
   const [html, setHtml] = useState<string | null>(null);
-  const [projectName, setProjectName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +32,6 @@ export default function PublishedApp() {
       }
 
       setHtml(data.html_code);
-      setProjectName(data.name);
       setLoading(false);
     };
 
@@ -65,7 +63,7 @@ export default function PublishedApp() {
           <Button asChild variant="outline">
             <Link to="/">
               <ArrowLeft className="w-4 h-4 mr-2" />
-              Go to Vipe
+              Go Back
             </Link>
           </Button>
         </div>
@@ -73,34 +71,13 @@ export default function PublishedApp() {
     );
   }
 
+  // Clean published app - full screen iframe, no branding
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header Bar */}
-      <div className="h-12 bg-card border-b border-border flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="w-6 h-6 rounded-md bg-gradient-primary flex items-center justify-center">
-              <Zap className="w-3 h-3 text-primary-foreground" />
-            </div>
-            <span className="text-sm font-medium text-muted-foreground">Made with Vipe</span>
-          </Link>
-          <span className="text-border">|</span>
-          <span className="text-sm font-medium text-foreground">{projectName}</span>
-        </div>
-        <Button asChild size="sm" variant="glow">
-          <Link to="/">Build Your Own</Link>
-        </Button>
-      </div>
-
-      {/* App Content */}
-      <div className="flex-1">
-        <iframe
-          srcDoc={html || ""}
-          className="w-full h-full border-0"
-          title={projectName}
-          sandbox="allow-scripts allow-forms allow-modals allow-popups"
-        />
-      </div>
-    </div>
+    <iframe
+      srcDoc={html || ""}
+      className="w-full h-screen border-0"
+      title="Published App"
+      sandbox="allow-scripts allow-forms allow-modals allow-popups"
+    />
   );
 }
