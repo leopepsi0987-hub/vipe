@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Type, Palette, Move, Trash2, Copy, MousePointer, Edit3, Sparkles, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -219,7 +219,10 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
   };
 
   // Helper to build clean HTML using original structure but updated body
-  const buildCleanHtml = (doc: Document) => {
+  const buildCleanHtml = useCallback((doc: Document) => {
+    // Get the current body content with all changes
+    const updatedBody = doc.body.innerHTML;
+
     // Start from original HTML prop so we keep <html>, <head> and attributes intact
     let baseHtml = html;
 
@@ -227,10 +230,9 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
     if (bodyMatch) {
       const bodyOpenTagMatch = baseHtml.match(/<body[^>]*>/i);
       const bodyOpenTag = bodyOpenTagMatch ? bodyOpenTagMatch[0] : "<body>";
-      const updatedBody = doc.body.innerHTML;
       baseHtml = baseHtml.replace(
         /<body[^>]*>[\s\S]*?<\/body>/i,
-        `${bodyOpenTag}\n${updatedBody}\n<\/body>`
+        `${bodyOpenTag}\n${updatedBody}\n</body>`
       );
     } else {
       // Fallback: use full document HTML
@@ -239,7 +241,7 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
 
     // Remove our injected visual editor style tag only
     baseHtml = baseHtml.replace(
-      /<style[^>]*id=["']vipe-visual-editor-styles["'][^>]*>[\s\S]*?<\/style>/i,
+      /<style[^>]*id=["']vipe-visual-editor-styles["'][^>]*>[\s\S]*?<\/style>/gi,
       ""
     );
 
@@ -252,8 +254,11 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
       return filtered ? `class="${filtered}"` : "";
     });
 
+    // Also clean up empty class attributes
+    baseHtml = baseHtml.replace(/\s*class=""\s*/g, " ");
+
     return baseHtml;
-  };
+  }, [html]);
 
   // Listen for messages from iframe
   useEffect(() => {
@@ -290,7 +295,7 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
       window.removeEventListener("message", handleMessage);
       console.log("[VisualEditor] Message listener removed");
     };
-  }, [onUpdate, onElementSelectForChat]);
+  }, [onUpdate, onElementSelectForChat, buildCleanHtml]);
 
   const applyStyleChange = (property: keyof SelectedElement["styles"], value: string) => {
     if (!iframeRef.current || !selectedElement) return;
@@ -435,10 +440,16 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
   };
 
   const saveChanges = () => {
-    if (!iframeRef.current) return;
+    if (!iframeRef.current) {
+      console.error("[VisualEditor] No iframe ref");
+      return;
+    }
 
     const doc = iframeRef.current.contentDocument;
-    if (!doc) return;
+    if (!doc) {
+      console.error("[VisualEditor] No iframe document");
+      return;
+    }
 
     // Remove selection classes before saving
     doc.querySelectorAll(".vipe-selected, .vipe-hover, .vipe-editing").forEach((el) => {
@@ -447,6 +458,9 @@ export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }
 
     // Build clean HTML based on the original structure + current body content
     const newHtml = buildCleanHtml(doc);
+    
+    console.log("[VisualEditor] Saving HTML, length:", newHtml.length);
+    console.log("[VisualEditor] Body preview:", doc.body.innerHTML.substring(0, 200));
     
     onUpdate(newHtml);
     toast.success("Changes saved!");
