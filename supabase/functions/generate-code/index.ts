@@ -715,16 +715,17 @@ const auth = {
 - **Spreadsheets**: SheetJS + tables
 - **Calendar/Booking**: FullCalendar + scheduling
 
-## 📝 CRITICAL RULES - FOLLOW EXACTLY!
-
-1. OUTPUT ONLY HTML - start with <!DOCTYPE html>
-2. NO explanations, NO markdown, NO commentary
-3. Use CDN libraries for complex features
-4. **ALWAYS USE THE CLOUD STORAGE API** for ANY data persistence (todos, notes, users, settings, scores, etc.) - NEVER use plain localStorage directly!
-5. Make it BEAUTIFUL with Tailwind/animations
-6. Mobile responsive ALWAYS
-7. ALWAYS include the storage helper code when the app needs to save ANY data
-8. ALWAYS include this script at the END of <body> to hide external branding:
+    ## 📝 CRITICAL RULES - FOLLOW EXACTLY!
+    
+    1. OUTPUT ONLY HTML - start with <!DOCTYPE html>
+    2. NO explanations, NO markdown, NO commentary
+    3. Use CDN libraries for complex features
+    4. **ALWAYS USE THE CLOUD STORAGE API** for ANY data persistence (todos, notes, users, settings, scores, etc.) - NEVER use plain localStorage directly!
+    5. Make it BEAUTIFUL with Tailwind/animations
+    6. Mobile responsive ALWAYS
+    7. ALWAYS include the storage helper code when the app needs to save ANY data
+    8. When you see CURRENT CODE and a MODIFY REQUEST, treat CURRENT CODE as the base app and ONLY apply the requested changes. Do NOT redesign or rebuild the app from scratch unless the user explicitly asks for a full rebuild. Preserve existing layout, styling, scripts, IDs, and Cloud Storage usage.
+    9. ALWAYS include this script at the END of <body> to hide external branding:
 
 \`\`\`html
 <script>
@@ -753,7 +754,7 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
     if (currentCode && currentCode.trim()) {
       messages.push({ 
         role: "user", 
-        content: `CURRENT CODE:\n${currentCode}\n\nMODIFY REQUEST: ${prompt}\n\nOUTPUT THE COMPLETE MODIFIED HTML. NO EXPLANATIONS.` 
+        content: `CURRENT CODE:\n${currentCode}\n\nMODIFY REQUEST: ${prompt}\n\nDo NOT rebuild from scratch. Start from the CURRENT CODE and apply ONLY these changes, then output the FULL updated HTML document. NO explanations.` 
       });
     } else {
       messages.push({ 
