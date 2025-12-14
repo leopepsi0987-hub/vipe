@@ -774,7 +774,7 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
     const systemInstruction = messages.find(m => m.role === "system")?.content || "";
     const userContents = geminiContents.filter(c => c.role !== "user" || !messages.find(m => m.role === "system" && m.content === c.parts[0].text));
 
-    const response = await fetch(`https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${GOOGLE_GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${GOOGLE_GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
