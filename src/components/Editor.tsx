@@ -390,6 +390,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
           onUnpublish={onUnpublish}
           activeView={previewView}
           onViewChange={setPreviewView}
+          onCodeChange={onUpdateCode}
         />
       </ResizablePanel>
     </ResizablePanelGroup>
