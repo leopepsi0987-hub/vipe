@@ -16,6 +16,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   imageUrl?: string;
+  hasCode?: boolean; // Flag to show action buttons for build responses
 }
 
 interface EditorProps {
@@ -34,6 +35,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
   const [streamingContent, setStreamingContent] = useState("");
   const [leftTab, setLeftTab] = useState<LeftTab>("chat");
   const [chatMode, setChatMode] = useState<ChatMode>("chat");
+  const [previewView, setPreviewView] = useState<"preview" | "code">("preview");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load messages from database on project change - clear first!
@@ -197,7 +199,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "I've updated your app! Check the preview to see the changes. 🚀",
+          content: "Done! Your app is ready. 🚀",
+          hasCode: true,
         };
         const finalMessages = [...newMessages, assistantMessage];
         setMessages(finalMessages);
@@ -328,10 +331,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
                       role={message.role}
                       content={message.content}
                       imageUrl={message.imageUrl}
+                      hasCode={message.hasCode}
+                      onViewPreview={() => setPreviewView("preview")}
+                      onViewCode={() => setPreviewView("code")}
                     />
                   ))}
 
-                  {isGenerating && streamingContent && (
+                  {isGenerating && streamingContent && chatMode === "chat" && (
                     <ChatMessage
                       role="assistant"
                       content={streamingContent}
@@ -339,10 +345,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
                     />
                   )}
 
-                  {isGenerating && !streamingContent && (
+                  {isGenerating && (
                     <ChatMessage
                       role="assistant"
-                      content={chatMode === "build" ? "Generating code..." : "Thinking..."}
+                      content={chatMode === "build" ? "🔨 Building your app..." : (streamingContent ? "" : "Thinking...")}
                       isStreaming
                     />
                   )}
@@ -382,6 +388,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
           slug={project.slug}
           onPublish={onPublish}
           onUnpublish={onUnpublish}
+          activeView={previewView}
+          onViewChange={setPreviewView}
         />
       </ResizablePanel>
     </ResizablePanelGroup>
