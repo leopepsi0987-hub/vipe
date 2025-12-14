@@ -169,30 +169,37 @@ export function Preview({
     if (iframeRef.current && html) {
       const doc = iframeRef.current.contentDocument;
       if (doc) {
-        doc.open();
-        doc.write(html);
-        doc.close();
+        // Inject the badge-hiding script directly into the HTML
+        const hideBrandingScript = `
+<script>
+(function(){
+  const hide = () => {
+    const selectors = ['a[href*="lovable.dev"]','a[href*="lovable.app"]','[class*="lovable"]','[class*="Lovable"]','#lovable-badge','.lovable-badge','[data-lovable]','img[src*="lovable"]','div[id*="lovable"]'];
+    selectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        el.style.cssText = 'display:none!important;visibility:hidden!important;opacity:0!important;';
+      });
+    });
+  };
+  hide();
+  setTimeout(hide, 100);
+  setTimeout(hide, 500);
+  setTimeout(hide, 1000);
+  new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
+})();
+</script>`;
         
-        // Inject script to hide Lovable branding in the iframe
-        const hideScript = doc.createElement('script');
-        hideScript.textContent = `
-          (function(){
-            const hide = () => {
-              const selectors = ['a[href*="lovable.dev"]','a[href*="lovable.app"]','[class*="lovable"]','[class*="Lovable"]','#lovable-badge','.lovable-badge','[data-lovable]','img[src*="lovable"]','div[id*="lovable"]'];
-              selectors.forEach(sel => {
-                document.querySelectorAll(sel).forEach(el => {
-                  el.style.cssText = 'display:none!important;visibility:hidden!important;opacity:0!important;';
-                });
-              });
-            };
-            hide();
-            setTimeout(hide, 100);
-            setTimeout(hide, 500);
-            setTimeout(hide, 1000);
-            new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
-          })();
-        `;
-        doc.body.appendChild(hideScript);
+        // Inject before closing body tag if exists, otherwise append
+        let modifiedHtml = html;
+        if (html.includes('</body>')) {
+          modifiedHtml = html.replace('</body>', hideBrandingScript + '</body>');
+        } else {
+          modifiedHtml = html + hideBrandingScript;
+        }
+        
+        doc.open();
+        doc.write(modifiedHtml);
+        doc.close();
       }
     }
   }, [html]);
