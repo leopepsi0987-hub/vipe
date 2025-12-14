@@ -10,10 +10,11 @@ import { Project } from "@/hooks/useProjects";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, Zap, MessageCircle, History } from "lucide-react";
+import { MessageSquare, Database, Zap, MessageCircle, History, Eye, Code, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface QuickAction {
   id: string;
@@ -39,6 +40,7 @@ interface EditorProps {
 
 type LeftTab = "chat" | "data" | "history";
 type ChatMode = "chat" | "build";
+type MobileTab = "chat" | "preview";
 
 export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: EditorProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -49,7 +51,9 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [previewView, setPreviewView] = useState<"preview" | "code">("preview");
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
   
   // Version history
   const { versions, loading: versionsLoading, saveVersion, refreshVersions } = useVersionHistory(project.id);
@@ -289,6 +293,197 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     }
   }, [messages, streamingContent]);
 
+  // Mobile Layout
+  if (isMobile) {
+    return (
+      <div className="flex flex-col h-full bg-background">
+        {/* Mobile Content */}
+        <div className="flex-1 overflow-hidden">
+          {mobileTab === "chat" ? (
+            <div className="flex flex-col h-full bg-card">
+              {/* Mode Toggle */}
+              <div className="p-3 border-b border-border">
+                <div className="flex bg-secondary rounded-lg p-1">
+                  <button
+                    onClick={() => setChatMode("chat")}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                      chatMode === "chat"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Chat
+                  </button>
+                  <button
+                    onClick={() => setChatMode("build")}
+                    className={cn(
+                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
+                      chatMode === "build"
+                        ? "bg-gradient-primary text-primary-foreground shadow-glow"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <Zap className="w-4 h-4" />
+                    Build
+                  </button>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <ScrollArea className="flex-1">
+                <div ref={scrollRef} className="p-4 space-y-4">
+                  {messages.length === 0 && !isGenerating && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow">
+                        <span className="text-2xl">👋</span>
+                      </div>
+                      <h3 className="text-lg font-medium text-foreground mb-2">
+                        Hey! I'm Vipe
+                      </h3>
+                      <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                        {chatMode === "chat" 
+                          ? "Let's chat! Tell me about what you want to build."
+                          : "Ready to build! Describe your app."}
+                      </p>
+                    </div>
+                  )}
+
+                  {messages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      role={message.role}
+                      content={message.content}
+                      imageUrl={message.imageUrl}
+                      hasCode={message.hasCode}
+                      actions={message.actions}
+                      onViewPreview={() => {
+                        setPreviewView("preview");
+                        setMobileTab("preview");
+                      }}
+                      onViewCode={() => {
+                        setPreviewView("code");
+                        setMobileTab("preview");
+                      }}
+                      onActionSelect={(actionId) => {
+                        if (actionId === "BUILT_IN_DB" || actionId === "CUSTOM_DB") {
+                          setDbChoice(actionId);
+                        }
+                        handleSendMessage(`[[${actionId}]]`);
+                      }}
+                    />
+                  ))}
+
+                  {isGenerating && (
+                    <ChatMessage
+                      role="assistant"
+                      content={chatMode === "build" ? "🔨 Building your app..." : (streamingContent || "Thinking...")}
+                      isStreaming
+                    />
+                  )}
+                </div>
+              </ScrollArea>
+
+              {/* Input */}
+              <div className="p-4 border-t border-border">
+                <ChatInput
+                  onSend={handleSendMessage}
+                  disabled={isGenerating}
+                  placeholder={
+                    chatMode === "chat"
+                      ? "Chat with Vipe..."
+                      : "Describe what you want to build..."
+                  }
+                  currentPath="/"
+                  onVisualEdit={() => setShowVisualEditor(true)}
+                />
+              </div>
+            </div>
+          ) : (
+            <Preview 
+              html={project.html_code} 
+              projectId={project.id}
+              projectName={project.name}
+              isPublished={project.is_published}
+              slug={project.slug}
+              onPublish={onPublish}
+              onUpdatePublished={onUpdatePublished}
+              activeView={previewView}
+              onViewChange={setPreviewView}
+              onCodeChange={onUpdateCode}
+            />
+          )}
+        </div>
+
+        {/* Mobile Bottom Tab Bar */}
+        <div className="flex border-t border-border bg-card safe-area-pb">
+          <button
+            onClick={() => setMobileTab("chat")}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors",
+              mobileTab === "chat"
+                ? "text-primary"
+                : "text-muted-foreground"
+            )}
+          >
+            <MessageSquare className="w-5 h-5" />
+            <span className="text-xs font-medium">Chat</span>
+          </button>
+          <button
+            onClick={() => {
+              setPreviewView("preview");
+              setMobileTab("preview");
+            }}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors",
+              mobileTab === "preview" && previewView === "preview"
+                ? "text-primary"
+                : "text-muted-foreground"
+            )}
+          >
+            <Eye className="w-5 h-5" />
+            <span className="text-xs font-medium">Preview</span>
+          </button>
+          <button
+            onClick={() => {
+              setPreviewView("code");
+              setMobileTab("preview");
+            }}
+            className={cn(
+              "flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors",
+              mobileTab === "preview" && previewView === "code"
+                ? "text-primary"
+                : "text-muted-foreground"
+            )}
+          >
+            <Code className="w-5 h-5" />
+            <span className="text-xs font-medium">Code</span>
+          </button>
+          <button
+            onClick={() => onPublish?.()}
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-3 text-muted-foreground"
+          >
+            <Globe className="w-5 h-5" />
+            <span className="text-xs font-medium">Publish</span>
+          </button>
+        </div>
+
+        {/* Visual Editor Overlay */}
+        {showVisualEditor && (
+          <VisualEditor
+            html={project.html_code}
+            onUpdate={onUpdateCode}
+            onClose={() => setShowVisualEditor(false)}
+          />
+        )}
+
+        {isGenerating && chatMode === "build" && <BuildingOverlay isBuilding={true} />}
+      </div>
+    );
+  }
+
+  // Desktop Layout
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full">
       {/* Left Panel - Chat & Data */}

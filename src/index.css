@@ -227,3 +227,8 @@ div[id*="lovable"] {
   width: 0 !important;
   height: 0 !important;
 }
+
+/* Safe area for mobile devices */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
