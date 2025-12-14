@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code, Save, X, PanelLeftClose, PanelLeft } from "lucide-react";
+import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code, Save, X, PanelLeftClose, PanelLeft, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import Editor from "@monaco-editor/react";
 import { FileExplorer } from "./FileExplorer";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface PreviewProps {
   html: string;
@@ -13,8 +16,8 @@ interface PreviewProps {
   projectName?: string;
   isPublished?: boolean;
   slug?: string | null;
-  onPublish?: () => Promise<any>;
-  onUnpublish?: () => Promise<any>;
+  onPublish?: (customSlug?: string) => Promise<any>;
+  onUpdatePublished?: () => Promise<any>;
   activeView?: "preview" | "code";
   onViewChange?: (view: "preview" | "code") => void;
   onCodeChange?: (code: string) => void;
@@ -78,7 +81,7 @@ export function Preview({
   isPublished, 
   slug, 
   onPublish, 
-  onUnpublish,
+  onUpdatePublished,
   activeView = "preview",
   onViewChange,
   onCodeChange
@@ -93,6 +96,8 @@ export function Preview({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [activeSection, setActiveSection] = useState<FileSection>("full");
   const [showExplorer, setShowExplorer] = useState(true);
+  const [showPublishDialog, setShowPublishDialog] = useState(false);
+  const [customSlug, setCustomSlug] = useState("");
   const [openTabs, setOpenTabs] = useState<{name: string; section: FileSection}[]>([
     { name: "index.html", section: "full" }
   ]);
@@ -186,27 +191,33 @@ export function Preview({
     if (!onPublish) return;
     setPublishing(true);
     try {
-      const result = await onPublish();
+      // Validate and format slug
+      const slugToUse = customSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+      const result = await onPublish(slugToUse || undefined);
       if (result) {
         toast.success("App published! 🚀", {
           description: "Your app is now live and shareable.",
         });
+        setShowPublishDialog(false);
+        setCustomSlug("");
       }
     } catch (error) {
-      toast.error("Failed to publish");
+      toast.error(error instanceof Error ? error.message : "Failed to publish");
     } finally {
       setPublishing(false);
     }
   };
 
-  const handleUnpublish = async () => {
-    if (!onUnpublish) return;
+  const handleUpdate = async () => {
+    if (!onUpdatePublished) return;
     setPublishing(true);
     try {
-      await onUnpublish();
-      toast.success("App unpublished");
+      await onUpdatePublished();
+      toast.success("App updated! 🔄", {
+        description: "Your changes are now live.",
+      });
     } catch (error) {
-      toast.error("Failed to unpublish");
+      toast.error("Failed to update");
     } finally {
       setPublishing(false);
     }
@@ -409,13 +420,18 @@ export function Preview({
                     {copied ? "Copied!" : "Copy Link"}
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="glow"
                     size="sm"
-                    className="h-8"
-                    onClick={handleUnpublish}
+                    className="h-8 gap-2"
+                    onClick={handleUpdate}
                     disabled={publishing}
                   >
-                    Unpublish
+                    {publishing ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCcw className="w-4 h-4" />
+                    )}
+                    Update
                   </Button>
                 </div>
               ) : (
@@ -423,7 +439,7 @@ export function Preview({
                   variant="glow"
                   size="sm"
                   className="h-8 gap-2"
-                  onClick={handlePublish}
+                  onClick={() => setShowPublishDialog(true)}
                   disabled={publishing}
                 >
                   {publishing ? (
@@ -438,6 +454,49 @@ export function Preview({
           )}
         </div>
       </div>
+
+      {/* Publish Dialog */}
+      <Dialog open={showPublishDialog} onOpenChange={setShowPublishDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Publish Your App</DialogTitle>
+            <DialogDescription>
+              Choose a custom URL for your app. Leave empty for auto-generated.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="slug">Custom URL</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">vipe.lovable.app/app/</span>
+                <Input
+                  id="slug"
+                  placeholder="my-cool-app"
+                  value={customSlug}
+                  onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                  className="flex-1"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Only lowercase letters, numbers, and hyphens allowed
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPublishDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="glow" onClick={handlePublish} disabled={publishing}>
+              {publishing ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Globe className="w-4 h-4 mr-2" />
+              )}
+              Publish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Preview/Code Area */}
       {currentView === "preview" ? (
