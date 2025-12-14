@@ -172,6 +172,27 @@ export function Preview({
         doc.open();
         doc.write(html);
         doc.close();
+        
+        // Inject script to hide Lovable branding in the iframe
+        const hideScript = doc.createElement('script');
+        hideScript.textContent = `
+          (function(){
+            const hide = () => {
+              const selectors = ['a[href*="lovable.dev"]','a[href*="lovable.app"]','[class*="lovable"]','[class*="Lovable"]','#lovable-badge','.lovable-badge','[data-lovable]','img[src*="lovable"]','div[id*="lovable"]'];
+              selectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(el => {
+                  el.style.cssText = 'display:none!important;visibility:hidden!important;opacity:0!important;';
+                });
+              });
+            };
+            hide();
+            setTimeout(hide, 100);
+            setTimeout(hide, 500);
+            setTimeout(hide, 1000);
+            new MutationObserver(hide).observe(document.documentElement, { childList: true, subtree: true });
+          })();
+        `;
+        doc.body.appendChild(hideScript);
       }
     }
   }, [html]);
