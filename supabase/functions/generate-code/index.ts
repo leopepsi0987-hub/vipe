@@ -12,10 +12,10 @@ serve(async (req) => {
 
   try {
     const { prompt, currentCode, projectSlug } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     const systemPrompt = `You are Vipe, the ULTIMATE full-stack app builder. You create PRODUCTION-GRADE apps using 100+ JavaScript libraries via CDN.
@@ -734,24 +734,39 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
       });
     }
 
-    console.log("Calling Lovable AI (Pro model) with prompt:", prompt);
+    console.log("Calling Google Gemini 2.5 Pro with prompt:", prompt);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Convert messages to Gemini format
+    const geminiContents = messages.map(msg => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }]
+    }));
+
+    // Extract system instruction
+    const systemInstruction = messages.find(m => m.role === "system")?.content || "";
+    const userContents = geminiContents.filter(c => c.role !== "user" || !messages.find(m => m.role === "system" && m.content === c.parts[0].text));
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${GOOGLE_GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages,
-        stream: true,
+        system_instruction: { parts: [{ text: systemInstruction }] },
+        contents: messages.filter(m => m.role !== "system").map(msg => ({
+          role: msg.role === "assistant" ? "model" : "user",
+          parts: [{ text: msg.content }]
+        })),
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 65536,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Google Gemini error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
@@ -759,20 +774,55 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-          status: 402,
+      if (response.status === 400) {
+        return new Response(JSON.stringify({ error: "Invalid request to AI service. Check your API key." }), {
+          status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       
-      return new Response(JSON.stringify({ error: "AI service error" }), {
+      return new Response(JSON.stringify({ error: "AI service error: " + errorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(response.body, {
+    // Transform Gemini SSE to OpenAI-compatible SSE format
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+          
+          try {
+            const geminiData = JSON.parse(jsonStr);
+            const textContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (textContent) {
+              // Transform to OpenAI format
+              const openAIFormat = {
+                choices: [{
+                  delta: { content: textContent }
+                }]
+              };
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+            }
+          } catch (e) {
+            // Skip invalid JSON
+            console.log("Parse error for line:", line);
+          }
+        }
+      },
+      flush(controller) {
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+      }
+    });
+
+    return new Response(response.body?.pipeThrough(transformStream), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (error) {
