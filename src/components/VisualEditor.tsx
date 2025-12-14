@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { X, Type, Palette, Move, Trash2, Copy, MousePointer, Edit3 } from "lucide-react";
+import { X, Type, Palette, Move, Trash2, Copy, MousePointer, Edit3, Sparkles, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -34,6 +35,8 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
   const [editedText, setEditedText] = useState("");
   const [editedStyles, setEditedStyles] = useState<SelectedElement["styles"] | null>(null);
   const [isHovering, setIsHovering] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   // Inject selection script into iframe
   useEffect(() => {
@@ -261,6 +264,74 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
     selected.innerText = editedText;
   };
 
+  // AI-assisted editing
+  const handleAiEdit = async () => {
+    if (!aiPrompt.trim() || !selectedElement || !iframeRef.current) return;
+
+    setIsAiLoading(true);
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/visual-edit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          instruction: aiPrompt,
+          elementInfo: {
+            tagName: selectedElement.tagName,
+            text: selectedElement.text,
+          },
+          currentStyles: editedStyles,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("AI request failed");
+      }
+
+      const data = await response.json();
+      const changes = data.changes;
+
+      if (!changes || Object.keys(changes).length === 0) {
+        toast.error("AI couldn't understand the request");
+        return;
+      }
+
+      // Apply the changes
+      const doc = iframeRef.current.contentDocument;
+      if (!doc) return;
+
+      const selected = doc.querySelector(".vipe-selected") as HTMLElement;
+      if (!selected) return;
+
+      // Apply each style change
+      Object.entries(changes).forEach(([key, value]) => {
+        if (key === "text" && typeof value === "string") {
+          selected.innerText = value;
+          setEditedText(value);
+        } else if (typeof value === "string") {
+          // Apply as inline style
+          (selected.style as any)[key] = value;
+          
+          // Update local state if it's a tracked style
+          if (key in (editedStyles || {})) {
+            setEditedStyles(prev => prev ? { ...prev, [key]: value } : null);
+          }
+        }
+      });
+
+      setAiPrompt("");
+      toast.success("AI changes applied!");
+    } catch (error) {
+      console.error("AI edit error:", error);
+      toast.error("Failed to apply AI changes");
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   const saveChanges = () => {
     if (!iframeRef.current) return;
 
@@ -307,6 +378,43 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
         <ScrollArea className="flex-1">
           {selectedElement ? (
             <div className="p-4 space-y-4">
+              {/* AI Prompt - Top of sidebar when element selected */}
+              <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+                <Label className="text-xs flex items-center gap-2 mb-2">
+                  <Sparkles className="w-3 h-3 text-primary" />
+                  AI Edit
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    placeholder="e.g., make it bigger and blue"
+                    className="text-xs h-8 flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !isAiLoading) {
+                        handleAiEdit();
+                      }
+                    }}
+                    disabled={isAiLoading}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={handleAiEdit}
+                    disabled={isAiLoading || !aiPrompt.trim()}
+                  >
+                    {isAiLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Send className="w-3 h-3" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Describe changes in plain English
+                </p>
+              </div>
+
               {/* Element Info */}
               <div className="p-3 rounded-lg bg-secondary/50">
                 <div className="flex items-center gap-2 mb-2">
