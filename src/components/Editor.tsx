@@ -5,10 +5,12 @@ import { ChatInput } from "./ChatInput";
 import { Preview } from "./Preview";
 import { DataPanel } from "./DataPanel";
 import { VisualEditor } from "./VisualEditor";
+import { VersionHistoryPanel } from "./VersionHistoryPanel";
 import { Project } from "@/hooks/useProjects";
+import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, Zap, MessageCircle, Code, Hammer } from "lucide-react";
+import { MessageSquare, Database, Zap, MessageCircle, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,7 +37,7 @@ interface EditorProps {
   onUpdatePublished: () => Promise<any>;
 }
 
-type LeftTab = "chat" | "data";
+type LeftTab = "chat" | "data" | "history";
 type ChatMode = "chat" | "build";
 
 export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: EditorProps) {
@@ -48,6 +50,9 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  
+  // Version history
+  const { versions, loading: versionsLoading, saveVersion, refreshVersions } = useVersionHistory(project.id);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -214,6 +219,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           cleanedCode = fullContent.replace(/```\w*\n?/g, "").trim();
         }
 
+        // Save version before updating code
+        await saveVersion(project.html_code);
         onUpdateCode(cleanedCode);
 
         const assistantMessage: Message = {
@@ -312,6 +319,18 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             >
               <Database className="w-4 h-4" />
               Data
+            </button>
+            <button
+              onClick={() => setLeftTab("history")}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors",
+                leftTab === "history"
+                  ? "text-primary border-b-2 border-primary bg-primary/5"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <History className="w-4 h-4" />
+              History
             </button>
           </div>
 
@@ -426,8 +445,22 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                 />
               </div>
             </>
-          ) : (
+          ) : leftTab === "data" ? (
             <DataPanel projectId={project.id} />
+          ) : (
+            <VersionHistoryPanel
+              versions={versions}
+              loading={versionsLoading}
+              onRestore={async (version) => {
+                // Save current version first
+                await saveVersion(project.html_code);
+                // Restore the selected version
+                onUpdateCode(version.html_code);
+                refreshVersions();
+                toast.success(`Restored to version ${version.version_number}`);
+              }}
+              onClose={() => setLeftTab("chat")}
+            />
           )}
         </div>
       </ResizablePanel>
