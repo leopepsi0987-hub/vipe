@@ -23,8 +23,15 @@ interface PreviewProps {
 type DeviceMode = "desktop" | "tablet" | "mobile";
 type FileSection = "html" | "css" | "js" | "full";
 
-// Extract CSS from HTML
+// Extract CSS from HTML - uses markers if available
 function extractCSS(html: string): string {
+  // Try to find marked section first
+  const markedMatch = html.match(/\/\* === STYLES START === \*\/([\s\S]*?)\/\* === STYLES END === \*\//);
+  if (markedMatch) {
+    return markedMatch[1].trim();
+  }
+  
+  // Fallback to extracting all style tags
   const styleMatches = html.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
   if (!styleMatches) return "/* No styles found */";
   
@@ -33,8 +40,15 @@ function extractCSS(html: string): string {
     .join("\n\n");
 }
 
-// Extract JS from HTML
+// Extract JS from HTML - uses markers if available
 function extractJS(html: string): string {
+  // Try to find marked section first
+  const markedMatch = html.match(/\/\/ === SCRIPT START ===([\s\S]*?)\/\/ === SCRIPT END ===/);
+  if (markedMatch) {
+    return markedMatch[1].trim();
+  }
+  
+  // Fallback to extracting all script tags
   const scriptMatches = html.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
   if (!scriptMatches) return "// No scripts found";
   
@@ -45,14 +59,15 @@ function extractJS(html: string): string {
     .join("\n\n");
 }
 
-// Extract HTML structure (body content)
+// Extract HTML structure (body content without styles/scripts)
 function extractHTML(html: string): string {
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
   if (!bodyMatch) return html;
   
   let content = bodyMatch[1];
-  // Remove script tags
+  // Remove script and style tags for cleaner view
   content = content.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "");
+  content = content.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "");
   return content.trim();
 }
 
