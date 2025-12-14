@@ -12,10 +12,10 @@ serve(async (req) => {
 
   try {
     const { messages, imageUrl } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     const systemPrompt = `You are Vipe, a BRILLIANT AI coding genius with the soul of a helpful friend. You combine the technical depth of a 10x engineer with the warmth of someone who genuinely wants to help.
@@ -161,25 +161,52 @@ Remember: You're the coding buddy everyone wishes they had. Smart, fun, and genu
 
     console.log("Chat mode - messages:", messages.length);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Format messages for Gemini (handle images differently)
+    const geminiContents = formattedMessages.map((msg: any) => {
+      if (Array.isArray(msg.content)) {
+        // Message with image
+        return {
+          role: msg.role === "assistant" ? "model" : "user",
+          parts: msg.content.map((c: any) => {
+            if (c.type === "text") return { text: c.text };
+            if (c.type === "image_url") {
+              // Extract base64 data if it's a data URL
+              const url = c.image_url.url;
+              if (url.startsWith("data:")) {
+                const [meta, data] = url.split(",");
+                const mimeType = meta.split(":")[1].split(";")[0];
+                return { inline_data: { mime_type: mimeType, data } };
+              }
+              return { text: `[Image: ${url}]` };
+            }
+            return { text: "" };
+          })
+        };
+      }
+      return {
+        role: msg.role === "assistant" ? "model" : "user",
+        parts: [{ text: msg.content }]
+      };
+    });
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${GOOGLE_GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...formattedMessages,
-        ],
-        stream: true,
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: geminiContents,
+        generationConfig: {
+          temperature: 0.8,
+          maxOutputTokens: 8192,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
+      console.error("Google Gemini error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
@@ -187,20 +214,53 @@ Remember: You're the coding buddy everyone wishes they had. Smart, fun, and genu
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Usage limit reached. Please add credits." }), {
-          status: 402,
+      if (response.status === 400) {
+        return new Response(JSON.stringify({ error: "Invalid request. Check your API key." }), {
+          status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       
-      return new Response(JSON.stringify({ error: "AI service error" }), {
+      return new Response(JSON.stringify({ error: "AI service error: " + errorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    return new Response(response.body, {
+    // Transform Gemini SSE to OpenAI-compatible SSE format
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+          
+          try {
+            const geminiData = JSON.parse(jsonStr);
+            const textContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (textContent) {
+              const openAIFormat = {
+                choices: [{
+                  delta: { content: textContent }
+                }]
+              };
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      },
+      flush(controller) {
+        controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
+      }
+    });
+
+    return new Response(response.body?.pipeThrough(transformStream), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (error) {
