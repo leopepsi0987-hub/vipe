@@ -136,6 +136,24 @@ export function Preview({
     }
   };
 
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + S to save code
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (currentView === 'code' && hasUnsavedChanges && activeSection === 'full' && onCodeChange && editedCode) {
+          onCodeChange(editedCode);
+          setHasUnsavedChanges(false);
+          toast.success("Code saved!");
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentView, hasUnsavedChanges, activeSection, onCodeChange, editedCode]);
+
   // Sync edited code when html prop changes
   useEffect(() => {
     setEditedCode(html);

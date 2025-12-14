@@ -109,11 +109,47 @@
   .animate-typing {
     animation: typing 1.5s ease-in-out infinite;
   }
+
+  .animate-building {
+    animation: building 2s ease-in-out infinite;
+  }
+
+  .animate-code-flow {
+    animation: codeFlow 1.5s linear infinite;
+  }
 }
 
 @keyframes typing {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
+}
+
+@keyframes building {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: 0 0 20px hsl(173 80% 40% / 0.3);
+  }
+  50% { 
+    transform: scale(1.05);
+    box-shadow: 0 0 40px hsl(173 80% 40% / 0.5);
+  }
+}
+
+@keyframes codeFlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Building overlay shimmer */
+.building-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(173 80% 40% / 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: codeFlow 1.5s linear infinite;
 }
 
 /* Custom scrollbar */
@@ -142,4 +178,32 @@
 
 .preview-frame {
   background: hsl(var(--preview-bg));
+}
+
+/* Code lines animation for building */
+.code-lines {
+  position: relative;
+  overflow: hidden;
+}
+
+.code-lines::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 20px,
+    hsl(173 80% 40% / 0.05) 20px,
+    hsl(173 80% 40% / 0.05) 21px
+  );
+  animation: scrollLines 2s linear infinite;
+}
+
+@keyframes scrollLines {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(21px); }
 }
