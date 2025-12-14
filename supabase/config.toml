@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.project-storage]
 verify_jwt = false
+
+[functions.chat]
+verify_jwt = false
