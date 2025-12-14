@@ -43,23 +43,37 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
     if (!iframeRef.current) return;
 
     const iframe = iframeRef.current;
-    const doc = iframe.contentDocument;
-    if (!doc) return;
+    
+    const setupIframe = () => {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
 
-    // Write HTML
-    doc.open();
-    doc.write(html);
-    doc.close();
+      // Write HTML
+      doc.open();
+      doc.write(html);
+      doc.close();
 
-    // Wait for content to load then inject selection script
-    setTimeout(() => {
-      injectSelectionScript(doc);
-    }, 100);
+      // Wait for content to load then inject selection script
+      setTimeout(() => {
+        injectSelectionScript(doc);
+      }, 200);
+    };
+
+    iframe.onload = setupIframe;
+    setupIframe();
   }, [html]);
+
+  // Direct element selection handler for better reliability
+  const handleElementSelect = (elementData: SelectedElement) => {
+    setSelectedElement(elementData);
+    setEditedText(elementData.text);
+    setEditedStyles(elementData.styles);
+  };
 
   const injectSelectionScript = (doc: Document) => {
     // Add highlight styles
     const style = doc.createElement("style");
+    style.id = "vipe-visual-editor-styles";
     style.textContent = `
       .vipe-hover {
         outline: 2px dashed #14b8a6 !important;
@@ -77,6 +91,10 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
         min-height: 20px !important;
       }
     `;
+    
+    // Remove existing style if present
+    const existingStyle = doc.getElementById("vipe-visual-editor-styles");
+    if (existingStyle) existingStyle.remove();
     doc.head.appendChild(style);
 
     // Track selected element
@@ -94,6 +112,37 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
       const target = e.target as HTMLElement;
       target.classList.remove("vipe-hover");
     });
+
+    // Helper functions defined first
+    function buildCSSPath(el: HTMLElement): string {
+      const path: string[] = [];
+      let current: HTMLElement | null = el;
+      
+      while (current && current !== doc.body) {
+        let selector = current.tagName.toLowerCase();
+        if (current.id) {
+          selector += `#${current.id}`;
+        } else if (current.className && typeof current.className === 'string') {
+          const classes = current.className.split(' ').filter(c => !c.startsWith('vipe-')).join('.');
+          if (classes) selector += `.${classes}`;
+        }
+        path.unshift(selector);
+        current = current.parentElement;
+      }
+      
+      return path.join(' > ') || '/';
+    }
+
+    function rgbToHex(rgb: string): string {
+      if (rgb.startsWith('#')) return rgb;
+      if (rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return 'transparent';
+      
+      const match = rgb.match(/\d+/g);
+      if (!match || match.length < 3) return rgb;
+      
+      const [r, g, b] = match.map(Number);
+      return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+    }
 
     // Click to select
     doc.body.addEventListener("click", (e) => {
@@ -114,13 +163,13 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
       currentSelected = target;
 
       // Get computed styles
-      const computed = window.getComputedStyle(target);
+      const computed = doc.defaultView?.getComputedStyle(target) || window.getComputedStyle(target);
       
       // Build CSS path
       const path = buildCSSPath(target);
 
       // Send selection to parent
-      const elementData: SelectedElement = {
+      const elementData = {
         tagName: target.tagName.toLowerCase(),
         text: target.innerText || "",
         styles: {
@@ -135,8 +184,12 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
         path,
       };
 
-      // Post message to parent
-      window.parent.postMessage({ type: "element-selected", data: elementData }, "*");
+      // Post message to parent using multiple methods for reliability
+      try {
+        window.parent.postMessage({ type: "element-selected", data: elementData }, "*");
+      } catch (err) {
+        console.error("postMessage failed:", err);
+      }
     });
 
     // Double click to edit text
@@ -161,45 +214,21 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
       }, { once: true });
     });
 
-    function buildCSSPath(el: HTMLElement): string {
-      const path: string[] = [];
-      let current: HTMLElement | null = el;
-      
-      while (current && current !== doc.body) {
-        let selector = current.tagName.toLowerCase();
-        if (current.id) {
-          selector += `#${current.id}`;
-        } else if (current.className && typeof current.className === 'string') {
-          const classes = current.className.split(' ').filter(c => !c.startsWith('vipe-')).join('.');
-          if (classes) selector += `.${classes}`;
-        }
-        path.unshift(selector);
-        current = current.parentElement;
-      }
-      
-      return path.join(' > ');
-    }
-
-    function rgbToHex(rgb: string): string {
-      if (rgb.startsWith('#')) return rgb;
-      if (rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return 'transparent';
-      
-      const match = rgb.match(/\d+/g);
-      if (!match || match.length < 3) return rgb;
-      
-      const [r, g, b] = match.map(Number);
-      return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-    }
+    // Helper functions already defined above - removed duplicates
   };
 
   // Listen for messages from iframe
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
-      if (e.data.type === "element-selected") {
+      console.log("[VisualEditor] Received message:", e.data?.type);
+      
+      if (e.data?.type === "element-selected" && e.data?.data) {
+        console.log("[VisualEditor] Element selected:", e.data.data);
         setSelectedElement(e.data.data);
-        setEditedText(e.data.data.text);
+        setEditedText(e.data.data.text || "");
         setEditedStyles(e.data.data.styles);
-      } else if (e.data.type === "html-updated") {
+        toast.success(`Selected: <${e.data.data.tagName}>`);
+      } else if (e.data?.type === "html-updated") {
         // Clean up the HTML before updating
         let newHtml = e.data.html;
         // Remove our injected styles and classes
@@ -212,7 +241,12 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
     };
 
     window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
+    console.log("[VisualEditor] Message listener attached");
+    
+    return () => {
+      window.removeEventListener("message", handleMessage);
+      console.log("[VisualEditor] Message listener removed");
+    };
   }, [onUpdate]);
 
   const applyStyleChange = (property: keyof SelectedElement["styles"], value: string) => {
@@ -553,7 +587,7 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
             </div>
           ) : (
             <div className="p-6 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-secondary flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-secondary flex items-center justify-center animate-pulse">
                 <MousePointer className="w-8 h-8 text-muted-foreground" />
               </div>
               <h3 className="font-medium mb-2">Select an Element</h3>
@@ -563,10 +597,21 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
               <div className="mt-4 p-3 rounded-lg bg-secondary/50 text-left">
                 <p className="text-xs text-muted-foreground mb-2">Tips:</p>
                 <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• <strong>Click</strong> to select</li>
-                  <li>• <strong>Double-click</strong> to edit text</li>
-                  <li>• Use sidebar to change styles</li>
+                  <li>• <strong>Click</strong> to select an element</li>
+                  <li>• <strong>Double-click</strong> to edit text directly</li>
+                  <li>• Use <strong>AI Edit</strong> to describe changes</li>
                 </ul>
+              </div>
+              
+              {/* AI Edit available even without selection for global changes */}
+              <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 text-left">
+                <Label className="text-xs flex items-center gap-2 mb-2">
+                  <Sparkles className="w-3 h-3 text-primary" />
+                  Quick AI Edit
+                </Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Select an element first, then describe what to change
+                </p>
               </div>
             </div>
           )}
