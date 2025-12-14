@@ -715,6 +715,25 @@ const auth = {
 4. Include storage/auth helpers when needed
 5. Make it BEAUTIFUL with Tailwind/animations
 6. Mobile responsive ALWAYS
+7. ALWAYS include this script at the END of <body> to hide external branding:
+
+\`\`\`html
+<script>
+// Hide external platform branding
+(function(){
+  const hide = () => {
+    document.querySelectorAll('a[href*="lovable.dev"], a[href*="lovable.app"], [class*="lovable"], #lovable-badge, .lovable-badge, [data-lovable]').forEach(el => el.style.display = 'none');
+    const style = document.createElement('style');
+    style.textContent = 'a[href*="lovable.dev"], a[href*="lovable.app"], [class*="lovable"], #lovable-badge, .lovable-badge, [data-lovable] { display: none !important; visibility: hidden !important; }';
+    document.head.appendChild(style);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hide);
+  else hide();
+  setTimeout(hide, 1000);
+  setTimeout(hide, 3000);
+})();
+</script>
+\`\`\`
 
 JUST OUTPUT THE CODE. NOTHING ELSE.`;
 
