@@ -46,6 +46,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [chatMode, setChatMode] = useState<ChatMode>("build"); // Default to build mode
   const [previewView, setPreviewView] = useState<"preview" | "code">("preview");
   const [showVisualEditor, setShowVisualEditor] = useState(false);
+  const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keyboard shortcuts
@@ -140,6 +141,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         ? JSON.stringify({
             prompt: content,
             currentCode: project.html_code,
+            dbChoice,
           })
         : JSON.stringify({
             messages: newMessages.map(m => ({
@@ -380,6 +382,9 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       onViewPreview={() => setPreviewView("preview")}
                       onViewCode={() => setPreviewView("code")}
                       onActionSelect={(actionId) => {
+                        if (actionId === "BUILT_IN_DB" || actionId === "CUSTOM_DB") {
+                          setDbChoice(actionId);
+                        }
                         // Send the action reply as a user message
                         handleSendMessage(`[[${actionId}]]`);
                       }}
