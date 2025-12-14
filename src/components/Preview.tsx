@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code } from "lucide-react";
+import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2, Eye, Code, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import Editor from "@monaco-editor/react";
 
 interface PreviewProps {
   html: string;
@@ -15,6 +15,7 @@ interface PreviewProps {
   onUnpublish?: () => Promise<any>;
   activeView?: "preview" | "code";
   onViewChange?: (view: "preview" | "code") => void;
+  onCodeChange?: (code: string) => void;
 }
 
 type DeviceMode = "desktop" | "tablet" | "mobile";
@@ -28,7 +29,8 @@ export function Preview({
   onPublish, 
   onUnpublish,
   activeView = "preview",
-  onViewChange
+  onViewChange,
+  onCodeChange
 }: PreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -36,6 +38,8 @@ export function Preview({
   const [publishing, setPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [localView, setLocalView] = useState<"preview" | "code">(activeView);
+  const [editedCode, setEditedCode] = useState(html);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   const currentView = onViewChange ? activeView : localView;
   const handleViewChange = (view: "preview" | "code") => {
@@ -45,6 +49,12 @@ export function Preview({
       setLocalView(view);
     }
   };
+
+  // Sync edited code when html prop changes
+  useEffect(() => {
+    setEditedCode(html);
+    setHasUnsavedChanges(false);
+  }, [html]);
 
   useEffect(() => {
     if (iframeRef.current && html) {
@@ -107,6 +117,21 @@ export function Preview({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleEditorChange = (value: string | undefined) => {
+    if (value !== undefined) {
+      setEditedCode(value);
+      setHasUnsavedChanges(value !== html);
+    }
+  };
+
+  const handleSaveCode = () => {
+    if (onCodeChange && editedCode) {
+      onCodeChange(editedCode);
+      setHasUnsavedChanges(false);
+      toast.success("Code saved!");
+    }
+  };
+
   const deviceConfig = {
     desktop: { width: "100%", height: "100%" },
     tablet: { width: "768px", height: "1024px" },
@@ -128,7 +153,12 @@ export function Preview({
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
             <div className="w-3 h-3 rounded-full bg-green-500/80" />
           </div>
-          <span className="text-muted-foreground text-sm ml-2">Preview</span>
+          <span className="text-muted-foreground text-sm ml-2">
+            {currentView === "preview" ? "Preview" : "index.html"}
+          </span>
+          {hasUnsavedChanges && (
+            <span className="text-xs text-yellow-500 ml-2">• Unsaved</span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">
@@ -159,6 +189,19 @@ export function Preview({
               Code
             </Button>
           </div>
+
+          {/* Save button - only show in code mode with changes */}
+          {currentView === "code" && hasUnsavedChanges && (
+            <Button
+              variant="glow"
+              size="sm"
+              className="h-7 px-3 text-xs mr-2"
+              onClick={handleSaveCode}
+            >
+              <Save className="w-3 h-3 mr-1" />
+              Save
+            </Button>
+          )}
 
           {/* Device mode buttons - only show in preview mode */}
           {currentView === "preview" && (
@@ -256,7 +299,7 @@ export function Preview({
         </div>
       </div>
 
-      {/* Preview Area */}
+      {/* Preview/Code Area */}
       {currentView === "preview" ? (
         <div className="flex-1 flex items-center justify-center p-4 bg-[#1a1a2e] overflow-auto">
           <div
@@ -280,11 +323,32 @@ export function Preview({
           </div>
         </div>
       ) : (
-        <ScrollArea className="flex-1 bg-[#1a1a2e]">
-          <pre className="p-4 text-sm font-mono text-green-400 whitespace-pre-wrap break-all">
-            <code>{html || "// No code generated yet"}</code>
-          </pre>
-        </ScrollArea>
+        <div className="flex-1 overflow-hidden">
+          <Editor
+            height="100%"
+            defaultLanguage="html"
+            value={editedCode}
+            onChange={handleEditorChange}
+            theme="vs-dark"
+            options={{
+              minimap: { enabled: true },
+              fontSize: 14,
+              lineNumbers: "on",
+              wordWrap: "on",
+              automaticLayout: true,
+              scrollBeyondLastLine: false,
+              padding: { top: 16 },
+              fontFamily: "'Fira Code', 'Monaco', 'Consolas', monospace",
+              fontLigatures: true,
+              renderWhitespace: "selection",
+              bracketPairColorization: { enabled: true },
+              guides: {
+                bracketPairs: true,
+                indentation: true,
+              },
+            }}
+          />
+        </div>
       )}
     </div>
   );
