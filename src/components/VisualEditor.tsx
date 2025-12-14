@@ -27,9 +27,10 @@ interface VisualEditorProps {
   html: string;
   onUpdate: (newHtml: string) => void;
   onClose: () => void;
+  onElementSelectForChat?: (element: { tagName: string; text: string; path: string }) => void;
 }
 
-export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
+export function VisualEditor({ html, onUpdate, onClose, onElementSelectForChat }: VisualEditorProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [selectedElement, setSelectedElement] = useState<SelectedElement | null>(null);
   const [editedText, setEditedText] = useState("");
@@ -227,6 +228,15 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
         setSelectedElement(e.data.data);
         setEditedText(e.data.data.text || "");
         setEditedStyles(e.data.data.styles);
+
+        if (onElementSelectForChat) {
+          onElementSelectForChat({
+            tagName: e.data.data.tagName,
+            text: e.data.data.text,
+            path: e.data.data.path,
+          });
+        }
+
         toast.success(`Selected: <${e.data.data.tagName}>`);
       } else if (e.data?.type === "html-updated") {
         // Clean up the HTML before updating
@@ -247,7 +257,7 @@ export function VisualEditor({ html, onUpdate, onClose }: VisualEditorProps) {
       window.removeEventListener("message", handleMessage);
       console.log("[VisualEditor] Message listener removed");
     };
-  }, [onUpdate]);
+  }, [onUpdate, onElementSelectForChat]);
 
   const applyStyleChange = (property: keyof SelectedElement["styles"], value: string) => {
     if (!iframeRef.current || !selectedElement) return;
