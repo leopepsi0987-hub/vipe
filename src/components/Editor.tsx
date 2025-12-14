@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
@@ -7,8 +7,9 @@ import { DataPanel } from "./DataPanel";
 import { Project } from "@/hooks/useProjects";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, Zap, MessageCircle } from "lucide-react";
+import { MessageSquare, Database, Zap, MessageCircle, Code, Hammer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Message {
@@ -34,9 +35,23 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [leftTab, setLeftTab] = useState<LeftTab>("chat");
-  const [chatMode, setChatMode] = useState<ChatMode>("chat");
+  const [chatMode, setChatMode] = useState<ChatMode>("build"); // Default to build mode
   const [previewView, setPreviewView] = useState<"preview" | "code">("preview");
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + P to toggle preview/code
+      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+        e.preventDefault();
+        setPreviewView(prev => prev === "preview" ? "code" : "preview");
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Load messages from database on project change - clear first!
   useEffect(() => {
@@ -44,12 +59,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
     setStreamingContent("");
     loadMessages();
   }, [project.id]);
-
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, streamingContent]);
 
   const loadMessages = async () => {
     try {
@@ -236,6 +245,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
     }
   };
 
+  // Scroll to bottom on new messages
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages, streamingContent]);
+
   return (
     <ResizablePanelGroup direction="horizontal" className="h-full">
       {/* Left Panel - Chat & Data */}
@@ -380,18 +396,21 @@ export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: Editor
 
       {/* Preview Panel */}
       <ResizablePanel defaultSize={65}>
-        <Preview 
-          html={project.html_code} 
-          projectId={project.id}
-          projectName={project.name}
-          isPublished={project.is_published}
-          slug={project.slug}
-          onPublish={onPublish}
-          onUnpublish={onUnpublish}
-          activeView={previewView}
-          onViewChange={setPreviewView}
-          onCodeChange={onUpdateCode}
-        />
+        <div className="relative h-full">
+          <Preview 
+            html={project.html_code} 
+            projectId={project.id}
+            projectName={project.name}
+            isPublished={project.is_published}
+            slug={project.slug}
+            onPublish={onPublish}
+            onUnpublish={onUnpublish}
+            activeView={previewView}
+            onViewChange={setPreviewView}
+            onCodeChange={onUpdateCode}
+          />
+          <BuildingOverlay isBuilding={isGenerating && chatMode === "build"} />
+        </div>
       </ResizablePanel>
     </ResizablePanelGroup>
   );
