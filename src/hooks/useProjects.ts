@@ -7,6 +7,8 @@ export interface Project {
   user_id: string;
   name: string;
   html_code: string;
+  is_published: boolean;
+  slug: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +152,53 @@ export function useProjects() {
     return true;
   };
 
+  const publishProject = async (id: string) => {
+    // Generate a unique slug
+    const slug = `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+    
+    const { data, error } = await supabase
+      .from("projects")
+      .update({ is_published: true, slug })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error publishing project:", error);
+      return null;
+    }
+
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? data : p))
+    );
+    if (currentProject?.id === id) {
+      setCurrentProject(data);
+    }
+    return data;
+  };
+
+  const unpublishProject = async (id: string) => {
+    const { data, error } = await supabase
+      .from("projects")
+      .update({ is_published: false })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error unpublishing project:", error);
+      return null;
+    }
+
+    setProjects((prev) =>
+      prev.map((p) => (p.id === id ? data : p))
+    );
+    if (currentProject?.id === id) {
+      setCurrentProject(data);
+    }
+    return data;
+  };
+
   return {
     projects,
     currentProject,
@@ -158,6 +207,8 @@ export function useProjects() {
     createProject,
     updateProject,
     deleteProject,
+    publishProject,
+    unpublishProject,
     refreshProjects: fetchProjects,
   };
 }

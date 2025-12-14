@@ -1,18 +1,35 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone } from "lucide-react";
+import { RefreshCw, Maximize2, Minimize2, Monitor, Tablet, Smartphone, Globe, Link2, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface PreviewProps {
   html: string;
+  projectId?: string;
+  projectName?: string;
+  isPublished?: boolean;
+  slug?: string | null;
+  onPublish?: () => Promise<any>;
+  onUnpublish?: () => Promise<any>;
 }
 
 type DeviceMode = "desktop" | "tablet" | "mobile";
 
-export function Preview({ html }: PreviewProps) {
+export function Preview({ 
+  html, 
+  projectId, 
+  projectName, 
+  isPublished, 
+  slug, 
+  onPublish, 
+  onUnpublish 
+}: PreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop");
+  const [publishing, setPublishing] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (iframeRef.current) {
@@ -34,6 +51,45 @@ export function Preview({ html }: PreviewProps) {
         doc.close();
       }
     }
+  };
+
+  const handlePublish = async () => {
+    if (!onPublish) return;
+    setPublishing(true);
+    try {
+      const result = await onPublish();
+      if (result) {
+        toast.success("App published! 🚀", {
+          description: "Your app is now live and shareable.",
+        });
+      }
+    } catch (error) {
+      toast.error("Failed to publish");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleUnpublish = async () => {
+    if (!onUnpublish) return;
+    setPublishing(true);
+    try {
+      await onUnpublish();
+      toast.success("App unpublished");
+    } catch (error) {
+      toast.error("Failed to unpublish");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const copyLink = () => {
+    if (!slug) return;
+    const url = `${window.location.origin}/app/${slug}`;
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    toast.success("Link copied!");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const deviceWidths = {
@@ -61,6 +117,7 @@ export function Preview({ html }: PreviewProps) {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Device mode buttons */}
           <Button
             variant="ghost"
             size="icon"
@@ -85,7 +142,9 @@ export function Preview({ html }: PreviewProps) {
           >
             <Smartphone className="w-4 h-4" />
           </Button>
+          
           <div className="w-px h-4 bg-border mx-1" />
+          
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRefresh}>
             <RefreshCw className="w-4 h-4" />
           </Button>
@@ -101,6 +160,51 @@ export function Preview({ html }: PreviewProps) {
               <Maximize2 className="w-4 h-4" />
             )}
           </Button>
+
+          {/* Publish section */}
+          {projectId && (
+            <>
+              <div className="w-px h-4 bg-border mx-1" />
+              
+              {isPublished && slug ? (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 gap-2 text-green-500"
+                    onClick={copyLink}
+                  >
+                    {copied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                    {copied ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={handleUnpublish}
+                    disabled={publishing}
+                  >
+                    Unpublish
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="glow"
+                  size="sm"
+                  className="h-8 gap-2"
+                  onClick={handlePublish}
+                  disabled={publishing}
+                >
+                  {publishing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Globe className="w-4 h-4" />
+                  )}
+                  Publish
+                </Button>
+              )}
+            </>
+          )}
         </div>
       </div>
 

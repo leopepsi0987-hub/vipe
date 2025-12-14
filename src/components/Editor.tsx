@@ -21,12 +21,14 @@ interface Message {
 interface EditorProps {
   project: Project;
   onUpdateCode: (code: string) => void;
+  onPublish: () => Promise<any>;
+  onUnpublish: () => Promise<any>;
 }
 
 type LeftTab = "chat" | "data";
 type ChatMode = "chat" | "build";
 
-export function Editor({ project, onUpdateCode }: EditorProps) {
+export function Editor({ project, onUpdateCode, onPublish, onUnpublish }: EditorProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
@@ -370,7 +372,15 @@ export function Editor({ project, onUpdateCode }: EditorProps) {
 
       {/* Preview Panel */}
       <ResizablePanel defaultSize={65}>
-        <Preview html={project.html_code} />
+        <Preview 
+          html={project.html_code} 
+          projectId={project.id}
+          projectName={project.name}
+          isPublished={project.is_published}
+          slug={project.slug}
+          onPublish={onPublish}
+          onUnpublish={onUnpublish}
+        />
       </ResizablePanel>
     </ResizablePanelGroup>
   );

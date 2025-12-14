@@ -54,7 +54,9 @@ export type Database = {
           created_at: string
           html_code: string | null
           id: string
+          is_published: boolean
           name: string
+          slug: string | null
           updated_at: string
           user_id: string
         }
@@ -62,7 +64,9 @@ export type Database = {
           created_at?: string
           html_code?: string | null
           id?: string
+          is_published?: boolean
           name?: string
+          slug?: string | null
           updated_at?: string
           user_id: string
         }
@@ -70,7 +74,9 @@ export type Database = {
           created_at?: string
           html_code?: string | null
           id?: string
+          is_published?: boolean
           name?: string
+          slug?: string | null
           updated_at?: string
           user_id?: string
         }
