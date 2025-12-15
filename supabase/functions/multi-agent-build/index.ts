@@ -28,9 +28,38 @@ const AGENTS = {
     name: "Chief",
     emoji: "👑",
     role: "Orchestrator - Analyzes requests and creates execution plans",
-    systemPrompt: `You are the CHIEF ORCHESTRATOR of a 5-agent team building web apps.
+    intentPrompt: `You are the CHIEF of a 5-agent team. Your FIRST job is to determine the user's INTENT.
+
+Analyze the user's message and determine what they want:
+
+INTENT TYPES:
+1. "BUILD" - User wants to create, build, modify, add features, fix bugs in their app
+   Examples: "create a todo app", "add a login page", "fix the button", "make it responsive", "add dark mode"
+   
+2. "CHAT" - User is greeting, asking questions, having a conversation, or needs clarification
+   Examples: "hi", "hello", "how are you?", "what can you do?", "thanks", "explain how this works"
+   
+3. "SECRET" - User wants to provide API keys, credentials, or secrets
+   Examples: "here's my API key", "I want to add my OpenAI key", "store my secret", "use my API"
+   
+4. "ASK_SECRET" - User wants YOU to ask them for their API key/secret
+   Examples: "ask me for my API key", "I need to give you my key", "where do I put my API?"
+
+OUTPUT FORMAT (JSON only):
+{
+  "intent": "BUILD" | "CHAT" | "SECRET" | "ASK_SECRET",
+  "response": "Your conversational response if intent is CHAT, SECRET, or ASK_SECRET. Leave empty for BUILD."
+}
+
+RULES:
+- If user just says "hi" or greets you, intent is CHAT and respond warmly
+- If user asks a question without building context, intent is CHAT
+- If user mentions API keys or secrets, determine if they're giving one (SECRET) or asking you to request one (ASK_SECRET)
+- Only use BUILD when user clearly wants to create/modify their app
+- Be friendly and helpful in your responses`,
+    planPrompt: `You are the CHIEF ORCHESTRATOR of a 5-agent team building web apps.
 Your job is to:
-1. Analyze the user's request carefully
+1. Analyze the user's BUILD request carefully
 2. Break it down into specific tasks for each specialist agent
 3. Create a clear execution plan
 
@@ -165,6 +194,12 @@ async function callAgent(agentKey: string, prompt: string, context: string, apiK
   const agent = AGENTS[agentKey as keyof typeof AGENTS];
   if (!agent) throw new Error(`Unknown agent: ${agentKey}`);
 
+  // Chief doesn't use this function anymore (has separate intentPrompt and planPrompt)
+  if (agentKey === "chief") {
+    throw new Error("Chief agent should not use callAgent - use direct API calls");
+  }
+
+  const agentWithPrompt = agent as { systemPrompt: string };
   console.log(`[${agent.name}] Starting agent call...`);
 
   // Use Vertex AI (Google AI Platform) endpoint (API key auth)
@@ -176,7 +211,7 @@ async function callAgent(agentKey: string, prompt: string, context: string, apiK
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: agent.systemPrompt }] },
+        system_instruction: { parts: [{ text: agentWithPrompt.systemPrompt }] },
         contents: [
           {
             role: "user",
@@ -226,11 +261,80 @@ serve(async (req) => {
         };
 
         try {
-          // Phase 1: Chief creates the plan
+          // Phase 0: Intent Detection - Chief determines what user wants
           sendEvent({ 
             type: "agent_start", 
             agent: "chief",
-            message: "Analyzing your request and creating a plan..." 
+            message: "Understanding your request..." 
+          });
+
+          const intentContext = `
+USER MESSAGE: ${prompt}
+CURRENT APP: ${currentCode ? `Has existing code (${currentCode.length} chars)` : "No existing code yet"}
+`;
+
+          // Use the intent detection prompt
+          const intentResponse = await fetch(
+            `https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: AGENTS.chief.intentPrompt }] },
+                contents: [{ role: "user", parts: [{ text: intentContext }] }],
+                generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
+              }),
+            }
+          );
+
+          if (!intentResponse.ok) {
+            throw new Error(`Intent detection failed: ${intentResponse.status}`);
+          }
+
+          const intentData = await intentResponse.json();
+          const intentText = intentData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          console.log("[Chief] Intent response:", intentText);
+
+          let intentResult: { intent: string; response: string };
+          try {
+            const jsonMatch = intentText.match(/\{[\s\S]*\}/);
+            if (!jsonMatch) throw new Error("No JSON");
+            intentResult = JSON.parse(jsonMatch[0]);
+          } catch (e) {
+            // Default to BUILD if parsing fails
+            intentResult = { intent: "BUILD", response: "" };
+          }
+
+          // Handle non-build intents
+          if (intentResult.intent !== "BUILD") {
+            sendEvent({ 
+              type: "agent_done", 
+              agent: "chief",
+              message: "Ready to help! 👑" 
+            });
+
+            // Send chat response without building
+            sendEvent({ 
+              type: "chat_response", 
+              message: intentResult.response || "Hey! I'm Vipe. Tell me what you'd like to build and I'll create it for you! 🚀"
+            });
+
+            sendEvent({ type: "[DONE]" });
+            controller.close();
+            return;
+          }
+
+          // Intent is BUILD - proceed with full workflow
+          sendEvent({ 
+            type: "agent_done", 
+            agent: "chief",
+            message: "Got it! Creating build plan... 👑" 
+          });
+
+          sendEvent({ 
+            type: "agent_start", 
+            agent: "chief",
+            message: "Creating execution plan..." 
           });
 
           const chiefContext = `
@@ -240,26 +344,40 @@ ${dbChoice === "BUILT_IN_DB" || !dbChoice ? "IMPORTANT: User chose BUILT_IN_DB -
 ${currentCode ? `Current code exists (${currentCode.length} chars). User wants to modify/add to it.` : "Starting fresh, no existing code."}
 `;
 
-          const planResponse = await callAgent(
-            "chief",
-            prompt,
-            chiefContext,
-            GOOGLE_GEMINI_API_KEY
+          // Use the plan prompt for BUILD intent
+          const planResponse = await fetch(
+            `https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent?key=${GOOGLE_GEMINI_API_KEY}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                system_instruction: { parts: [{ text: AGENTS.chief.planPrompt }] },
+                contents: [{ role: "user", parts: [{ text: `CONTEXT:\n${chiefContext}\n\n---\n\nBUILD REQUEST:\n${prompt}` }] }],
+                generationConfig: { temperature: 1.0, maxOutputTokens: 2048 },
+              }),
+            }
           );
+
+          if (!planResponse.ok) {
+            throw new Error(`Plan creation failed: ${planResponse.status}`);
+          }
+
+          const planData = await planResponse.json();
+          const planText = planData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          console.log("[Chief] Plan response length:", planText.length);
 
           let plan: WorkflowPlan;
           try {
-            // Extract JSON from response
-            const jsonMatch = planResponse.match(/\{[\s\S]*\}/);
+            const jsonMatch = planText.match(/\{[\s\S]*\}/);
             if (!jsonMatch) throw new Error("No JSON found");
             plan = JSON.parse(jsonMatch[0]);
           } catch (e) {
-            console.error("Failed to parse plan:", planResponse);
+            console.error("Failed to parse plan:", planText);
             plan = {
               summary: "Building your app",
               tasks: [
                 { agent: "designer", task: "Create beautiful, modern UI with animations" },
-                { agent: "coder", task: "Implement all functionality and logic" },
+                { agent: "coder", task: "Implement all functionality and logic using Cloud Storage API" },
                 { agent: "bug_hunter", task: "Review for bugs and security issues" },
                 { agent: "optimizer", task: "Optimize performance and accessibility" }
               ]
