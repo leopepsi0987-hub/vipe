@@ -151,37 +151,35 @@ async function callAgent(agentKey: string, prompt: string, context: string, apiK
 
   console.log(`[${agent.name}] Starting agent call...`);
 
-  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: agent.systemPrompt },
-        { role: "user", content: `CONTEXT:\n${context}\n\n---\n\nTASK:\n${prompt}` }
-      ],
-      temperature: 1.0,
-      max_tokens: 8192,
-    }),
-  });
+  // Using Google Gemini API directly (NOT Lovable gateway)
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          { 
+            role: "user", 
+            parts: [{ text: `${agent.systemPrompt}\n\n---\n\nCONTEXT:\n${context}\n\n---\n\nTASK:\n${prompt}` }] 
+          }
+        ],
+        generationConfig: {
+          temperature: 1.0,
+          maxOutputTokens: 8192,
+        }
+      })
+    }
+  );
 
   if (!response.ok) {
     const error = await response.text();
     console.error(`Agent ${agentKey} error:`, error);
-    if (response.status === 429) {
-      throw new Error(`Rate limited - please try again in a moment`);
-    }
-    if (response.status === 402) {
-      throw new Error(`Credits exhausted - please add funds to continue`);
-    }
-    throw new Error(`Agent ${agentKey} failed: ${response.status}`);
+    throw new Error(`Agent ${agentKey} failed: ${response.status} - ${error}`);
   }
 
   const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "";
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   console.log(`[${agent.name}] Completed, output length: ${content.length}`);
   return content;
 }
@@ -193,10 +191,10 @@ serve(async (req) => {
 
   try {
     const { prompt, currentCode, dbChoice } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     console.log("[Multi-Agent] Starting workflow for prompt:", prompt.slice(0, 100));
@@ -220,7 +218,7 @@ serve(async (req) => {
             "chief",
             prompt,
             currentCode ? `Current code exists (${currentCode.length} chars). User wants to modify/add to it.` : "Starting fresh, no existing code.",
-            LOVABLE_API_KEY
+            GOOGLE_GEMINI_API_KEY
           );
 
           let plan: WorkflowPlan;
@@ -265,8 +263,8 @@ ${currentCode || "No existing code - building from scratch"}
 `;
 
           const [designerOutput, coderOutput] = await Promise.all([
-            callAgent("designer", designerTask, fullContext, LOVABLE_API_KEY),
-            callAgent("coder", coderTask, fullContext, LOVABLE_API_KEY)
+            callAgent("designer", designerTask, fullContext, GOOGLE_GEMINI_API_KEY),
+            callAgent("coder", coderTask, fullContext, GOOGLE_GEMINI_API_KEY)
           ]);
 
           sendEvent({ 
@@ -295,7 +293,7 @@ CODER OUTPUT:
 ${coderOutput}
 `;
 
-          const bugHunterOutput = await callAgent("bugHunter", bugHunterTask, combinedForReview, LOVABLE_API_KEY);
+          const bugHunterOutput = await callAgent("bugHunter", bugHunterTask, combinedForReview, GOOGLE_GEMINI_API_KEY);
 
           sendEvent({ 
             type: "agent_done", 
@@ -308,7 +306,7 @@ ${coderOutput}
           sendEvent({ type: "agent_start", agent: "optimizer", message: "Optimizing performance and accessibility..." });
 
           const optimizerTask = plan.tasks.find(t => t.agent === "optimizer")?.task || "Optimize everything";
-          const optimizerOutput = await callAgent("optimizer", optimizerTask, combinedForReview, LOVABLE_API_KEY);
+          const optimizerOutput = await callAgent("optimizer", optimizerTask, combinedForReview, GOOGLE_GEMINI_API_KEY);
 
           sendEvent({ 
             type: "agent_done", 
@@ -356,7 +354,7 @@ const hasBackend = () => PROJECT_SLUG !== null;
 ` : ""}
 `;
 
-          const finalCode = await callAgent("chief", assemblyPrompt, "", LOVABLE_API_KEY);
+          const finalCode = await callAgent("chief", assemblyPrompt, "", GOOGLE_GEMINI_API_KEY);
 
           sendEvent({ 
             type: "agent_done", 
