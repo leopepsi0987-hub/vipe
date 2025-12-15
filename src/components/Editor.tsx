@@ -81,6 +81,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [agents, setAgents] = useState<Agent[]>(INITIAL_AGENTS);
   const [workflowPlan, setWorkflowPlan] = useState<WorkflowPlan | null>(null);
   const [showAgentWorkflow, setShowAgentWorkflow] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   
@@ -176,6 +177,9 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
       setShowAgentWorkflow(true);
     }
 
+    // Create abort controller for cancellation
+    abortControllerRef.current = new AbortController();
+
     try {
       // Determine which endpoint to use based on mode
       let endpoint: string;
@@ -209,6 +213,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body,
+        signal: abortControllerRef.current?.signal,
       });
 
       if (!response.ok) {
@@ -349,6 +354,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
       setStreamingContent("");
     } catch (error) {
+      // Handle abort gracefully
+      if (error instanceof Error && error.name === "AbortError") {
+        toast.info("Build stopped");
+        setShowAgentWorkflow(false);
+        return;
+      }
+      
       console.error("Error:", error);
       toast.error(error instanceof Error ? error.message : "Something went wrong");
       
@@ -363,6 +375,16 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     } finally {
       setIsGenerating(false);
       setStreamingContent("");
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleStopAgents = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setAgents(prev => prev.map(a => 
+        a.status === "working" ? { ...a, status: "pending", message: "Stopped" } : a
+      ));
     }
   };
 
@@ -455,7 +477,18 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     />
                   ))}
 
-                  {isGenerating && (
+                  {/* Multi-agent workflow display for mobile */}
+                  {chatMode === "build" && buildMode === "multi-agent" && showAgentWorkflow && (
+                    <AgentWorkflow 
+                      agents={agents} 
+                      plan={workflowPlan || undefined} 
+                      isComplete={!isGenerating}
+                      isRunning={isGenerating}
+                      onStop={handleStopAgents}
+                    />
+                  )}
+
+                  {isGenerating && !(buildMode === "multi-agent" && showAgentWorkflow) && (
                     <ChatMessage
                       role="assistant"
                       content={chatMode === "build" ? "🔨 Building your app..." : (streamingContent || "Thinking...")}
@@ -719,11 +752,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                   )}
 
                   {/* Multi-agent workflow display */}
-                  {isGenerating && chatMode === "build" && buildMode === "multi-agent" && showAgentWorkflow && (
+                  {chatMode === "build" && buildMode === "multi-agent" && showAgentWorkflow && (
                     <AgentWorkflow 
                       agents={agents} 
                       plan={workflowPlan || undefined} 
-                      isComplete={!isGenerating} 
+                      isComplete={!isGenerating}
+                      isRunning={isGenerating}
+                      onStop={handleStopAgents}
                     />
                   )}
 
