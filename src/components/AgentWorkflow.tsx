@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import { Check, Loader2, AlertCircle } from "lucide-react";
+import { Check, Loader2, AlertCircle, StopCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Agent {
   id: string;
@@ -23,11 +24,28 @@ interface AgentWorkflowProps {
   agents: Agent[];
   plan?: WorkflowPlan;
   isComplete: boolean;
+  isRunning: boolean;
+  onStop?: () => void;
 }
 
-export function AgentWorkflow({ agents, plan, isComplete }: AgentWorkflowProps) {
+export function AgentWorkflow({ agents, plan, isComplete, isRunning, onStop }: AgentWorkflowProps) {
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* Stop Button - shown when running */}
+      {isRunning && onStop && (
+        <div className="flex justify-center">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onStop}
+            className="gap-2"
+          >
+            <StopCircle className="w-4 h-4" />
+            Stop Agents
+          </Button>
+        </div>
+      )}
+
       {/* Plan Summary */}
       {plan && (
         <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl p-4 border border-primary/20">
