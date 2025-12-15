@@ -151,24 +151,27 @@ async function callAgent(agentKey: string, prompt: string, context: string, apiK
 
   console.log(`[${agent.name}] Starting agent call...`);
 
-  // Using Google Gemini API directly (NOT Lovable gateway)
+  // Use Vertex AI (Google AI Platform) endpoint (API key auth)
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    `https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
+        system_instruction: { parts: [{ text: agent.systemPrompt }] },
         contents: [
-          { 
-            role: "user", 
-            parts: [{ text: `${agent.systemPrompt}\n\n---\n\nCONTEXT:\n${context}\n\n---\n\nTASK:\n${prompt}` }] 
-          }
+          {
+            role: "user",
+            parts: [{ text: `CONTEXT:\n${context}\n\n---\n\nTASK:\n${prompt}` }],
+          },
         ],
         generationConfig: {
           temperature: 1.0,
           maxOutputTokens: 8192,
-        }
-      })
+        },
+      }),
     }
   );
 
