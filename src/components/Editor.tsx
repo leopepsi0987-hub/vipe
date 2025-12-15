@@ -11,7 +11,7 @@ import { Project } from "@/hooks/useProjects";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, Zap, MessageCircle, History, Eye, Code, Globe, Users } from "lucide-react";
+import { MessageSquare, Database, History, Eye, Code, Globe, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,8 +40,6 @@ interface EditorProps {
 }
 
 type LeftTab = "chat" | "data" | "history";
-type ChatMode = "chat" | "build";
-type BuildMode = "single" | "multi-agent";
 type MobileTab = "chat" | "preview";
 
 interface Agent {
@@ -72,8 +70,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [leftTab, setLeftTab] = useState<LeftTab>("chat");
-  const [chatMode, setChatMode] = useState<ChatMode>("build");
-  const [buildMode, setBuildMode] = useState<BuildMode>("multi-agent");
   const [previewView, setPreviewView] = useState<"preview" | "code">("preview");
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
@@ -171,40 +167,22 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     setStreamingContent("");
 
     // Reset agents for multi-agent mode
-    if (chatMode === "build" && buildMode === "multi-agent") {
-      setAgents(INITIAL_AGENTS);
-      setWorkflowPlan(null);
-      setShowAgentWorkflow(true);
-    }
+    setAgents(INITIAL_AGENTS);
+    setWorkflowPlan(null);
+    setShowAgentWorkflow(true);
 
     // Create abort controller for cancellation
     abortControllerRef.current = new AbortController();
 
     try {
-      // Determine which endpoint to use based on mode
-      let endpoint: string;
-      if (chatMode === "build") {
-        endpoint = buildMode === "multi-agent"
-          ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/multi-agent-build`
-          : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
-      } else {
-        endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-      }
+      // Always use multi-agent endpoint
+      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/multi-agent-build`;
 
-      const body = chatMode === "build"
-        ? JSON.stringify({
-            prompt: content,
-            currentCode: project.html_code,
-            dbChoice,
-          })
-        : JSON.stringify({
-            messages: newMessages.map(m => ({
-              role: m.role,
-              content: m.content,
-              imageUrl: m.imageUrl,
-            })),
-            imageUrl,
-          });
+      const body = JSON.stringify({
+        prompt: content,
+        currentCode: project.html_code,
+        dbChoice,
+      });
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -261,6 +239,19 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               ));
             } else if (parsed.type === "plan_created") {
               setWorkflowPlan(parsed.plan);
+            } else if (parsed.type === "chat_response") {
+              // Chief detected non-build intent - just respond conversationally
+              const assistantMessage: Message = {
+                id: crypto.randomUUID(),
+                role: "assistant",
+                content: parsed.message,
+              };
+              const finalMessages = [...newMessages, assistantMessage];
+              setMessages(finalMessages);
+              saveMessages(finalMessages);
+              setShowAgentWorkflow(false);
+              setIsGenerating(false);
+              return; // Exit early, no code generation
             } else if (parsed.type === "complete") {
               finalCode = parsed.code;
             } else if (parsed.type === "error") {
@@ -282,27 +273,14 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         }
       }
 
-      if (chatMode === "build") {
-        let cleanedCode = "";
-        
-        if (buildMode === "multi-agent" && finalCode) {
-          // Multi-agent mode - use the final assembled code
-          cleanedCode = finalCode;
-          const htmlMatch = cleanedCode.match(/```html\n?([\s\S]*?)```/);
-          if (htmlMatch) {
-            cleanedCode = htmlMatch[1];
-          } else {
-            cleanedCode = cleanedCode.replace(/```\w*\n?/g, "").trim();
-          }
+      // Process the final code from multi-agent workflow
+      if (finalCode) {
+        let cleanedCode = finalCode;
+        const htmlMatch = cleanedCode.match(/```html\n?([\s\S]*?)```/);
+        if (htmlMatch) {
+          cleanedCode = htmlMatch[1];
         } else {
-          // Single-agent mode - extract HTML from code blocks if present
-          cleanedCode = fullContent;
-          const htmlMatch = fullContent.match(/```html\n?([\s\S]*?)```/);
-          if (htmlMatch) {
-            cleanedCode = htmlMatch[1];
-          } else {
-            cleanedCode = fullContent.replace(/```\w*\n?/g, "").trim();
-          }
+          cleanedCode = cleanedCode.replace(/```\w*\n?/g, "").trim();
         }
 
         // Save version before updating code
@@ -312,44 +290,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: buildMode === "multi-agent" 
-            ? "Done! 5 agents collaborated to build your app. 🚀"
-            : "Done! Your app is ready. 🚀",
+          content: "Done! 5 agents collaborated to build your app. 🚀",
           hasCode: true,
         };
         const finalMessages = [...newMessages, assistantMessage];
         setMessages(finalMessages);
         saveMessages(finalMessages);
         setShowAgentWorkflow(false);
-      } else {
-        // Chat mode - parse for [VIPE_ACTIONS] blocks
-        let parsedActions: QuickAction[] | undefined;
-        const actionsMatch = fullContent.match(/\[VIPE_ACTIONS\]([\s\S]*?)\[\/VIPE_ACTIONS\]/);
-        if (actionsMatch) {
-          try {
-            const actionsContent = actionsMatch[1].trim();
-            const actionLines = actionsContent.split('\n').filter(line => line.trim());
-            parsedActions = actionLines.map(line => {
-              const match = line.match(/\[(.+?)\]\s*\((.+?)\)(?:\s*icon:(\w+))?/);
-              if (match) {
-                return { id: match[2], label: match[1], icon: match[3] };
-              }
-              return null;
-            }).filter(Boolean) as QuickAction[];
-          } catch (e) {
-            console.error("Failed to parse actions:", e);
-          }
-        }
-
-        const assistantMessage: Message = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: fullContent,
-          actions: parsedActions,
-        };
-        const finalMessages = [...newMessages, assistantMessage];
-        setMessages(finalMessages);
-        saveMessages(finalMessages);
       }
 
       setStreamingContent("");
@@ -388,13 +335,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     }
   };
 
-  // Scroll to bottom on new messages
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, streamingContent]);
-
   // Mobile Layout
   if (isMobile) {
     return (
@@ -403,33 +343,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         <div className="flex-1 overflow-hidden">
           {mobileTab === "chat" ? (
             <div className="flex flex-col h-full bg-card">
-              {/* Mode Toggle */}
+              {/* Header */}
               <div className="p-3 border-b border-border">
-                <div className="flex bg-secondary rounded-lg p-1">
-                  <button
-                    onClick={() => setChatMode("chat")}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                      chatMode === "chat"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    Chat
-                  </button>
-                  <button
-                    onClick={() => setChatMode("build")}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                      chatMode === "build"
-                        ? "bg-gradient-primary text-primary-foreground shadow-glow"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <Zap className="w-4 h-4" />
-                    Build
-                  </button>
+                <div className="flex items-center justify-center gap-2 bg-gradient-primary text-primary-foreground px-4 py-2 rounded-lg">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm font-medium">5 Agents Ready</span>
                 </div>
               </div>
 
@@ -445,9 +363,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                         Hey! I'm Vipe
                       </h3>
                       <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                        {chatMode === "chat" 
-                          ? "Let's chat! Tell me about what you want to build."
-                          : "Ready to build! Describe your app."}
+                        Tell me what you want to build or just chat with me!
                       </p>
                     </div>
                   )}
@@ -478,7 +394,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                   ))}
 
                   {/* Multi-agent workflow display for mobile */}
-                  {chatMode === "build" && buildMode === "multi-agent" && showAgentWorkflow && (
+                  {showAgentWorkflow && (
                     <AgentWorkflow 
                       agents={agents} 
                       plan={workflowPlan || undefined} 
@@ -488,10 +404,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     />
                   )}
 
-                  {isGenerating && !(buildMode === "multi-agent" && showAgentWorkflow) && (
+                  {isGenerating && !showAgentWorkflow && (
                     <ChatMessage
                       role="assistant"
-                      content={chatMode === "build" ? "🔨 Building your app..." : (streamingContent || "Thinking...")}
+                      content="Processing..."
                       isStreaming
                     />
                   )}
@@ -503,11 +419,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                 <ChatInput
                   onSend={handleSendMessage}
                   disabled={isGenerating}
-                  placeholder={
-                    chatMode === "chat"
-                      ? "Chat with Vipe..."
-                      : "Describe what you want to build..."
-                  }
+                  placeholder={messages.length === 0 ? "What do you want to build?" : "Continue the conversation..."}
                   currentPath="/"
                   onVisualEdit={() => setShowVisualEditor(true)}
                 />
@@ -590,8 +502,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             onClose={() => setShowVisualEditor(false)}
           />
         )}
-
-        {isGenerating && chatMode === "build" && <BuildingOverlay isBuilding={true} />}
+        {isGenerating && <BuildingOverlay isBuilding={true} />}
       </div>
     );
   }
@@ -644,64 +555,12 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
           {leftTab === "chat" ? (
             <>
-              {/* Mode Toggle */}
-              <div className="p-3 border-b border-border space-y-2">
-                <div className="flex bg-secondary rounded-lg p-1">
-                  <button
-                    onClick={() => setChatMode("chat")}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                      chatMode === "chat"
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    Chat
-                  </button>
-                  <button
-                    onClick={() => setChatMode("build")}
-                    className={cn(
-                      "flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all",
-                      chatMode === "build"
-                        ? "bg-gradient-primary text-primary-foreground shadow-glow"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    <Zap className="w-4 h-4" />
-                    Build
-                  </button>
+              {/* Header - 5 Agents indicator */}
+              <div className="p-3 border-b border-border">
+                <div className="flex items-center justify-center gap-2 bg-gradient-primary text-primary-foreground px-4 py-2 rounded-lg">
+                  <Users className="w-4 h-4" />
+                  <span className="text-sm font-medium">5 Agents Ready</span>
                 </div>
-                
-                {/* Build Mode Toggle - Single vs Multi-Agent */}
-                {chatMode === "build" && (
-                  <div className="flex bg-secondary/50 rounded-lg p-1">
-                    <button
-                      onClick={() => setBuildMode("single")}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
-                        buildMode === "single"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Zap className="w-3 h-3" />
-                      Single Agent
-                    </button>
-                    <button
-                      onClick={() => setBuildMode("multi-agent")}
-                      className={cn(
-                        "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
-                        buildMode === "multi-agent"
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      <Users className="w-3 h-3" />
-                      5 Agents
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Messages */}
@@ -716,9 +575,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                         Hey! I'm Vipe
                       </h3>
                       <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-                        {chatMode === "chat" 
-                          ? "Let's chat! Tell me about what you want to build and I'll help you figure it out."
-                          : "Ready to build! Describe your app and I'll generate the code."}
+                        Tell me what you want to build or just chat with me! I'll understand what you need.
                       </p>
                     </div>
                   )}
@@ -743,16 +600,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     />
                   ))}
 
-                  {isGenerating && streamingContent && chatMode === "chat" && (
-                    <ChatMessage
-                      role="assistant"
-                      content={streamingContent}
-                      isStreaming
-                    />
-                  )}
-
                   {/* Multi-agent workflow display */}
-                  {chatMode === "build" && buildMode === "multi-agent" && showAgentWorkflow && (
+                  {showAgentWorkflow && (
                     <AgentWorkflow 
                       agents={agents} 
                       plan={workflowPlan || undefined} 
@@ -762,10 +611,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     />
                   )}
 
-                  {isGenerating && !(buildMode === "multi-agent" && showAgentWorkflow) && (
+                  {isGenerating && !showAgentWorkflow && (
                     <ChatMessage
                       role="assistant"
-                      content={chatMode === "build" ? "🔨 Building your app..." : (streamingContent ? "" : "Thinking...")}
+                      content="Processing..."
                       isStreaming
                     />
                   )}
@@ -777,13 +626,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                 <ChatInput
                   onSend={handleSendMessage}
                   disabled={isGenerating}
-                  placeholder={
-                    chatMode === "chat"
-                      ? "Chat with Vipe..."
-                      : messages.length === 0
-                        ? "Describe what you want to build..."
-                        : "Make changes or add features..."
-                  }
+                  placeholder={messages.length === 0 ? "What do you want to build?" : "Continue the conversation..."}
                   currentPath="/"
                   onVisualEdit={() => setShowVisualEditor(true)}
                 />
@@ -826,7 +669,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             onViewChange={setPreviewView}
             onCodeChange={onUpdateCode}
           />
-          <BuildingOverlay isBuilding={isGenerating && chatMode === "build"} />
+          <BuildingOverlay isBuilding={isGenerating} />
         </div>
       </ResizablePanel>
 
