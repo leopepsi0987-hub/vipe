@@ -1,5 +1,8 @@
 project_id = "svadrczzdvdbeajeiabs"
 
+[functions.multi-agent-build]
+verify_jwt = false
+
 [functions.generate-code]
 verify_jwt = false
 

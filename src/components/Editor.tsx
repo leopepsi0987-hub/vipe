@@ -6,11 +6,12 @@ import { Preview } from "./Preview";
 import { DataPanel } from "./DataPanel";
 import { VisualEditor } from "./VisualEditor";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
+import { AgentWorkflow } from "./AgentWorkflow";
 import { Project } from "@/hooks/useProjects";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, Zap, MessageCircle, History, Eye, Code, Globe } from "lucide-react";
+import { MessageSquare, Database, Zap, MessageCircle, History, Eye, Code, Globe, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,18 +41,46 @@ interface EditorProps {
 
 type LeftTab = "chat" | "data" | "history";
 type ChatMode = "chat" | "build";
+type BuildMode = "single" | "multi-agent";
 type MobileTab = "chat" | "preview";
+
+interface Agent {
+  id: string;
+  name: string;
+  emoji: string;
+  role: string;
+  status: "pending" | "working" | "done" | "error";
+  message?: string;
+  output?: string;
+}
+
+interface WorkflowPlan {
+  summary: string;
+  tasks: { agent: string; task: string }[];
+}
+
+const INITIAL_AGENTS: Agent[] = [
+  { id: "chief", name: "Chief", emoji: "👑", role: "Orchestrator", status: "pending" },
+  { id: "designer", name: "Designer", emoji: "🎨", role: "UI/UX Specialist", status: "pending" },
+  { id: "coder", name: "Coder", emoji: "💻", role: "Logic Specialist", status: "pending" },
+  { id: "bugHunter", name: "Bug Hunter", emoji: "🔍", role: "Security Specialist", status: "pending" },
+  { id: "optimizer", name: "Optimizer", emoji: "⚡", role: "Performance Specialist", status: "pending" },
+];
 
 export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: EditorProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [leftTab, setLeftTab] = useState<LeftTab>("chat");
-  const [chatMode, setChatMode] = useState<ChatMode>("build"); // Default to build mode
+  const [chatMode, setChatMode] = useState<ChatMode>("build");
+  const [buildMode, setBuildMode] = useState<BuildMode>("multi-agent");
   const [previewView, setPreviewView] = useState<"preview" | "code">("preview");
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+  const [agents, setAgents] = useState<Agent[]>(INITIAL_AGENTS);
+  const [workflowPlan, setWorkflowPlan] = useState<WorkflowPlan | null>(null);
+  const [showAgentWorkflow, setShowAgentWorkflow] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   
@@ -140,11 +169,23 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     setIsGenerating(true);
     setStreamingContent("");
 
+    // Reset agents for multi-agent mode
+    if (chatMode === "build" && buildMode === "multi-agent") {
+      setAgents(INITIAL_AGENTS);
+      setWorkflowPlan(null);
+      setShowAgentWorkflow(true);
+    }
+
     try {
       // Determine which endpoint to use based on mode
-      const endpoint = chatMode === "build" 
-        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`
-        : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+      let endpoint: string;
+      if (chatMode === "build") {
+        endpoint = buildMode === "multi-agent"
+          ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/multi-agent-build`
+          : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
+      } else {
+        endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+      }
 
       const body = chatMode === "build"
         ? JSON.stringify({
@@ -181,6 +222,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
       const decoder = new TextDecoder();
       let fullContent = "";
       let textBuffer = "";
+      let finalCode = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -202,25 +244,60 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
           try {
             const parsed = JSON.parse(jsonStr);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              fullContent += delta;
-              setStreamingContent(fullContent);
+            
+            // Handle multi-agent events
+            if (parsed.type === "agent_start") {
+              setAgents(prev => prev.map(a => 
+                a.id === parsed.agent ? { ...a, status: "working", message: parsed.message } : a
+              ));
+            } else if (parsed.type === "agent_done") {
+              setAgents(prev => prev.map(a => 
+                a.id === parsed.agent ? { ...a, status: "done", message: parsed.message, output: parsed.output } : a
+              ));
+            } else if (parsed.type === "plan_created") {
+              setWorkflowPlan(parsed.plan);
+            } else if (parsed.type === "complete") {
+              finalCode = parsed.code;
+            } else if (parsed.type === "error") {
+              throw new Error(parsed.message);
+            } else {
+              // Standard streaming response
+              const delta = parsed.choices?.[0]?.delta?.content;
+              if (delta) {
+                fullContent += delta;
+                setStreamingContent(fullContent);
+              }
             }
-          } catch {
+          } catch (e) {
             // Ignore parse errors for incomplete JSON
+            if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
+              console.error("Parse error:", e);
+            }
           }
         }
       }
 
       if (chatMode === "build") {
-        // Clean up the response - extract HTML from code blocks if present
-        let cleanedCode = fullContent;
-        const htmlMatch = fullContent.match(/```html\n?([\s\S]*?)```/);
-        if (htmlMatch) {
-          cleanedCode = htmlMatch[1];
+        let cleanedCode = "";
+        
+        if (buildMode === "multi-agent" && finalCode) {
+          // Multi-agent mode - use the final assembled code
+          cleanedCode = finalCode;
+          const htmlMatch = cleanedCode.match(/```html\n?([\s\S]*?)```/);
+          if (htmlMatch) {
+            cleanedCode = htmlMatch[1];
+          } else {
+            cleanedCode = cleanedCode.replace(/```\w*\n?/g, "").trim();
+          }
         } else {
-          cleanedCode = fullContent.replace(/```\w*\n?/g, "").trim();
+          // Single-agent mode - extract HTML from code blocks if present
+          cleanedCode = fullContent;
+          const htmlMatch = fullContent.match(/```html\n?([\s\S]*?)```/);
+          if (htmlMatch) {
+            cleanedCode = htmlMatch[1];
+          } else {
+            cleanedCode = fullContent.replace(/```\w*\n?/g, "").trim();
+          }
         }
 
         // Save version before updating code
@@ -230,12 +307,15 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Done! Your app is ready. 🚀",
+          content: buildMode === "multi-agent" 
+            ? "Done! 5 agents collaborated to build your app. 🚀"
+            : "Done! Your app is ready. 🚀",
           hasCode: true,
         };
         const finalMessages = [...newMessages, assistantMessage];
         setMessages(finalMessages);
         saveMessages(finalMessages);
+        setShowAgentWorkflow(false);
       } else {
         // Chat mode - parse for [VIPE_ACTIONS] blocks
         let parsedActions: QuickAction[] | undefined;
@@ -532,7 +612,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           {leftTab === "chat" ? (
             <>
               {/* Mode Toggle */}
-              <div className="p-3 border-b border-border">
+              <div className="p-3 border-b border-border space-y-2">
                 <div className="flex bg-secondary rounded-lg p-1">
                   <button
                     onClick={() => setChatMode("chat")}
@@ -559,11 +639,36 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     Build
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  {chatMode === "chat" 
-                    ? "Chat mode: Talk with Vipe about your ideas"
-                    : "Build mode: Generate and update code"}
-                </p>
+                
+                {/* Build Mode Toggle - Single vs Multi-Agent */}
+                {chatMode === "build" && (
+                  <div className="flex bg-secondary/50 rounded-lg p-1">
+                    <button
+                      onClick={() => setBuildMode("single")}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+                        buildMode === "single"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Zap className="w-3 h-3" />
+                      Single Agent
+                    </button>
+                    <button
+                      onClick={() => setBuildMode("multi-agent")}
+                      className={cn(
+                        "flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded text-xs font-medium transition-all",
+                        buildMode === "multi-agent"
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      <Users className="w-3 h-3" />
+                      5 Agents
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Messages */}
@@ -613,7 +718,16 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     />
                   )}
 
-                  {isGenerating && (
+                  {/* Multi-agent workflow display */}
+                  {isGenerating && chatMode === "build" && buildMode === "multi-agent" && showAgentWorkflow && (
+                    <AgentWorkflow 
+                      agents={agents} 
+                      plan={workflowPlan || undefined} 
+                      isComplete={!isGenerating} 
+                    />
+                  )}
+
+                  {isGenerating && !(buildMode === "multi-agent" && showAgentWorkflow) && (
                     <ChatMessage
                       role="assistant"
                       content={chatMode === "build" ? "🔨 Building your app..." : (streamingContent ? "" : "Thinking...")}
