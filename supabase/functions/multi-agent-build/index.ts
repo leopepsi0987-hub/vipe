@@ -34,9 +34,15 @@ Your job is to:
 2. Break it down into specific tasks for each specialist agent
 3. Create a clear execution plan
 
+CRITICAL - DATABASE CHOICE:
+- Check the DATABASE CHOICE in the context
+- If DATABASE CHOICE is "BUILT_IN_DB", ALL data storage MUST use the Cloud Storage API (storage.get/set/delete, createCollection). NEVER use localStorage for user data!
+- If DATABASE CHOICE is "CUSTOM_DB", use the user's Supabase credentials
+- NEVER tell agents to use localStorage for user data, authentication, or any persistent data when BUILT_IN_DB is selected!
+
 The other agents are:
 - DESIGNER: UI/UX, styling, layout, animations, colors
-- CODER: JavaScript logic, functionality, event handlers, data handling
+- CODER: JavaScript logic, functionality, event handlers, data handling (MUST use Cloud Storage API for all data!)
 - BUG_HUNTER: Security, bugs, edge cases, error handling
 - OPTIMIZER: Performance, accessibility, SEO, best practices
 
@@ -45,7 +51,7 @@ OUTPUT FORMAT (JSON only, no markdown):
   "summary": "Brief summary of what we're building",
   "tasks": [
     {"agent": "designer", "task": "Specific design task"},
-    {"agent": "coder", "task": "Specific coding task"},
+    {"agent": "coder", "task": "Specific coding task - MUST mention using Cloud Storage API for data"},
     {"agent": "bug_hunter", "task": "Specific review task"},
     {"agent": "optimizer", "task": "Specific optimization task"}
   ]
@@ -82,10 +88,20 @@ Focus on making the app look AMAZING.`
     systemPrompt: `You are the CODER agent on a web development team.
 Your specialty: JavaScript logic, event handlers, state management, API calls, data handling.
 
+CRITICAL - DATABASE CHOICE:
+- Check the DATABASE CHOICE in the context
+- If DATABASE CHOICE is "BUILT_IN_DB":
+  * You MUST use the Cloud Storage API for ALL data persistence
+  * NEVER use localStorage for user data, authentication, or any persistent data
+  * Include the storage helper: storage.get(), storage.set(), storage.delete()
+  * Include the createCollection() helper for lists of items
+  * Include the auth helper for user authentication
+- If DATABASE CHOICE is "CUSTOM_DB", use the Supabase client
+
 RULES:
 - Write clean, modular JavaScript
 - Handle all user interactions
-- Implement business logic
+- Implement business logic using Cloud Storage API (not localStorage!)
 - Use modern ES6+ syntax
 - For complex apps, use React 18 with hooks
 
@@ -217,10 +233,17 @@ serve(async (req) => {
             message: "Analyzing your request and creating a plan..." 
           });
 
+          const chiefContext = `
+DATABASE CHOICE: ${dbChoice || "BUILT_IN_DB"}
+${dbChoice === "BUILT_IN_DB" || !dbChoice ? "IMPORTANT: User chose BUILT_IN_DB - ALL data storage MUST use Cloud Storage API, NOT localStorage!" : "User chose CUSTOM_DB - Use their Supabase credentials."}
+
+${currentCode ? `Current code exists (${currentCode.length} chars). User wants to modify/add to it.` : "Starting fresh, no existing code."}
+`;
+
           const planResponse = await callAgent(
             "chief",
             prompt,
-            currentCode ? `Current code exists (${currentCode.length} chars). User wants to modify/add to it.` : "Starting fresh, no existing code.",
+            chiefContext,
             GOOGLE_GEMINI_API_KEY
           );
 
@@ -260,6 +283,65 @@ serve(async (req) => {
 USER REQUEST: ${prompt}
 
 DATABASE CHOICE: ${dbChoice || "BUILT_IN_DB"}
+${dbChoice === "BUILT_IN_DB" || !dbChoice ? `
+CRITICAL: You MUST use the Cloud Storage API for ALL data persistence. NEVER use localStorage!
+Include this storage helper in your code:
+
+const API_URL = 'https://svadrczzdvdbeajeiabs.supabase.co/functions/v1/app-api';
+const PROJECT_SLUG = window.location.pathname.split('/app/')[1] || null;
+const hasBackend = () => PROJECT_SLUG !== null;
+
+const storage = {
+  async get(key) {
+    if (!hasBackend()) return JSON.parse(localStorage.getItem(key) || 'null');
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get', projectSlug: PROJECT_SLUG, key })
+    });
+    return (await res.json()).data;
+  },
+  async set(key, value) {
+    if (!hasBackend()) { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set', projectSlug: PROJECT_SLUG, key, value })
+    });
+    return (await res.json()).success;
+  },
+  async delete(key) {
+    if (!hasBackend()) { localStorage.removeItem(key); return true; }
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', projectSlug: PROJECT_SLUG, key })
+    });
+    return (await res.json()).success;
+  }
+};
+
+// For user authentication:
+const auth = {
+  async signUp(email, password, userData = {}) {
+    const users = await storage.get('app_users') || [];
+    if (users.find(u => u.email === email)) return { error: 'User already exists' };
+    const user = { id: crypto.randomUUID(), email, password: btoa(password), ...userData, createdAt: new Date().toISOString() };
+    users.push(user);
+    await storage.set('app_users', users);
+    return { user: { ...user, password: undefined } };
+  },
+  async signIn(email, password) {
+    const users = await storage.get('app_users') || [];
+    const user = users.find(u => u.email === email && u.password === btoa(password));
+    if (!user) return { error: 'Invalid credentials' };
+    sessionStorage.setItem('currentUser', JSON.stringify({ ...user, password: undefined }));
+    return { user: { ...user, password: undefined } };
+  },
+  signOut() { sessionStorage.removeItem('currentUser'); },
+  getCurrentUser() { return JSON.parse(sessionStorage.getItem('currentUser') || 'null'); }
+};
+` : ""}
 
 EXISTING CODE:
 ${currentCode || "No existing code - building from scratch"}
@@ -348,12 +430,54 @@ RULES:
 4. Make sure the app is fully functional
 5. NO explanations, NO markdown - ONLY the HTML code
 
-${dbChoice === "BUILT_IN_DB" ? `
-Include the Cloud Storage API helper at the start of your script:
+${dbChoice === "BUILT_IN_DB" || !dbChoice ? `
+CRITICAL: You MUST include this Cloud Storage API helper at the START of your <script> tag:
+
 const API_URL = 'https://svadrczzdvdbeajeiabs.supabase.co/functions/v1/app-api';
 const PROJECT_SLUG = window.location.pathname.split('/app/')[1] || null;
 const hasBackend = () => PROJECT_SLUG !== null;
-// ... (include the full storage helper)
+
+const storage = {
+  async get(key) {
+    if (!hasBackend()) return JSON.parse(localStorage.getItem(key) || 'null');
+    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get', projectSlug: PROJECT_SLUG, key }) });
+    return (await res.json()).data;
+  },
+  async set(key, value) {
+    if (!hasBackend()) { localStorage.setItem(key, JSON.stringify(value)); return true; }
+    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set', projectSlug: PROJECT_SLUG, key, value }) });
+    return (await res.json()).success;
+  },
+  async delete(key) {
+    if (!hasBackend()) { localStorage.removeItem(key); return true; }
+    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', projectSlug: PROJECT_SLUG, key }) });
+    return (await res.json()).success;
+  }
+};
+
+const auth = {
+  async signUp(email, password, userData = {}) {
+    const users = await storage.get('app_users') || [];
+    if (users.find(u => u.email === email)) return { error: 'User already exists' };
+    const user = { id: crypto.randomUUID(), email, password: btoa(password), ...userData, createdAt: new Date().toISOString() };
+    users.push(user);
+    await storage.set('app_users', users);
+    return { user: { ...user, password: undefined } };
+  },
+  async signIn(email, password) {
+    const users = await storage.get('app_users') || [];
+    const user = users.find(u => u.email === email && u.password === btoa(password));
+    if (!user) return { error: 'Invalid credentials' };
+    sessionStorage.setItem('currentUser', JSON.stringify({ ...user, password: undefined }));
+    return { user: { ...user, password: undefined } };
+  },
+  signOut() { sessionStorage.removeItem('currentUser'); },
+  getCurrentUser() { return JSON.parse(sessionStorage.getItem('currentUser') || 'null'); }
+};
+
+Use storage.get/set/delete for ALL data persistence.
+Use auth.signUp/signIn/signOut/getCurrentUser for authentication.
+NEVER use raw localStorage for user data!
 ` : ""}
 `;
 
