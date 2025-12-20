@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.supabase-oauth]
 verify_jwt = false
+
+[functions.execute-migration]
+verify_jwt = false

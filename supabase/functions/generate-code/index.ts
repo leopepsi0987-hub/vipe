@@ -108,33 +108,76 @@ serve(async (req) => {
 
     // Build database context based on connection status
     let dbChoiceContext = "";
+    let toolsEnabled = false;
     
     if (userSupabaseConnection) {
+      toolsEnabled = true;
       dbChoiceContext = `## 🔌 USER HAS CONNECTED THEIR OWN SUPABASE DATABASE!
       
 The user has connected their Supabase project at: ${userSupabaseConnection.url}
 
-**CRITICAL**: You can now create tables, schemas, RLS policies, and use their database!
+**CRITICAL**: You MUST use TOOL CALLS to manage the database! DO NOT embed SQL in HTML!
 
-When the user asks for features requiring database:
-1. Include the Supabase JS client script: <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-2. Initialize with their URL: 
-   const supabase = window.supabase.createClient('${userSupabaseConnection.url}', 'USER_ANON_KEY_PLACEHOLDER');
-   
-3. When you need to CREATE TABLES or RUN MIGRATIONS, output them in a special SQL block like this:
-   <!-- MIGRATION_SQL
-   CREATE TABLE IF NOT EXISTS todos (
-     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-     user_id UUID REFERENCES auth.users(id),
-     title TEXT NOT NULL,
-     completed BOOLEAN DEFAULT false,
-     created_at TIMESTAMPTZ DEFAULT now()
-   );
-   ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
-   CREATE POLICY "Users can CRUD own todos" ON todos FOR ALL USING (auth.uid() = user_id);
-   MIGRATION_SQL -->
-   
-The migrations will be automatically executed on their Supabase database!
+## DATABASE TOOL CALLING - HOW IT WORKS
+
+When the user asks for features requiring database tables, YOU MUST:
+
+1. **FIRST** - Call the \`run_sql_migration\` tool to create tables and RLS policies
+2. **THEN** - Generate the HTML/React code that uses those tables
+
+### EXAMPLE WORKFLOW:
+
+User asks: "Build me a todo app"
+
+**Step 1**: You call the tool:
+\`\`\`json
+{
+  "tool": "run_sql_migration",
+  "sql": "CREATE TABLE IF NOT EXISTS todos (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, user_id UUID REFERENCES auth.users(id), title TEXT NOT NULL, completed BOOLEAN DEFAULT false, created_at TIMESTAMPTZ DEFAULT now()); ALTER TABLE todos ENABLE ROW LEVEL SECURITY; CREATE POLICY \\"Users can CRUD own todos\\" ON todos FOR ALL USING (auth.uid() = user_id);",
+  "description": "Create todos table with RLS"
+}
+\`\`\`
+
+**Step 2**: After migration runs, you generate the HTML code that uses supabase.from('todos')
+
+### TOOL FORMAT - EMBED IN YOUR RESPONSE:
+
+When you need to run a migration, include this special block BEFORE your HTML:
+
+<!-- VIPE_TOOL_CALL
+{
+  "tool": "run_sql_migration",
+  "sql": "YOUR SQL HERE",
+  "description": "What this migration does"
+}
+VIPE_TOOL_CALL -->
+
+Then continue with the HTML code.
+
+### SUPABASE CLIENT SETUP IN YOUR HTML:
+
+\`\`\`html
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+const supabase = window.supabase.createClient(
+  '${userSupabaseConnection.url}',
+  'ANON_KEY_PLACEHOLDER'
+);
+</script>
+\`\`\`
+
+### RLS PATTERNS - ALWAYS USE THESE:
+
+\`\`\`sql
+-- Public read, authenticated write
+CREATE POLICY "Anyone can read" ON tablename FOR SELECT USING (true);
+CREATE POLICY "Authenticated users can insert" ON tablename FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "Users can update own" ON tablename FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own" ON tablename FOR DELETE USING (auth.uid() = user_id);
+
+-- Private to user
+CREATE POLICY "Users CRUD own data" ON tablename FOR ALL USING (auth.uid() = user_id);
+\`\`\`
 
 Use the Supabase client for all auth, database queries, and storage operations.`;
     } else if (dbChoice === "BUILT_IN_DB") {
@@ -1842,37 +1885,86 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
         }
       },
       async flush(controller) {
-        // Extract migrations if user has connected Supabase
-        if (userSupabaseConnection && fullContent) {
-          // Support both old and new migration format
+        // Extract and execute tool calls if user has connected Supabase
+        if (userSupabaseConnection && fullContent && projectId) {
+          // Extract tool calls from the AI output
+          const toolCallRegex = /<!-- VIPE_TOOL_CALL\s*([\s\S]*?)\s*VIPE_TOOL_CALL -->/g;
           const migrationRegexOld = /<!-- MIGRATION_SQL\s*([\s\S]*?)\s*MIGRATION_SQL -->/g;
           const migrationRegexNew = /<!-- VIPE_SQL_MIGRATION\s*([\s\S]*?)\s*VIPE_SQL_MIGRATION -->/g;
           
-          const migrations: string[] = [];
+          const toolCalls: Array<{ tool: string; sql: string; description?: string }> = [];
           let match;
           
-          while ((match = migrationRegexOld.exec(fullContent)) !== null) {
-            migrations.push(match[1].trim());
-          }
-          while ((match = migrationRegexNew.exec(fullContent)) !== null) {
-            migrations.push(match[1].trim());
+          // Parse new tool call format
+          while ((match = toolCallRegex.exec(fullContent)) !== null) {
+            try {
+              const parsed = JSON.parse(match[1].trim());
+              if (parsed.tool === "run_sql_migration" && parsed.sql) {
+                toolCalls.push(parsed);
+              }
+            } catch (e) {
+              console.error("[generate-code] Failed to parse tool call:", e);
+            }
           }
           
-          for (const sql of migrations) {
-            if (sql) {
-              console.log("[generate-code] Found migration SQL:", sql.substring(0, 100) + "...");
+          // Also support legacy migration formats
+          while ((match = migrationRegexOld.exec(fullContent)) !== null) {
+            toolCalls.push({ tool: "run_sql_migration", sql: match[1].trim() });
+          }
+          while ((match = migrationRegexNew.exec(fullContent)) !== null) {
+            toolCalls.push({ tool: "run_sql_migration", sql: match[1].trim() });
+          }
+          
+          // Execute each migration
+          for (const toolCall of toolCalls) {
+            if (toolCall.sql) {
+              console.log("[generate-code] Executing migration:", toolCall.description || toolCall.sql.substring(0, 100) + "...");
               
-              // Send migration SQL to frontend for display
-              const migrationNotify = {
-                choices: [{
-                  delta: { 
-                    content: `\n\n<!-- VIPE_MIGRATION_READY
-${sql}
-VIPE_MIGRATION_READY -->\n\n` 
-                  }
-                }]
-              };
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(migrationNotify)}\n\n`));
+              try {
+                // Call the execute-migration function
+                const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+                const migrationResponse = await fetch(`${SUPABASE_URL}/functions/v1/execute-migration`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    action: "run_sql_migration",
+                    projectId: projectId,
+                    sql: toolCall.sql,
+                    description: toolCall.description,
+                  }),
+                });
+                
+                const migrationResult = await migrationResponse.json();
+                
+                // Notify frontend about migration execution
+                const statusMessage = migrationResult.success 
+                  ? migrationResult.data?.requiresManualExecution
+                    ? `⚠️ Migration requires manual execution. Please run in SQL Editor:\n\n\`\`\`sql\n${toolCall.sql}\n\`\`\`\n\nDashboard: ${migrationResult.data.dashboardUrl}`
+                    : `✅ Migration executed successfully: ${toolCall.description || 'Database updated'}`
+                  : `❌ Migration failed: ${migrationResult.error}`;
+                
+                const migrationNotify = {
+                  choices: [{
+                    delta: { 
+                      content: `\n\n<!-- VIPE_MIGRATION_STATUS\n${statusMessage}\nVIPE_MIGRATION_STATUS -->\n\n` 
+                    }
+                  }]
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(migrationNotify)}\n\n`));
+                
+              } catch (e) {
+                console.error("[generate-code] Migration execution error:", e);
+                const errorNotify = {
+                  choices: [{
+                    delta: { 
+                      content: `\n\n<!-- VIPE_MIGRATION_STATUS\n❌ Failed to execute migration: ${e instanceof Error ? e.message : 'Unknown error'}\nVIPE_MIGRATION_STATUS -->\n\n` 
+                    }
+                  }]
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(errorNotify)}\n\n`));
+              }
             }
           }
         }
