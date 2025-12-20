@@ -6,15 +6,22 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const SUPABASE_OAUTH_CLIENT_ID = Deno.env.get("SUPABASE_OAUTH_CLIENT_ID");
-const SUPABASE_OAUTH_CLIENT_SECRET = Deno.env.get("SUPABASE_OAUTH_CLIENT_SECRET");
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const SUPABASE_OAUTH_CLIENT_ID = Deno.env.get("SUPABASE_OAUTH_CLIENT_ID");
+  const SUPABASE_OAUTH_CLIENT_SECRET = Deno.env.get("SUPABASE_OAUTH_CLIENT_SECRET");
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  console.log("[supabase-oauth] Environment check:", {
+    hasClientId: !!SUPABASE_OAUTH_CLIENT_ID,
+    hasClientSecret: !!SUPABASE_OAUTH_CLIENT_SECRET,
+    hasSupabaseUrl: !!SUPABASE_URL,
+    clientIdLength: SUPABASE_OAUTH_CLIENT_ID?.length || 0,
+  });
 
   try {
     const url = new URL(req.url);
@@ -25,7 +32,8 @@ serve(async (req) => {
       const { projectId, redirectUri } = await req.json();
       
       if (!SUPABASE_OAUTH_CLIENT_ID) {
-        throw new Error("OAuth not configured");
+        console.error("[supabase-oauth] SUPABASE_OAUTH_CLIENT_ID is missing or empty");
+        throw new Error("OAuth not configured - missing client ID");
       }
 
       // State contains projectId to link connection after callback
