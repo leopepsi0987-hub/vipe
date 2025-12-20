@@ -47,7 +47,6 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
   useEffect(() => {
     if (open && projectId) {
       loadConnection();
-      checkOAuthCallback();
     }
   }, [open, projectId]);
 
@@ -78,53 +77,12 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
     }
   };
 
-  // Check if we're returning from OAuth callback
-  const checkOAuthCallback = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get("code");
-    const state = urlParams.get("state");
-
-    if (code && state) {
-      setIsOAuthLoading(true);
-      
-      // Clean up URL
-      window.history.replaceState({}, "", window.location.pathname);
-
-      try {
-        const { data, error } = await supabase.functions.invoke("supabase-oauth", {
-          body: {
-            action: "callback",
-            code,
-            state,
-          },
-        });
-
-        if (error) throw error;
-
-        if ((data as any)?.error) {
-          throw new Error((data as any).error);
-        }
-
-        if ((data as any)?.projects) {
-          setOauthProjects((data as any).projects);
-          toast.success("Authenticated! Select a project to connect.");
-        }
-
-      } catch (error) {
-        console.error("OAuth callback error:", error);
-        toast.error("Failed to complete OAuth flow");
-      } finally {
-        setIsOAuthLoading(false);
-      }
-    }
-  };
-
   const handleOAuthConnect = async () => {
     setIsOAuthLoading(true);
     
     try {
-      // Always redirect back to /project/:projectId so user returns to their project
-      const redirectUri = `${window.location.origin}/project/${projectId}`;
+      // Use a single fixed callback URL that's whitelisted in Supabase OAuth settings
+      const redirectUri = `${window.location.origin}/oauth/callback`;
       
       const { data, error } = await supabase.functions.invoke("supabase-oauth", {
         body: {
