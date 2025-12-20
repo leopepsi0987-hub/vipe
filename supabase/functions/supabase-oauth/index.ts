@@ -11,17 +11,29 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const SUPABASE_OAUTH_CLIENT_ID = Deno.env.get("SUPABASE_OAUTH_CLIENT_ID");
-  const SUPABASE_OAUTH_CLIENT_SECRET = Deno.env.get("SUPABASE_OAUTH_CLIENT_SECRET");
-  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const env = Deno.env.toObject();
+  const SUPABASE_OAUTH_CLIENT_ID = env["SUPABASE_OAUTH_CLIENT_ID"];
+  const SUPABASE_OAUTH_CLIENT_SECRET = env["SUPABASE_OAUTH_CLIENT_SECRET"];
+  const SUPABASE_URL = env["SUPABASE_URL"];
+  const SUPABASE_SERVICE_ROLE_KEY = env["SUPABASE_SERVICE_ROLE_KEY"];
+
+  const oauthEnvKeys = Object.keys(env).filter((k) => k.includes("OAUTH"));
+  console.log("[supabase-oauth] Env keys containing 'OAUTH':", oauthEnvKeys);
+
+  const hasGemini = !!env["GOOGLE_GEMINI_API_KEY"];
 
   console.log("[supabase-oauth] Environment check:", {
+    envKeyCount: Object.keys(env).length,
     hasClientId: !!SUPABASE_OAUTH_CLIENT_ID,
     hasClientSecret: !!SUPABASE_OAUTH_CLIENT_SECRET,
     hasSupabaseUrl: !!SUPABASE_URL,
     clientIdLength: SUPABASE_OAUTH_CLIENT_ID?.length || 0,
+    clientSecretLength: SUPABASE_OAUTH_CLIENT_SECRET?.length || 0,
+    hasGemini,
+    geminiLength: env["GOOGLE_GEMINI_API_KEY"]?.length || 0,
   });
+
+  console.log("[supabase-oauth] Available env keys:", Object.keys(env));
 
   try {
     const url = new URL(req.url);
