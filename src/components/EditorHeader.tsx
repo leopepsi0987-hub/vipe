@@ -17,7 +17,20 @@ export function EditorHeader({ projectName, projectId, onBack }: EditorHeaderPro
 
   useEffect(() => {
     checkConnection();
+    // Auto-open modal if returning from OAuth callback
+    checkOAuthReturn();
   }, [projectId]);
+
+  const checkOAuthReturn = () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    const state = urlParams.get("state");
+    
+    if (code && state) {
+      // Open the modal to complete OAuth flow
+      setShowSupabaseModal(true);
+    }
+  };
 
   const checkConnection = async () => {
     try {

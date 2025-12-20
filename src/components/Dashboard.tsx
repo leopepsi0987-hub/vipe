@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/hooks/useProjects";
 import { useAuth } from "@/hooks/useAuth";
 import { ProjectSidebar } from "./ProjectSidebar";
@@ -8,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const { signOut } = useAuth();
   const {
     projects,
@@ -28,13 +30,14 @@ export function Dashboard() {
     const project = await createProject();
     if (project) {
       toast.success("Project created!");
-      setShowingSidebar(false); // Go directly to editor
+      navigate(`/project/${project.id}`);
     }
   };
 
   const handleSelectProject = (project: typeof currentProject) => {
-    setCurrentProject(project);
-    setShowingSidebar(false); // Hide sidebar when selecting a project
+    if (project) {
+      navigate(`/project/${project.id}`);
+    }
   };
 
   const handleBackToProjects = () => {
