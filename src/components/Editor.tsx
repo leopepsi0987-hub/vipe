@@ -150,6 +150,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         prompt: content,
         currentCode: project.html_code,
         projectSlug: project.slug,
+        projectId: project.id,
         dbChoice,
       });
 

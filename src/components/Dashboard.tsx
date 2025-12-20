@@ -122,7 +122,8 @@ export function Dashboard() {
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
       <EditorHeader 
-        projectName={currentProject.name} 
+        projectName={currentProject.name}
+        projectId={currentProject.id}
         onBack={handleBackToProjects} 
       />
       <div className="flex-1 overflow-hidden">
