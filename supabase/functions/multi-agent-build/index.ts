@@ -194,15 +194,13 @@ async function callAgent(agentKey: string, prompt: string, context: string, apiK
   const agent = AGENTS[agentKey as keyof typeof AGENTS];
   if (!agent) throw new Error(`Unknown agent: ${agentKey}`);
 
-  // Chief doesn't use this function anymore (has separate intentPrompt and planPrompt)
-  if (agentKey === "chief") {
-    throw new Error("Chief agent should not use callAgent - use direct API calls");
+  const agentWithPrompt = agent as { systemPrompt?: string };
+  if (!agentWithPrompt.systemPrompt) {
+    throw new Error(`Agent ${agentKey} does not have a systemPrompt (use a direct model call instead)`);
   }
 
-  const agentWithPrompt = agent as { systemPrompt: string };
   console.log(`[${agent.name}] Starting agent call...`);
 
-  // Use Vertex AI (Google AI Platform) endpoint (API key auth)
   const response = await fetch(
     `https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
     {
@@ -237,6 +235,43 @@ async function callAgent(agentKey: string, prompt: string, context: string, apiK
   console.log(`[${agent.name}] Completed, output length: ${content.length}`);
   return content;
 }
+
+async function callChief({
+  systemPrompt,
+  userPrompt,
+  apiKey,
+  temperature = 0.7,
+  maxOutputTokens = 8192,
+}: {
+  systemPrompt: string;
+  userPrompt: string;
+  apiKey: string;
+  temperature?: number;
+  maxOutputTokens?: number;
+}): Promise<string> {
+  const response = await fetch(
+    `https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+        generationConfig: { temperature, maxOutputTokens },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Chief call error:", error);
+    throw new Error(`Chief call failed: ${response.status} - ${error}`);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+}
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -402,12 +437,20 @@ USER REQUEST: ${prompt}
 
 DATABASE CHOICE: ${dbChoice || "BUILT_IN_DB"}
 ${dbChoice === "BUILT_IN_DB" || !dbChoice ? `
-CRITICAL: You MUST use the Cloud Storage API for ALL data persistence. NEVER use localStorage!
+CRITICAL: You MUST use the Cloud Storage API for ALL data persistence. NEVER use raw localStorage for user data.
+
+IMPORTANT RENDERING RULE:
+- Your HTML MUST render meaningful UI even when PROJECT_SLUG is missing (editor preview mode).
+- In preview mode (no slug), storage may fall back to localStorage ONLY as a temporary preview fallback.
+- Never block rendering just because backend is unavailable.
+
 Include this storage helper in your code:
 
-const API_URL = 'https://svadrczzdvdbeajeiabs.supabase.co/functions/v1/app-api';
-const PROJECT_SLUG = window.location.pathname.split('/app/')[1] || null;
-const hasBackend = () => PROJECT_SLUG !== null;
+const API_URL = (window.__VIPE_API_URL || 'https://svadrczzdvdbeajeiabs.supabase.co/functions/v1/app-api');
+const PROJECT_SLUG = window.location.pathname.includes('/app/')
+  ? (window.location.pathname.split('/app/')[1] || null)
+  : null;
+const hasBackend = () => !!PROJECT_SLUG;
 
 const storage = {
   async get(key) {
@@ -417,7 +460,9 @@ const storage = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'get', projectSlug: PROJECT_SLUG, key })
     });
-    return (await res.json()).data;
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error || 'Storage.get failed');
+    return data.data;
   },
   async set(key, value) {
     if (!hasBackend()) { localStorage.setItem(key, JSON.stringify(value)); return true; }
@@ -426,7 +471,9 @@ const storage = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'set', projectSlug: PROJECT_SLUG, key, value })
     });
-    return (await res.json()).success;
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error || 'Storage.set failed');
+    return !!data.success;
   },
   async delete(key) {
     if (!hasBackend()) { localStorage.removeItem(key); return true; }
@@ -435,7 +482,9 @@ const storage = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'delete', projectSlug: PROJECT_SLUG, key })
     });
-    return (await res.json()).success;
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error || 'Storage.delete failed');
+    return !!data.success;
   }
 };
 
@@ -599,7 +648,13 @@ NEVER use raw localStorage for user data!
 ` : ""}
 `;
 
-          const finalCode = await callAgent("chief", assemblyPrompt, "", GOOGLE_GEMINI_API_KEY);
+           const finalCode = await callChief({
+             systemPrompt: "You are an expert web engineer. Follow instructions precisely and output only the requested HTML.",
+             userPrompt: assemblyPrompt,
+             apiKey: GOOGLE_GEMINI_API_KEY,
+             temperature: 0.7,
+             maxOutputTokens: 8192,
+           });
 
           sendEvent({ 
             type: "agent_done", 
