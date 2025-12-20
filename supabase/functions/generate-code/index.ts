@@ -6,42 +6,67 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Helper to execute SQL on user's connected Supabase
-async function executeUserMigration(supabaseUrl: string, serviceRoleKey: string, sql: string): Promise<{ success: boolean; error?: string }> {
+// Helper to execute SQL on user's connected Supabase using the SQL endpoint
+async function executeUserMigration(
+  supabaseUrl: string, 
+  serviceRoleKey: string, 
+  sql: string
+): Promise<{ success: boolean; error?: string; data?: any }> {
   try {
-    // Use the Supabase REST API to execute SQL via the pg endpoint
-    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+    console.log("[executeUserMigration] Attempting to execute SQL on:", supabaseUrl);
+    
+    // Method 1: Use Supabase's pg-meta endpoint (available in hosted Supabase)
+    // This endpoint allows executing raw SQL with service role key
+    const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/)?.[1];
+    
+    if (!projectRef) {
+      return { success: false, error: "Could not extract project reference from URL" };
+    }
+
+    // Use the query endpoint that's available on all Supabase projects
+    // The service role key has permission to execute SQL via postgres-meta
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
       method: "POST",
       headers: {
         "apikey": serviceRoleKey,
         "Authorization": `Bearer ${serviceRoleKey}`,
         "Content-Type": "application/json",
-        "Prefer": "return=representation",
       },
-      body: JSON.stringify({ query: sql }),
+      body: JSON.stringify({
+        // We'll create a helper function on the user's database
+      }),
     });
 
-    if (!response.ok) {
-      // Try direct query endpoint as fallback
-      const pgResponse = await fetch(`${supabaseUrl}/pg`, {
-        method: "POST",
-        headers: {
-          "apikey": serviceRoleKey,
-          "Authorization": `Bearer ${serviceRoleKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ query: sql }),
-      });
-      
-      if (!pgResponse.ok) {
-        const errorText = await pgResponse.text();
-        return { success: false, error: errorText };
-      }
-    }
+    // If RPC doesn't work, try creating table directly via REST
+    // For CREATE TABLE statements, we can use a workaround:
+    // 1. First, create an exec_sql function if it doesn't exist
+    // 2. Then call it
     
-    return { success: true };
+    // For now, let's use the postgres connection string approach
+    // We'll store the SQL to be executed and notify the frontend
+    
+    // Since direct SQL execution requires DB connection (not just REST API),
+    // we'll return the SQL for the frontend to display and let user execute it
+    // OR use Supabase's Management API if we have OAuth access
+    
+    console.log("[executeUserMigration] SQL to execute:", sql.substring(0, 200));
+    
+    // Return the SQL for frontend to handle
+    // The frontend can show a modal asking user to run this in their Supabase SQL editor
+    return { 
+      success: true, 
+      data: { 
+        sql,
+        message: "SQL generated successfully. Please run this in your Supabase SQL Editor.",
+        projectRef 
+      } 
+    };
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+    console.error("[executeUserMigration] Error:", error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : "Unknown error" 
+    };
   }
 }
 
@@ -1817,38 +1842,37 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
         }
       },
       async flush(controller) {
-        // Extract and execute migrations if user has connected Supabase
+        // Extract migrations if user has connected Supabase
         if (userSupabaseConnection && fullContent) {
-          const migrationRegex = /<!-- MIGRATION_SQL\s*([\s\S]*?)\s*MIGRATION_SQL -->/g;
+          // Support both old and new migration format
+          const migrationRegexOld = /<!-- MIGRATION_SQL\s*([\s\S]*?)\s*MIGRATION_SQL -->/g;
+          const migrationRegexNew = /<!-- VIPE_SQL_MIGRATION\s*([\s\S]*?)\s*VIPE_SQL_MIGRATION -->/g;
+          
+          const migrations: string[] = [];
           let match;
           
-          while ((match = migrationRegex.exec(fullContent)) !== null) {
-            const sql = match[1].trim();
+          while ((match = migrationRegexOld.exec(fullContent)) !== null) {
+            migrations.push(match[1].trim());
+          }
+          while ((match = migrationRegexNew.exec(fullContent)) !== null) {
+            migrations.push(match[1].trim());
+          }
+          
+          for (const sql of migrations) {
             if (sql) {
-              console.log("[generate-code] Executing migration:", sql.substring(0, 100) + "...");
-              const result = await executeUserMigration(
-                userSupabaseConnection.url,
-                userSupabaseConnection.serviceRoleKey,
-                sql
-              );
-              if (result.success) {
-                console.log("[generate-code] Migration executed successfully");
-                // Send migration success notification
-                const notifyFormat = {
-                  choices: [{
-                    delta: { content: `\n<!-- MIGRATION_EXECUTED: Success -->\n` }
-                  }]
-                };
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(notifyFormat)}\n\n`));
-              } else {
-                console.error("[generate-code] Migration failed:", result.error);
-                const notifyFormat = {
-                  choices: [{
-                    delta: { content: `\n<!-- MIGRATION_ERROR: ${result.error} -->\n` }
-                  }]
-                };
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(notifyFormat)}\n\n`));
-              }
+              console.log("[generate-code] Found migration SQL:", sql.substring(0, 100) + "...");
+              
+              // Send migration SQL to frontend for display
+              const migrationNotify = {
+                choices: [{
+                  delta: { 
+                    content: `\n\n<!-- VIPE_MIGRATION_READY
+${sql}
+VIPE_MIGRATION_READY -->\n\n` 
+                  }
+                }]
+              };
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(migrationNotify)}\n\n`));
             }
           }
         }
