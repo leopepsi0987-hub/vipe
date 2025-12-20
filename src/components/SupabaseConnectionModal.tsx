@@ -91,28 +91,25 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
       window.history.replaceState({}, "", window.location.pathname);
 
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/supabase-oauth?action=callback`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ 
-              code, 
-              state,
-            }),
-          }
-        );
+        const { data, error } = await supabase.functions.invoke("supabase-oauth", {
+          body: {
+            action: "callback",
+            code,
+            state,
+          },
+        });
 
-        const data = await response.json();
+        if (error) throw error;
 
-        if (data.error) {
-          throw new Error(data.error);
+        if ((data as any)?.error) {
+          throw new Error((data as any).error);
         }
 
-        if (data.projects) {
-          setOauthProjects(data.projects);
+        if ((data as any)?.projects) {
+          setOauthProjects((data as any).projects);
           toast.success("Authenticated! Select a project to connect.");
         }
+
       } catch (error) {
         console.error("OAuth callback error:", error);
         toast.error("Failed to complete OAuth flow");
@@ -128,27 +125,23 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
     try {
       const redirectUri = `${window.location.origin}${window.location.pathname}`;
       
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/supabase-oauth?action=authorize`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            projectId,
-            redirectUri,
-          }),
-        }
-      );
+      const { data, error } = await supabase.functions.invoke("supabase-oauth", {
+        body: {
+          action: "authorize",
+          projectId,
+          redirectUri,
+        },
+      });
 
-      const data = await response.json();
+      if (error) throw error;
 
-      if (data.error) {
-        throw new Error(data.error);
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
       }
 
-      if (data.authUrl) {
-        // Redirect to Supabase OAuth
-        window.location.href = data.authUrl;
+      if ((data as any)?.authUrl) {
+        // Redirect to OAuth
+        window.location.href = (data as any).authUrl;
       }
     } catch (error) {
       console.error("OAuth error:", error);
@@ -161,25 +154,21 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
     setSelectingProject(supabaseProject.id);
     
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/supabase-oauth?action=select-project`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            projectId,
-            supabaseProjectId: supabaseProject.id,
-          }),
-        }
-      );
+      const { data, error } = await supabase.functions.invoke("supabase-oauth", {
+        body: {
+          action: "select-project",
+          projectId,
+          supabaseProjectId: supabaseProject.id,
+        },
+      });
 
-      const data = await response.json();
+      if (error) throw error;
 
-      if (data.error) {
-        throw new Error(data.error);
+      if ((data as any)?.error) {
+        throw new Error((data as any).error);
       }
 
-      if (data.success) {
+      if ((data as any)?.success) {
         toast.success(`Connected to ${supabaseProject.name}!`);
         setOauthProjects(null);
         loadConnection();
