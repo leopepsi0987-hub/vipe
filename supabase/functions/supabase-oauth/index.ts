@@ -50,15 +50,19 @@ serve(async (req) => {
 
       // State contains projectId to link connection after callback
       const state = btoa(JSON.stringify({ projectId, redirectUri }));
-      
+
       const authUrl = new URL("https://api.supabase.com/v1/oauth/authorize");
       authUrl.searchParams.set("client_id", OAUTH_CLIENT_ID);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("state", state);
-      
-      console.log("[supabase-oauth] Generated auth URL for project:", projectId);
-      
+
+      console.log("[supabase-oauth] Generated auth URL", {
+        projectId,
+        redirectUri,
+        authUrl: authUrl.toString(),
+      });
+
       return new Response(JSON.stringify({ authUrl: authUrl.toString() }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
