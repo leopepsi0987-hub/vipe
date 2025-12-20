@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.visual-edit]
 verify_jwt = false
+
+[functions.supabase-oauth]
+verify_jwt = false
