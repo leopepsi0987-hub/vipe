@@ -6,12 +6,11 @@ import { Preview } from "./Preview";
 import { DataPanel } from "./DataPanel";
 import { VisualEditor } from "./VisualEditor";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
-import { AgentWorkflow } from "./AgentWorkflow";
 import { Project } from "@/hooks/useProjects";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, History, Eye, Code, Globe, Users } from "lucide-react";
+import { MessageSquare, Database, History, Eye, Code, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,29 +41,6 @@ interface EditorProps {
 type LeftTab = "chat" | "data" | "history";
 type MobileTab = "chat" | "preview";
 
-interface Agent {
-  id: string;
-  name: string;
-  emoji: string;
-  role: string;
-  status: "pending" | "working" | "done" | "error";
-  message?: string;
-  output?: string;
-}
-
-interface WorkflowPlan {
-  summary: string;
-  tasks: { agent: string; task: string }[];
-}
-
-const INITIAL_AGENTS: Agent[] = [
-  { id: "chief", name: "Chief", emoji: "👑", role: "Orchestrator", status: "pending" },
-  { id: "designer", name: "Designer", emoji: "🎨", role: "UI/UX Specialist", status: "pending" },
-  { id: "coder", name: "Coder", emoji: "💻", role: "Logic Specialist", status: "pending" },
-  { id: "bugHunter", name: "Bug Hunter", emoji: "🔍", role: "Security Specialist", status: "pending" },
-  { id: "optimizer", name: "Optimizer", emoji: "⚡", role: "Performance Specialist", status: "pending" },
-];
-
 export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: EditorProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -74,9 +50,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
-  const [agents, setAgents] = useState<Agent[]>(INITIAL_AGENTS);
-  const [workflowPlan, setWorkflowPlan] = useState<WorkflowPlan | null>(null);
-  const [showAgentWorkflow, setShowAgentWorkflow] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -166,21 +139,17 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     setIsGenerating(true);
     setStreamingContent("");
 
-    // Reset agents for multi-agent mode
-    setAgents(INITIAL_AGENTS);
-    setWorkflowPlan(null);
-    setShowAgentWorkflow(true);
-
     // Create abort controller for cancellation
     abortControllerRef.current = new AbortController();
 
     try {
-      // Always use multi-agent endpoint
-      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/multi-agent-build`;
+      // Use single-agent generate-code endpoint
+      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
 
       const body = JSON.stringify({
         prompt: content,
         currentCode: project.html_code,
+        projectSlug: project.slug,
         dbChoice,
       });
 
@@ -205,7 +174,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
       const decoder = new TextDecoder();
       let fullContent = "";
       let textBuffer = "";
-      let finalCode = "";
 
       while (true) {
         const { done, value } = await reader.read();
@@ -227,55 +195,20 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
           try {
             const parsed = JSON.parse(jsonStr);
-            
-            // Handle multi-agent events
-            if (parsed.type === "agent_start") {
-              setAgents(prev => prev.map(a => 
-                a.id === parsed.agent ? { ...a, status: "working", message: parsed.message } : a
-              ));
-            } else if (parsed.type === "agent_done") {
-              setAgents(prev => prev.map(a => 
-                a.id === parsed.agent ? { ...a, status: "done", message: parsed.message, output: parsed.output } : a
-              ));
-            } else if (parsed.type === "plan_created") {
-              setWorkflowPlan(parsed.plan);
-            } else if (parsed.type === "chat_response") {
-              // Chief detected non-build intent - just respond conversationally
-              const assistantMessage: Message = {
-                id: crypto.randomUUID(),
-                role: "assistant",
-                content: parsed.message,
-              };
-              const finalMessages = [...newMessages, assistantMessage];
-              setMessages(finalMessages);
-              saveMessages(finalMessages);
-              setShowAgentWorkflow(false);
-              setIsGenerating(false);
-              return; // Exit early, no code generation
-            } else if (parsed.type === "complete") {
-              finalCode = parsed.code;
-            } else if (parsed.type === "error") {
-              throw new Error(parsed.message);
-            } else {
-              // Standard streaming response
-              const delta = parsed.choices?.[0]?.delta?.content;
-              if (delta) {
-                fullContent += delta;
-                setStreamingContent(fullContent);
-              }
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullContent += delta;
+              setStreamingContent(fullContent);
             }
           } catch (e) {
             // Ignore parse errors for incomplete JSON
-            if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
-              console.error("Parse error:", e);
-            }
           }
         }
       }
 
-      // Process the final code from multi-agent workflow
-      if (finalCode) {
-        let cleanedCode = finalCode;
+      // Process the streamed code
+      if (fullContent) {
+        let cleanedCode = fullContent;
         const htmlMatch = cleanedCode.match(/```html\n?([\s\S]*?)```/);
         if (htmlMatch) {
           cleanedCode = htmlMatch[1];
@@ -290,13 +223,12 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Done! 5 agents collaborated to build your app. 🚀",
+          content: "Done! Your app is ready. 🚀",
           hasCode: true,
         };
         const finalMessages = [...newMessages, assistantMessage];
         setMessages(finalMessages);
         saveMessages(finalMessages);
-        setShowAgentWorkflow(false);
       }
 
       setStreamingContent("");
@@ -304,7 +236,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
       // Handle abort gracefully
       if (error instanceof Error && error.name === "AbortError") {
         toast.info("Build stopped");
-        setShowAgentWorkflow(false);
         return;
       }
       
@@ -326,12 +257,9 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     }
   };
 
-  const handleStopAgents = () => {
+  const handleStop = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
-      setAgents(prev => prev.map(a => 
-        a.status === "working" ? { ...a, status: "pending", message: "Stopped" } : a
-      ));
     }
   };
 
@@ -346,8 +274,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               {/* Header */}
               <div className="p-3 border-b border-border">
                 <div className="flex items-center justify-center gap-2 bg-gradient-primary text-primary-foreground px-4 py-2 rounded-lg">
-                  <Users className="w-4 h-4" />
-                  <span className="text-sm font-medium">5 Agents Ready</span>
+                  <MessageSquare className="w-4 h-4" />
+                  <span className="text-sm font-medium">Vipe AI</span>
                 </div>
               </div>
 
@@ -393,21 +321,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     />
                   ))}
 
-                  {/* Multi-agent workflow display for mobile */}
-                  {showAgentWorkflow && (
-                    <AgentWorkflow 
-                      agents={agents} 
-                      plan={workflowPlan || undefined} 
-                      isComplete={!isGenerating}
-                      isRunning={isGenerating}
-                      onStop={handleStopAgents}
-                    />
-                  )}
-
-                  {isGenerating && !showAgentWorkflow && (
+                  {isGenerating && (
                     <ChatMessage
                       role="assistant"
-                      content="Processing..."
+                      content={streamingContent || "Building your app..."}
                       isStreaming
                     />
                   )}
@@ -555,11 +472,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
           {leftTab === "chat" ? (
             <>
-              {/* Header - 5 Agents indicator */}
+              {/* Header */}
               <div className="p-3 border-b border-border">
                 <div className="flex items-center justify-center gap-2 bg-gradient-primary text-primary-foreground px-4 py-2 rounded-lg">
-                  <Users className="w-4 h-4" />
-                  <span className="text-sm font-medium">5 Agents Ready</span>
+                  <MessageSquare className="w-4 h-4" />
+                  <span className="text-sm font-medium">Vipe AI</span>
                 </div>
               </div>
 
@@ -600,21 +517,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                     />
                   ))}
 
-                  {/* Multi-agent workflow display */}
-                  {showAgentWorkflow && (
-                    <AgentWorkflow 
-                      agents={agents} 
-                      plan={workflowPlan || undefined} 
-                      isComplete={!isGenerating}
-                      isRunning={isGenerating}
-                      onStop={handleStopAgents}
-                    />
-                  )}
-
-                  {isGenerating && !showAgentWorkflow && (
+                  {isGenerating && (
                     <ChatMessage
                       role="assistant"
-                      content="Processing..."
+                      content={streamingContent || "Building your app..."}
                       isStreaming
                     />
                   )}
