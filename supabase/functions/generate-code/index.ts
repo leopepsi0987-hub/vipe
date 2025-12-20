@@ -1,9 +1,49 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Helper to execute SQL on user's connected Supabase
+async function executeUserMigration(supabaseUrl: string, serviceRoleKey: string, sql: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    // Use the Supabase REST API to execute SQL via the pg endpoint
+    const response = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+      method: "POST",
+      headers: {
+        "apikey": serviceRoleKey,
+        "Authorization": `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation",
+      },
+      body: JSON.stringify({ query: sql }),
+    });
+
+    if (!response.ok) {
+      // Try direct query endpoint as fallback
+      const pgResponse = await fetch(`${supabaseUrl}/pg`, {
+        method: "POST",
+        headers: {
+          "apikey": serviceRoleKey,
+          "Authorization": `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query: sql }),
+      });
+      
+      if (!pgResponse.ok) {
+        const errorText = await pgResponse.text();
+        return { success: false, error: errorText };
+      }
+    }
+    
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,19 +51,74 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, currentCode, projectSlug, dbChoice } = await req.json();
+    const { prompt, currentCode, projectSlug, projectId, dbChoice } = await req.json();
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
     if (!GOOGLE_GEMINI_API_KEY) {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
-    const dbChoiceContext =
-      dbChoice === "BUILT_IN_DB"
-        ? "The user has chosen to use the BUILT-IN VIPE DATABASE (Cloud Storage API + app-api backend). You MUST implement all data persistence and auth using the provided Cloud Storage and auth helpers, NOT plain localStorage. Only use the Supabase JS client helpers when the app truly needs advanced SQL features beyond simple key/value or collection storage."
-        : dbChoice === "CUSTOM_DB"
-        ? "The user has chosen to use THEIR OWN SUPABASE DATABASE. They will provide SUPABASE_URL and SUPABASE_ANON_KEY in their description. You MUST initialize the Supabase JS client with those values and use it for all database, auth, and storage operations. Do NOT use the built-in Cloud Storage helper for core app data in this mode."
-        : "The user has not explicitly chosen a database option. Prefer the built-in Cloud Storage API helper for data persistence, and only introduce direct Supabase JS usage when they explicitly mention a custom Supabase project or advanced SQL/database requirements.";
+    // Fetch user's connected Supabase if projectId provided
+    let userSupabaseConnection: { url: string; serviceRoleKey: string } | null = null;
+    
+    if (projectId && SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      const { data } = await supabase
+        .from("project_data")
+        .select("value")
+        .eq("project_id", projectId)
+        .eq("key", "supabase_connection")
+        .maybeSingle();
+      
+      if (data?.value) {
+        const conn = data.value as { url: string; serviceRoleKey: string; connected: boolean };
+        if (conn.connected && conn.url && conn.serviceRoleKey) {
+          userSupabaseConnection = { url: conn.url, serviceRoleKey: conn.serviceRoleKey };
+          console.log("[generate-code] User has connected Supabase:", conn.url);
+        }
+      }
+    }
+
+    // Build database context based on connection status
+    let dbChoiceContext = "";
+    
+    if (userSupabaseConnection) {
+      dbChoiceContext = `## 🔌 USER HAS CONNECTED THEIR OWN SUPABASE DATABASE!
+      
+The user has connected their Supabase project at: ${userSupabaseConnection.url}
+
+**CRITICAL**: You can now create tables, schemas, RLS policies, and use their database!
+
+When the user asks for features requiring database:
+1. Include the Supabase JS client script: <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+2. Initialize with their URL: 
+   const supabase = window.supabase.createClient('${userSupabaseConnection.url}', 'USER_ANON_KEY_PLACEHOLDER');
+   
+3. When you need to CREATE TABLES or RUN MIGRATIONS, output them in a special SQL block like this:
+   <!-- MIGRATION_SQL
+   CREATE TABLE IF NOT EXISTS todos (
+     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+     user_id UUID REFERENCES auth.users(id),
+     title TEXT NOT NULL,
+     completed BOOLEAN DEFAULT false,
+     created_at TIMESTAMPTZ DEFAULT now()
+   );
+   ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
+   CREATE POLICY "Users can CRUD own todos" ON todos FOR ALL USING (auth.uid() = user_id);
+   MIGRATION_SQL -->
+   
+The migrations will be automatically executed on their Supabase database!
+
+Use the Supabase client for all auth, database queries, and storage operations.`;
+    } else if (dbChoice === "BUILT_IN_DB") {
+      dbChoiceContext = "The user has chosen to use the BUILT-IN VIPE DATABASE (Cloud Storage API + app-api backend). You MUST implement all data persistence and auth using the provided Cloud Storage and auth helpers, NOT plain localStorage. Only use the Supabase JS client helpers when the app truly needs advanced SQL features beyond simple key/value or collection storage.";
+    } else if (dbChoice === "CUSTOM_DB") {
+      dbChoiceContext = "The user has chosen to use THEIR OWN SUPABASE DATABASE. They will provide SUPABASE_URL and SUPABASE_ANON_KEY in their description. You MUST initialize the Supabase JS client with those values and use it for all database, auth, and storage operations. Do NOT use the built-in Cloud Storage helper for core app data in this mode.";
+    } else {
+      dbChoiceContext = "The user has not explicitly chosen a database option. Prefer the built-in Cloud Storage API helper for data persistence, and only introduce direct Supabase JS usage when they explicitly mention a custom Supabase project or advanced SQL/database requirements.";
+    }
 
     const systemPrompt = `## ROLE & IDENTITY
 
@@ -1688,6 +1783,9 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
     }
 
     // Transform Gemini SSE to OpenAI-compatible SSE format
+    // Also collect full content to extract and execute migrations
+    let fullContent = "";
+    
     const transformStream = new TransformStream({
       transform(chunk, controller) {
         const text = new TextDecoder().decode(chunk);
@@ -1703,6 +1801,7 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
             const textContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
             
             if (textContent) {
+              fullContent += textContent;
               // Transform to OpenAI format
               const openAIFormat = {
                 choices: [{
@@ -1717,7 +1816,42 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
           }
         }
       },
-      flush(controller) {
+      async flush(controller) {
+        // Extract and execute migrations if user has connected Supabase
+        if (userSupabaseConnection && fullContent) {
+          const migrationRegex = /<!-- MIGRATION_SQL\s*([\s\S]*?)\s*MIGRATION_SQL -->/g;
+          let match;
+          
+          while ((match = migrationRegex.exec(fullContent)) !== null) {
+            const sql = match[1].trim();
+            if (sql) {
+              console.log("[generate-code] Executing migration:", sql.substring(0, 100) + "...");
+              const result = await executeUserMigration(
+                userSupabaseConnection.url,
+                userSupabaseConnection.serviceRoleKey,
+                sql
+              );
+              if (result.success) {
+                console.log("[generate-code] Migration executed successfully");
+                // Send migration success notification
+                const notifyFormat = {
+                  choices: [{
+                    delta: { content: `\n<!-- MIGRATION_EXECUTED: Success -->\n` }
+                  }]
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(notifyFormat)}\n\n`));
+              } else {
+                console.error("[generate-code] Migration failed:", result.error);
+                const notifyFormat = {
+                  choices: [{
+                    delta: { content: `\n<!-- MIGRATION_ERROR: ${result.error} -->\n` }
+                  }]
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(notifyFormat)}\n\n`));
+              }
+            }
+          }
+        }
         controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
       }
     });
