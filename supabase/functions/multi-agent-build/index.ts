@@ -117,22 +117,24 @@ Focus on making the app look AMAZING.`
     systemPrompt: `You are the CODER agent on a web development team.
 Your specialty: JavaScript logic, event handlers, state management, API calls, data handling.
 
+CRITICAL - OUTPUT TARGET:
+- You are building a SINGLE-FILE APP that runs via <iframe> srcDoc.
+- You MUST write VANILLA BROWSER JS only.
+- DO NOT use React, JSX, TypeScript, imports, npm packages, bundlers, or frameworks.
+- DO NOT reference local project files (no /src/*, no Vite, no modules).
+- All logic must live inside ONE <script> tag.
+
 CRITICAL - DATABASE CHOICE:
 - Check the DATABASE CHOICE in the context
 - If DATABASE CHOICE is "BUILT_IN_DB":
-  * You MUST use the Cloud Storage API for ALL data persistence
-  * NEVER use localStorage for user data, authentication, or any persistent data
-  * Include the storage helper: storage.get(), storage.set(), storage.delete()
-  * Include the createCollection() helper for lists of items
-  * Include the auth helper for user authentication
-- If DATABASE CHOICE is "CUSTOM_DB", use the Supabase client
+  * You MUST use the Cloud Storage API helper provided in the context for ALL persistence
+  * Never use raw localStorage for user data/auth (except the preview fallback through the helper)
+- If DATABASE CHOICE is "CUSTOM_DB", use the Supabase client ONLY if the context provides credentials.
 
 RULES:
 - Write clean, modular JavaScript
 - Handle all user interactions
-- Implement business logic using Cloud Storage API (not localStorage!)
-- Use modern ES6+ syntax
-- For complex apps, use React 18 with hooks
+- Never block initial rendering (render UI first, then load data async)
 
 OUTPUT FORMAT:
 Return ONLY a <script> block with your JavaScript. Include:
@@ -141,7 +143,7 @@ Return ONLY a <script> block with your JavaScript. Include:
 // === SCRIPT END ===
 
 Focus on making the app FUNCTIONAL and RELIABLE.`
-  },
+   },
   bugHunter: {
     name: "Bug Hunter",
     emoji: "🔍",
@@ -570,32 +572,33 @@ ${coderOutput}
           // Phase 5: Final assembly - Chief combines everything
           sendEvent({ type: "agent_start", agent: "chief", message: "Assembling the final code..." });
 
-          const assemblyPrompt = `
-You are assembling the final HTML file from the team's outputs. Combine everything into a SINGLE, COMPLETE, WORKING HTML file.
+           const assemblyPrompt = `
+ You are assembling the final HTML file from the team's outputs. Combine everything into a SINGLE, COMPLETE, WORKING HTML file.
 
-USER REQUEST: ${prompt}
-DATABASE CHOICE: ${dbChoice || "BUILT_IN_DB"}
+ USER REQUEST: ${prompt}
+ DATABASE CHOICE: ${dbChoice || "BUILT_IN_DB"}
 
-DESIGNER'S STYLES:
-${designerOutput}
+ DESIGNER'S STYLES:
+ ${designerOutput}
 
-CODER'S SCRIPTS:
-${coderOutput}
+ CODER'S SCRIPTS:
+ ${coderOutput}
 
-BUG HUNTER'S FIXES:
-${bugHunterOutput}
+ BUG HUNTER'S FIXES:
+ ${bugHunterOutput}
 
-OPTIMIZER'S IMPROVEMENTS:
-${optimizerOutput}
+ OPTIMIZER'S IMPROVEMENTS:
+ ${optimizerOutput}
 
-${currentCode ? `ORIGINAL CODE TO MODIFY:\n${currentCode}` : ""}
+ ${currentCode ? `ORIGINAL CODE TO MODIFY:\n${currentCode}` : ""}
 
-RULES:
-1. Output ONLY the complete HTML file starting with <!DOCTYPE html>
-2. Integrate ALL improvements and fixes from the team
-3. Include proper structure markers (/* === STYLES START === */ etc.)
-4. Make sure the app is fully functional
-5. NO explanations, NO markdown - ONLY the HTML code
+ RULES:
+ 1. Output ONLY the complete HTML file starting with <!DOCTYPE html>
+ 2. Integrate ALL improvements and fixes from the team
+ 3. Include proper structure markers (/* === STYLES START === */ etc.)
+ 4. Must run as a single-file app inside an <iframe> srcDoc
+ 5. NO React/JSX/TypeScript/imports/modules/bundlers; only plain HTML + CSS + vanilla JS
+ 6. NO explanations, NO markdown - ONLY the HTML code
 
 ${dbChoice === "BUILT_IN_DB" || !dbChoice ? `
 CRITICAL: You MUST include this Cloud Storage API helper at the START of your <script> tag:
