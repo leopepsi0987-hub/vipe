@@ -26,12 +26,23 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const action = url.searchParams.get("action");
+
+    // Support action passed via querystring OR JSON body (for supabase.functions.invoke)
+    let payload: any = null;
+    if (req.method !== "GET") {
+      try {
+        payload = await req.json();
+      } catch {
+        payload = null;
+      }
+    }
+
+    const action = url.searchParams.get("action") ?? payload?.action;
 
     // Generate OAuth authorization URL
     if (action === "authorize") {
-      const { projectId, redirectUri } = await req.json();
-      
+      const { projectId, redirectUri } = payload ?? {};
+
       if (!OAUTH_CLIENT_ID) {
         console.error("[supabase-oauth] OAuth client ID is missing");
         throw new Error("OAuth not configured - missing client ID");
@@ -55,8 +66,8 @@ serve(async (req) => {
 
     // Handle OAuth callback - exchange code for tokens
     if (action === "callback") {
-      const { code, state } = await req.json();
-      
+      const { code, state } = payload ?? {};
+
       if (!code || !state) {
         throw new Error("Missing code or state");
       }
@@ -152,8 +163,8 @@ serve(async (req) => {
 
     // Select a project to connect
     if (action === "select-project") {
-      const { projectId, supabaseProjectId } = await req.json();
-      
+      const { projectId, supabaseProjectId } = payload ?? {};
+
       if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
         throw new Error("Server not configured");
       }
