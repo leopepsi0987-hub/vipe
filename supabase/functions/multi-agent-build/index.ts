@@ -600,25 +600,33 @@ RULES:
 ${dbChoice === "BUILT_IN_DB" || !dbChoice ? `
 CRITICAL: You MUST include this Cloud Storage API helper at the START of your <script> tag:
 
-const API_URL = 'https://svadrczzdvdbeajeiabs.supabase.co/functions/v1/app-api';
-const PROJECT_SLUG = window.location.pathname.split('/app/')[1] || null;
-const hasBackend = () => PROJECT_SLUG !== null;
+const API_URL = (window.__VIPE_API_URL || 'https://svadrczzdvdbeajeiabs.supabase.co/functions/v1/app-api');
+const PROJECT_SLUG = window.location.pathname.includes('/app/')
+  ? (window.location.pathname.split('/app/')[1] || null)
+  : null;
+const hasBackend = () => !!PROJECT_SLUG;
 
 const storage = {
   async get(key) {
     if (!hasBackend()) return JSON.parse(localStorage.getItem(key) || 'null');
     const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'get', projectSlug: PROJECT_SLUG, key }) });
-    return (await res.json()).data;
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error || 'Storage.get failed');
+    return data.data;
   },
   async set(key, value) {
     if (!hasBackend()) { localStorage.setItem(key, JSON.stringify(value)); return true; }
     const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set', projectSlug: PROJECT_SLUG, key, value }) });
-    return (await res.json()).success;
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error || 'Storage.set failed');
+    return !!data.success;
   },
   async delete(key) {
     if (!hasBackend()) { localStorage.removeItem(key); return true; }
     const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete', projectSlug: PROJECT_SLUG, key }) });
-    return (await res.json()).success;
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error(data?.error || 'Storage.delete failed');
+    return !!data.success;
   }
 };
 
@@ -642,9 +650,13 @@ const auth = {
   getCurrentUser() { return JSON.parse(sessionStorage.getItem('currentUser') || 'null'); }
 };
 
+IMPORTANT:
+- Your HTML MUST render meaningful UI even when PROJECT_SLUG is missing (editor preview mode).
+- Never block rendering just because backend is unavailable.
+
 Use storage.get/set/delete for ALL data persistence.
 Use auth.signUp/signIn/signOut/getCurrentUser for authentication.
-NEVER use raw localStorage for user data!
+NEVER use raw localStorage for user data (except preview fallback through the helper).
 ` : ""}
 `;
 
