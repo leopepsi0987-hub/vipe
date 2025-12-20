@@ -98,40 +98,33 @@ serve(async (req) => {
       const tokens = await tokenResponse.json();
       console.log("[supabase-oauth] Got tokens for project:", projectId);
 
-      // Fetch user's Supabase organizations and projects
-      const orgsResponse = await fetch("https://api.supabase.com/v1/organizations", {
+      // Fetch user's projects
+      const projectsResponse = await fetch("https://api.supabase.com/v1/projects", {
         headers: {
           "Authorization": `Bearer ${tokens.access_token}`,
         },
       });
 
-      if (!orgsResponse.ok) {
-        throw new Error("Failed to fetch organizations");
-      }
-
-      const organizations = await orgsResponse.json();
-
-      // Fetch projects for each org
-      const allProjects = [];
-      for (const org of organizations) {
-        const projectsResponse = await fetch(`https://api.supabase.com/v1/projects`, {
-          headers: {
-            "Authorization": `Bearer ${tokens.access_token}`,
-          },
+      if (!projectsResponse.ok) {
+        const errorText = await projectsResponse.text();
+        console.error("[supabase-oauth] Failed to fetch projects:", {
+          status: projectsResponse.status,
+          errorText,
         });
-
-        if (projectsResponse.ok) {
-          const projects = await projectsResponse.json();
-          allProjects.push(...projects.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            region: p.region,
-            organization_id: p.organization_id,
-            // Construct the API URL
-            apiUrl: `https://${p.id}.supabase.co`,
-          })));
-        }
+        throw new Error("Failed to fetch projects");
       }
+
+      const projects = await projectsResponse.json();
+
+      const allProjects = (Array.isArray(projects) ? projects : []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        region: p.region,
+        organization_id: p.organization_id,
+        apiUrl: `https://${p.id}.supabase.co`,
+      }));
+
+      console.log("[supabase-oauth] Loaded projects:", allProjects.length);
 
       // Store tokens temporarily (will be used when user selects a project)
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
