@@ -11,29 +11,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const env = Deno.env.toObject();
-  const SUPABASE_OAUTH_CLIENT_ID = env["SUPABASE_OAUTH_CLIENT_ID"];
-  const SUPABASE_OAUTH_CLIENT_SECRET = env["SUPABASE_OAUTH_CLIENT_SECRET"];
-  const SUPABASE_URL = env["SUPABASE_URL"];
-  const SUPABASE_SERVICE_ROLE_KEY = env["SUPABASE_SERVICE_ROLE_KEY"];
-
-  const oauthEnvKeys = Object.keys(env).filter((k) => k.includes("OAUTH"));
-  console.log("[supabase-oauth] Env keys containing 'OAUTH':", oauthEnvKeys);
-
-  const hasGemini = !!env["GOOGLE_GEMINI_API_KEY"];
+  // Try multiple possible secret names for OAuth credentials
+  const OAUTH_CLIENT_ID = Deno.env.get("OAUTH_CLIENT_ID") || Deno.env.get("SUPABASE_OAUTH_CLIENT_ID");
+  const OAUTH_CLIENT_SECRET = Deno.env.get("OAUTH_CLIENT_SECRET") || Deno.env.get("SUPABASE_OAUTH_CLIENT_SECRET");
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   console.log("[supabase-oauth] Environment check:", {
-    envKeyCount: Object.keys(env).length,
-    hasClientId: !!SUPABASE_OAUTH_CLIENT_ID,
-    hasClientSecret: !!SUPABASE_OAUTH_CLIENT_SECRET,
+    hasClientId: !!OAUTH_CLIENT_ID,
+    hasClientSecret: !!OAUTH_CLIENT_SECRET,
     hasSupabaseUrl: !!SUPABASE_URL,
-    clientIdLength: SUPABASE_OAUTH_CLIENT_ID?.length || 0,
-    clientSecretLength: SUPABASE_OAUTH_CLIENT_SECRET?.length || 0,
-    hasGemini,
-    geminiLength: env["GOOGLE_GEMINI_API_KEY"]?.length || 0,
+    clientIdLength: OAUTH_CLIENT_ID?.length || 0,
   });
-
-  console.log("[supabase-oauth] Available env keys:", Object.keys(env));
 
   try {
     const url = new URL(req.url);
@@ -43,8 +32,8 @@ serve(async (req) => {
     if (action === "authorize") {
       const { projectId, redirectUri } = await req.json();
       
-      if (!SUPABASE_OAUTH_CLIENT_ID) {
-        console.error("[supabase-oauth] SUPABASE_OAUTH_CLIENT_ID is missing or empty");
+      if (!OAUTH_CLIENT_ID) {
+        console.error("[supabase-oauth] OAuth client ID is missing");
         throw new Error("OAuth not configured - missing client ID");
       }
 
@@ -52,7 +41,7 @@ serve(async (req) => {
       const state = btoa(JSON.stringify({ projectId, redirectUri }));
       
       const authUrl = new URL("https://api.supabase.com/v1/oauth/authorize");
-      authUrl.searchParams.set("client_id", SUPABASE_OAUTH_CLIENT_ID);
+      authUrl.searchParams.set("client_id", OAUTH_CLIENT_ID);
       authUrl.searchParams.set("redirect_uri", redirectUri);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("state", state);
@@ -82,7 +71,7 @@ serve(async (req) => {
 
       const { projectId, redirectUri } = stateData;
       
-      if (!SUPABASE_OAUTH_CLIENT_ID || !SUPABASE_OAUTH_CLIENT_SECRET) {
+      if (!OAUTH_CLIENT_ID || !OAUTH_CLIENT_SECRET) {
         throw new Error("OAuth not configured");
       }
 
@@ -91,7 +80,7 @@ serve(async (req) => {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
-          "Authorization": `Basic ${btoa(`${SUPABASE_OAUTH_CLIENT_ID}:${SUPABASE_OAUTH_CLIENT_SECRET}`)}`,
+          "Authorization": `Basic ${btoa(`${OAUTH_CLIENT_ID}:${OAUTH_CLIENT_SECRET}`)}`,
         },
         body: new URLSearchParams({
           grant_type: "authorization_code",
