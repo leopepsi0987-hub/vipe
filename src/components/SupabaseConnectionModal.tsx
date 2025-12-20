@@ -123,7 +123,8 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
     setIsOAuthLoading(true);
     
     try {
-      const redirectUri = `${window.location.origin}${window.location.pathname}`;
+      // Always redirect back to /project/:projectId so user returns to their project
+      const redirectUri = `${window.location.origin}/project/${projectId}`;
       
       const { data, error } = await supabase.functions.invoke("supabase-oauth", {
         body: {
