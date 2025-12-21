@@ -14,9 +14,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['Outfit', 'system-ui', 'sans-serif'],
+        sans: ['Syne', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
-        arabic: ['Noto Kufi Arabic', 'Outfit', 'system-ui', 'sans-serif'],
+        arabic: ['Noto Kufi Arabic', 'Syne', 'system-ui', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",

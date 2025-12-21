@@ -84,7 +84,7 @@ export function ProjectSidebar({
               <Zap className="w-5 h-5 text-white" />
             </div>
           </div>
-          <span className="text-xl font-bold text-gradient">Vipe</span>
+          <span className="text-xl font-extrabold text-gradient hover:animate-glitch cursor-default">Vipe DZ</span>
         </div>
       </div>
 
