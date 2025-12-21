@@ -77,12 +77,12 @@ serve(async (req) => {
 
   try {
     const { prompt, currentCode, projectSlug, projectId, dbChoice, hasConnectedSupabase } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GOOGLE_GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     // Fetch user's connected Supabase if projectId provided
@@ -2058,41 +2058,37 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
       });
     }
 
-    console.log("Calling Lovable AI Gateway with google/gemini-2.5-pro model. Prompt:", prompt);
+    console.log("Calling Google Gemini API with gemini-2.5-pro model. Prompt:", prompt);
 
-    // Use Lovable AI Gateway for better model access
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Convert messages to Gemini format
+    const geminiContents = messages.map((msg: any) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }]
+    }));
+
+    // Use Google Gemini API directly (Veutrix API)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${GOOGLE_GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-pro", // Using the best model!
-        messages: messages,
-        stream: true,
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: geminiContents,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 65536,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Lovable AI Gateway error:", response.status, errorText);
+      console.error("Google Gemini API error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
           status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required. Please add funds to continue." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 400) {
-        return new Response(JSON.stringify({ error: "Invalid request to AI service." }), {
-          status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -2114,16 +2110,20 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const jsonStr = line.slice(6).trim();
-          if (!jsonStr || jsonStr === "[DONE]") continue;
+          if (!jsonStr) continue;
           
           try {
             const parsed = JSON.parse(jsonStr);
-            const textContent = parsed.choices?.[0]?.delta?.content;
+            // Handle Gemini format - extract text from candidates
+            const textContent = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
             
             if (textContent) {
               fullContent += textContent;
-              // Already in OpenAI format, just forward
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(parsed)}\n\n`));
+              // Convert to OpenAI format for frontend compatibility
+              const openAIFormat = {
+                choices: [{ delta: { content: textContent } }]
+              };
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
             }
           } catch (e) {
             // Skip invalid JSON
