@@ -94,6 +94,7 @@ export function Dashboard() {
         <div className="relative z-10 flex flex-col items-center gap-6 animate-scale-in">
           <div className="relative">
             <div className="absolute inset-0 w-20 h-20 rounded-2xl bg-gradient-primary blur-2xl opacity-60 animate-pulse-glow" />
+            <div className="absolute w-20 h-20 rounded-2xl border-2 border-primary/30 animate-ripple" />
             <div className="relative w-20 h-20 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow animate-energy-pulse">
               <Loader2 className="w-10 h-10 animate-spin text-white" />
             </div>
