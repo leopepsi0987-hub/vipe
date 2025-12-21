@@ -64,24 +64,24 @@ export function ProjectSidebar({
 
   return (
     <div className={cn(
-      "w-72 h-full flex flex-col bg-sidebar/80 backdrop-blur-xl border-sidebar-border relative overflow-hidden",
+      "w-72 h-full flex flex-col glass-sidebar relative overflow-hidden",
       isRTL ? "border-l font-arabic" : "border-r"
     )} dir={isRTL ? "rtl" : "ltr"}>
       
-      {/* Background glow */}
-      <div className="absolute -top-20 -left-20 w-40 h-40 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-20 -right-20 w-40 h-40 bg-accent/10 rounded-full blur-3xl pointer-events-none" />
+      {/* Background orbs */}
+      <div className="absolute -top-20 -left-20 w-40 h-40 orb orb-purple opacity-40 animate-pulse-glow" />
+      <div className="absolute -bottom-20 -right-20 w-32 h-32 orb orb-gold opacity-30 animate-pulse-glow" style={{ animationDelay: '2s' }} />
       
       {/* Header */}
-      <div className="p-5 border-b border-sidebar-border/50 relative z-10">
+      <div className="p-5 border-b border-white/5 relative z-10">
         <div className={cn(
           "flex items-center gap-3 animate-slide-in",
           isRTL && "flex-row-reverse"
         )}>
           <div className="relative group">
-            <div className="absolute inset-0 w-10 h-10 rounded-xl bg-gradient-primary blur-lg opacity-50 group-hover:opacity-80 transition-opacity" />
-            <div className="relative w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow hover-scale cursor-pointer">
-              <Zap className="w-5 h-5 text-background" />
+            <div className="absolute inset-0 w-10 h-10 rounded-xl bg-gradient-primary blur-xl opacity-60 group-hover:opacity-100 transition-opacity" />
+            <div className="relative w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow hover-scale cursor-pointer animate-energy-pulse">
+              <Zap className="w-5 h-5 text-white" />
             </div>
           </div>
           <span className="text-xl font-bold text-gradient">Vipe</span>
@@ -89,17 +89,19 @@ export function ProjectSidebar({
       </div>
 
       {/* Language Toggle */}
-      <div className="px-4 py-3 animate-fade-in" style={{ animationDelay: '0.1s' }}>
-        <LanguageToggle className="w-full" />
+      <div className="px-4 py-3 relative z-10">
+        <div className="glass-button rounded-xl p-1">
+          <LanguageToggle className="w-full" />
+        </div>
       </div>
 
       {/* New Project Button */}
-      <div className="px-4 pb-2 animate-fade-in" style={{ animationDelay: '0.15s' }}>
+      <div className="px-4 pb-3 relative z-10">
         <Button
           onClick={onCreateProject}
-          className="w-full h-11 rounded-xl bg-gradient-primary text-background font-medium hover:opacity-90 transition-all shadow-glow/50 hover-lift group relative overflow-hidden"
+          className="w-full h-11 rounded-xl bg-gradient-primary text-white font-medium hover:opacity-90 transition-all shadow-glow hover-lift group relative overflow-hidden"
         >
-          <div className="absolute inset-0 animate-shimmer opacity-20" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" />
           <Plus className={cn("w-4 h-4 relative z-10", isRTL ? "ml-2" : "mr-2")} />
           <span className="relative z-10">{t("newProject")}</span>
           <Sparkles className={cn("w-4 h-4 relative z-10 opacity-0 group-hover:opacity-100 transition-opacity", isRTL ? "mr-2" : "ml-2")} />
@@ -112,33 +114,33 @@ export function ProjectSidebar({
           "flex items-center justify-between px-2 py-2 mb-2",
           isRTL && "flex-row-reverse"
         )}>
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">
             {t("projects")}
           </span>
-          <span className="text-xs text-muted-foreground/60 bg-secondary/50 px-2 py-0.5 rounded-full">
+          <span className="text-xs text-accent bg-accent/10 px-2 py-0.5 rounded-full font-medium">
             {projects.length}
           </span>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {projects.map((project, index) => (
             <div
               key={project.id}
               className={cn(
-                "group flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all animate-slide-in opacity-0",
+                "group flex items-center gap-3 px-3 py-3 rounded-xl cursor-pointer transition-all animate-slide-in opacity-0",
                 isRTL && "flex-row-reverse",
                 currentProject?.id === project.id
-                  ? "bg-gradient-primary/10 border border-primary/30 text-foreground shadow-glow/20"
-                  : "hover:bg-secondary/60 text-sidebar-foreground hover-lift"
+                  ? "glass-card border-primary/30 shadow-glow/30"
+                  : "glass-button hover:border-white/10 hover-lift"
               )}
-              style={{ animationDelay: `${0.2 + index * 0.05}s`, animationFillMode: 'forwards' }}
+              style={{ animationDelay: `${0.1 + index * 0.05}s`, animationFillMode: 'forwards' }}
               onClick={() => editingId !== project.id && onSelectProject(project)}
             >
               <div className={cn(
-                "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors",
+                "w-9 h-9 rounded-lg flex items-center justify-center shrink-0 transition-all",
                 currentProject?.id === project.id 
-                  ? "bg-primary/20 text-primary" 
-                  : "bg-secondary/80 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                  ? "bg-gradient-primary text-white shadow-glow/50" 
+                  : "glass-button text-muted-foreground group-hover:text-primary"
               )}>
                 <Folder className="w-4 h-4" />
               </div>
@@ -151,7 +153,7 @@ export function ProjectSidebar({
                   <Input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="h-7 px-2 text-sm bg-secondary/50 border-border/50 rounded-lg"
+                    className="h-7 px-2 text-sm glass-input rounded-lg"
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key === "Enter") saveEdit();
@@ -162,7 +164,7 @@ export function ProjectSidebar({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 hover:bg-primary/20 hover:text-primary"
+                    className="h-7 w-7 hover:bg-primary/20 hover:text-primary rounded-lg"
                     onClick={(e) => {
                       e.stopPropagation();
                       saveEdit();
@@ -173,7 +175,7 @@ export function ProjectSidebar({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 hover:bg-destructive/20 hover:text-destructive"
+                    className="h-7 w-7 hover:bg-destructive/20 hover:text-destructive rounded-lg"
                     onClick={(e) => {
                       e.stopPropagation();
                       cancelEdit();
@@ -190,19 +192,22 @@ export function ProjectSidebar({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-secondary"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white/5 rounded-lg"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <MoreVertical className="w-4 h-4" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align={isRTL ? "start" : "end"} className="glass-strong rounded-xl border-border/50">
-                      <DropdownMenuItem onClick={() => startEditing(project)} className="rounded-lg">
+                    <DropdownMenuContent 
+                      align={isRTL ? "start" : "end"} 
+                      className="glass-card rounded-xl border-white/10 min-w-[140px] z-50 bg-popover"
+                    >
+                      <DropdownMenuItem onClick={() => startEditing(project)} className="rounded-lg cursor-pointer">
                         <Edit2 className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
                         {t("rename")}
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="text-destructive focus:text-destructive rounded-lg"
+                        className="text-destructive focus:text-destructive rounded-lg cursor-pointer"
                         onClick={() => onDeleteProject(project.id)}
                       >
                         <Trash2 className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
@@ -217,22 +222,22 @@ export function ProjectSidebar({
 
           {projects.length === 0 && (
             <div className="px-3 py-12 text-center animate-fade-in">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-primary/10 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl glass-card flex items-center justify-center">
                 <Folder className="w-8 h-8 text-primary/50" />
               </div>
-              <p className="text-sm text-muted-foreground mb-4">{t("noProjects")}</p>
-              <p className="text-xs text-muted-foreground/60">{t("newProject")}</p>
+              <p className="text-sm text-muted-foreground mb-2">{t("noProjects")}</p>
+              <p className="text-xs text-muted-foreground/50">{t("newProject")}</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-sidebar-border/50 relative z-10">
+      <div className="p-3 border-t border-white/5 relative z-10">
         <Button
           variant="ghost"
           className={cn(
-            "w-full h-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-secondary/60 transition-all",
+            "w-full h-10 rounded-xl text-muted-foreground hover:text-foreground glass-button hover:border-white/10 transition-all",
             isRTL ? "justify-end" : "justify-start"
           )}
           onClick={onSignOut}
