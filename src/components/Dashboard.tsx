@@ -7,10 +7,13 @@ import { Editor } from "./Editor";
 import { EditorHeader } from "./EditorHeader";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 export function Dashboard() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
+  const { t, isRTL } = useI18n();
   const {
     projects,
     currentProject,
@@ -29,7 +32,7 @@ export function Dashboard() {
   const handleCreateProject = async () => {
     const project = await createProject();
     if (project) {
-      toast.success("Project created!");
+      toast.success(t("projectCreated"));
       navigate(`/project/${project.id}`);
     }
   };
@@ -47,7 +50,7 @@ export function Dashboard() {
   const handleDeleteProject = async (id: string) => {
     const success = await deleteProject(id);
     if (success) {
-      toast.success("Project deleted");
+      toast.success(t("projectDeleted"));
     }
   };
 
@@ -77,7 +80,7 @@ export function Dashboard() {
 
   const handleSignOut = async () => {
     await signOut();
-    toast.success("Signed out");
+    toast.success(t("signedOut"));
   };
 
   if (loading) {
@@ -91,7 +94,10 @@ export function Dashboard() {
   // Show projects list
   if (showingSidebar || !currentProject) {
     return (
-      <div className="h-screen flex bg-background overflow-hidden">
+      <div className={cn(
+        "h-screen flex bg-background overflow-hidden",
+        isRTL && "flex-row-reverse font-arabic"
+      )} dir={isRTL ? "rtl" : "ltr"}>
         <ProjectSidebar
           projects={projects}
           currentProject={currentProject}
@@ -108,11 +114,17 @@ export function Dashboard() {
               <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow opacity-50">
                 <span className="text-3xl">🚀</span>
               </div>
-              <h2 className="text-xl font-semibold text-foreground mb-2">
-                Select a project
+              <h2 className={cn(
+                "text-xl font-semibold text-foreground mb-2",
+                isRTL && "font-arabic"
+              )}>
+                {t("selectProject")}
               </h2>
-              <p className="text-muted-foreground mb-4">
-                Choose a project from the sidebar or create a new one
+              <p className={cn(
+                "text-muted-foreground mb-4",
+                isRTL && "font-arabic"
+              )}>
+                {t("selectProjectDesc")}
               </p>
             </div>
           </div>

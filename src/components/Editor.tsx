@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useI18n, LanguageToggle } from "@/lib/i18n";
 
 interface QuickAction {
   id: string;
@@ -40,7 +41,6 @@ interface EditorProps {
 
 type LeftTab = "chat" | "data" | "history";
 type MobileTab = "chat" | "preview";
-type Language = "en" | "ar";
 
 export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: EditorProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -51,12 +51,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
-  const [language, setLanguage] = useState<Language>("en");
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
-
-  const isArabic = language === "ar";
+  const { t, isRTL } = useI18n();
   
   // Version history
   const { versions, loading: versionsLoading, saveVersion, refreshVersions } = useVersionHistory(project.id);
@@ -300,7 +298,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         {/* Mobile Content */}
         <div className="flex-1 overflow-hidden">
           {mobileTab === "chat" ? (
-            <div className="flex flex-col h-full bg-background">
+            <div className={cn("flex flex-col h-full bg-background", isRTL && "font-arabic")}>
               {/* ChatGPT-style Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
@@ -309,14 +307,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                   </div>
                   <span className="font-semibold text-foreground">Vipe</span>
                 </div>
-                
-                {/* Language Toggle */}
-                <button
-                  onClick={() => setLanguage(prev => prev === "en" ? "ar" : "en")}
-                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
-                >
-                  {isArabic ? "EN" : "عربي"}
-                </button>
+                <LanguageToggle />
               </div>
 
               {/* Messages */}
@@ -327,14 +318,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
                         <span className="text-2xl font-bold text-white">V</span>
                       </div>
-                      <h3 className={`text-xl font-semibold text-foreground mb-2 ${isArabic ? 'font-arabic' : ''}`}>
-                        {isArabic ? "كيف يمكنني مساعدتك؟" : "How can I help?"}
+                      <h3 className="text-xl font-semibold text-foreground mb-2">
+                        {t("howCanIHelp")}
                       </h3>
-                      <p className={`text-sm text-muted-foreground max-w-xs mx-auto ${isArabic ? 'font-arabic' : ''}`}>
-                        {isArabic 
-                          ? "أخبرني ما تريد بناءه"
-                          : "Tell me what you want to build"
-                        }
+                      <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+                        {t("tellMeWhatToBuild")}
                       </p>
                     </div>
                   )}
@@ -361,16 +349,14 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                         }
                         handleSendMessage(`[[${actionId}]]`);
                       }}
-                      isArabic={isArabic}
                     />
                   ))}
 
                   {isGenerating && (
                     <ChatMessage
                       role="assistant"
-                      content={streamingContent || (isArabic ? "جاري البناء..." : "Building...")}
+                      content={streamingContent || t("building")}
                       isStreaming
-                      isArabic={isArabic}
                     />
                   )}
                 </div>
@@ -382,11 +368,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                   onSend={handleSendMessage}
                   onStop={handleStop}
                   disabled={isGenerating}
-                  placeholder={messages.length === 0 ? "What do you want to build?" : "Continue..."}
-                  placeholderAr={messages.length === 0 ? "ما الذي تريد بناءه؟" : "تابع..."}
                   currentPath="/"
                   onVisualEdit={() => setShowVisualEditor(true)}
-                  isArabic={isArabic}
                 />
               </div>
             </div>
@@ -528,49 +511,44 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                   </div>
                   <span className="font-semibold text-foreground">Vipe</span>
                 </div>
-                
-                {/* Language Toggle */}
-                <button
-                  onClick={() => setLanguage(prev => prev === "en" ? "ar" : "en")}
-                  className="px-3 py-1.5 text-sm font-medium rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
-                >
-                  {isArabic ? "EN" : "عربي"}
-                </button>
+                <LanguageToggle />
               </div>
 
               {/* Messages - ChatGPT style */}
               <ScrollArea className="flex-1">
-                <div ref={scrollRef} className="py-4">
+                <div ref={scrollRef} className={cn("py-4", isRTL && "font-arabic")}>
                   {messages.length === 0 && !isGenerating && (
                     <div className="text-center py-16 px-4">
                       <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
                         <span className="text-3xl font-bold text-white">V</span>
                       </div>
-                      <h2 className={`text-2xl font-semibold text-foreground mb-3 ${isArabic ? 'font-arabic' : ''}`}>
-                        {isArabic ? "كيف يمكنني مساعدتك؟" : "How can I help you?"}
+                      <h2 className="text-2xl font-semibold text-foreground mb-3">
+                        {t("howCanIHelp")}
                       </h2>
-                      <p className={`text-muted-foreground max-w-md mx-auto ${isArabic ? 'font-arabic' : ''}`}>
-                        {isArabic 
-                          ? "أخبرني ما الذي تريد بناءه وسأقوم بإنشائه لك"
-                          : "Tell me what you want to build and I'll create it for you"
-                        }
+                      <p className="text-muted-foreground max-w-md mx-auto">
+                        {t("tellMeWhatToBuild")}
                       </p>
                       
                       {/* Quick Suggestions */}
                       <div className="flex flex-wrap justify-center gap-2 mt-8">
-                        {[
-                          { en: "Build a todo app", ar: "أنشئ تطبيق مهام" },
-                          { en: "Create a landing page", ar: "أنشئ صفحة هبوط" },
-                          { en: "Make a dashboard", ar: "أنشئ لوحة تحكم" },
-                        ].map((suggestion, i) => (
-                          <button
-                            key={i}
-                            onClick={() => handleSendMessage(isArabic ? suggestion.ar : suggestion.en)}
-                            className={`px-4 py-2 text-sm rounded-xl border border-border hover:bg-secondary transition-colors ${isArabic ? 'font-arabic' : ''}`}
-                          >
-                            {isArabic ? suggestion.ar : suggestion.en}
-                          </button>
-                        ))}
+                        <button
+                          onClick={() => handleSendMessage(t("buildTodoApp"))}
+                          className="px-4 py-2 text-sm rounded-xl border border-border hover:bg-secondary transition-colors"
+                        >
+                          {t("buildTodoApp")}
+                        </button>
+                        <button
+                          onClick={() => handleSendMessage(t("createLandingPage"))}
+                          className="px-4 py-2 text-sm rounded-xl border border-border hover:bg-secondary transition-colors"
+                        >
+                          {t("createLandingPage")}
+                        </button>
+                        <button
+                          onClick={() => handleSendMessage(t("makeDashboard"))}
+                          className="px-4 py-2 text-sm rounded-xl border border-border hover:bg-secondary transition-colors"
+                        >
+                          {t("makeDashboard")}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -591,16 +569,14 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                         }
                         handleSendMessage(`[[${actionId}]]`);
                       }}
-                      isArabic={isArabic}
                     />
                   ))}
 
                   {isGenerating && (
                     <ChatMessage
                       role="assistant"
-                      content={streamingContent || (isArabic ? "جاري بناء تطبيقك..." : "Building your app...")}
+                      content={streamingContent || t("building")}
                       isStreaming
-                      isArabic={isArabic}
                     />
                   )}
                 </div>
@@ -612,11 +588,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                   onSend={handleSendMessage}
                   onStop={handleStop}
                   disabled={isGenerating}
-                  placeholder={messages.length === 0 ? "What do you want to build?" : "Continue the conversation..."}
-                  placeholderAr={messages.length === 0 ? "ما الذي تريد بناءه؟" : "تابع المحادثة..."}
                   currentPath="/"
                   onVisualEdit={() => setShowVisualEditor(true)}
-                  isArabic={isArabic}
                 />
               </div>
             </>
