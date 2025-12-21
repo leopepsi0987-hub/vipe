@@ -1,34 +1,30 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Paperclip, X, Globe, StopCircle } from "lucide-react";
+import { ArrowUp, Paperclip, X, Globe, StopCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 interface ChatInputProps {
   onSend: (message: string, imageUrl?: string) => void;
   onStop?: () => void;
   disabled?: boolean;
-  placeholder?: string;
-  placeholderAr?: string;
   currentPath?: string;
   onVisualEdit?: () => void;
-  isArabic?: boolean;
 }
 
 export function ChatInput({ 
   onSend, 
   onStop,
   disabled, 
-  placeholder, 
-  placeholderAr,
   currentPath = "/", 
   onVisualEdit,
-  isArabic = false
 }: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t, isRTL } = useI18n();
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -56,7 +52,7 @@ export function ChatInput({
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        alert(isArabic ? "يجب أن تكون الصورة أقل من 10 ميجابايت" : "Image must be less than 10MB");
+        alert(t("imageTooLarge"));
         return;
       }
       const reader = new FileReader();
@@ -74,23 +70,25 @@ export function ChatInput({
     }
   };
 
-  const defaultPlaceholder = isArabic 
-    ? (placeholderAr || "اسأل أي شيء أو صف التطبيق الذي تريد بناءه...")
-    : (placeholder || "Ask anything or describe the app you want to build...");
-
   return (
-    <div className="w-full max-w-3xl mx-auto px-4" dir={isArabic ? "rtl" : "ltr"}>
+    <div className={cn(
+      "w-full max-w-3xl mx-auto px-4",
+      isRTL && "font-arabic"
+    )} dir={isRTL ? "rtl" : "ltr"}>
       {/* Image Preview */}
       {imagePreview && (
         <div className="relative inline-block mb-3">
           <img 
             src={imagePreview} 
-            alt={isArabic ? "معاينة الصورة" : "Upload preview"}
+            alt={t("uploadPreview")}
             className="h-24 w-auto rounded-xl border border-border shadow-sm"
           />
           <button
             onClick={removeImage}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center hover:bg-destructive/80 transition-colors shadow-md"
+            className={cn(
+              "absolute -top-2 w-6 h-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center hover:bg-destructive/80 transition-colors shadow-md",
+              isRTL ? "-left-2" : "-right-2"
+            )}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -112,25 +110,25 @@ export function ChatInput({
           onKeyDown={handleKeyDown}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
-          placeholder={defaultPlaceholder}
+          placeholder={t("askAnything")}
           disabled={disabled}
           rows={1}
           className={cn(
             "w-full resize-none bg-transparent px-4 py-4 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[56px] max-h-[200px]",
-            isArabic && "text-right font-arabic"
+            isRTL && "text-right font-arabic"
           )}
-          dir={isArabic ? "rtl" : "ltr"}
+          dir={isRTL ? "rtl" : "ltr"}
         />
 
         {/* Bottom Actions Bar */}
         <div className={cn(
           "flex items-center justify-between px-3 pb-3",
-          isArabic && "flex-row-reverse"
+          isRTL && "flex-row-reverse"
         )}>
           {/* Left Actions */}
           <div className={cn(
             "flex items-center gap-1",
-            isArabic && "flex-row-reverse"
+            isRTL && "flex-row-reverse"
           )}>
             {/* Hidden file input */}
             <input
@@ -147,7 +145,7 @@ export function ChatInput({
               onClick={() => fileInputRef.current?.click()}
               disabled={disabled}
               className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
-              title={isArabic ? "إرفاق صورة" : "Attach image"}
+              title={t("attachImage")}
             >
               <Paperclip className="w-5 h-5" />
             </button>
@@ -156,7 +154,7 @@ export function ChatInput({
             <button
               type="button"
               className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              title={isArabic ? "بحث الويب" : "Web search"}
+              title={t("webSearch")}
             >
               <Globe className="w-5 h-5" />
             </button>
@@ -192,12 +190,9 @@ export function ChatInput({
       {/* Footer Text */}
       <p className={cn(
         "text-xs text-muted-foreground text-center mt-3",
-        isArabic && "font-arabic"
+        isRTL && "font-arabic"
       )}>
-        {isArabic 
-          ? "Vipe يستخدم الذكاء الاصطناعي. تحقق من المعلومات المهمة."
-          : "Vipe uses AI. Check important info."
-        }
+        {t("aiDisclaimer")}
       </p>
     </div>
   );

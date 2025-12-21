@@ -2,11 +2,12 @@ import { cn } from "@/lib/utils";
 import { Copy, Check, ThumbsUp, ThumbsDown, Eye, Code, Database, Settings, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
+import { useI18n } from "@/lib/i18n";
 
 export interface QuickAction {
   id: string;
   label: string;
-  labelAr?: string;
+  labelDz?: string;
   icon?: string;
 }
 
@@ -21,7 +22,6 @@ interface ChatMessageProps {
   onViewCode?: () => void;
   onActionSelect?: (actionId: string) => void;
   onRegenerate?: () => void;
-  isArabic?: boolean;
 }
 
 export function ChatMessage({ 
@@ -35,11 +35,11 @@ export function ChatMessage({
   onViewCode,
   onActionSelect,
   onRegenerate,
-  isArabic = false
 }: ChatMessageProps) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const { t, isRTL } = useI18n();
 
   // Parse out [VIPE_ACTIONS] block from content for display
   const displayContent = content.replace(/\[VIPE_ACTIONS\][\s\S]*?\[\/VIPE_ACTIONS\]/g, '').trim();
@@ -65,12 +65,12 @@ export function ChatMessage({
         "group w-full",
         isUser ? "bg-transparent" : "bg-secondary/30"
       )}
-      dir={isArabic ? "rtl" : "ltr"}
+      dir={isRTL ? "rtl" : "ltr"}
     >
       <div className="max-w-3xl mx-auto px-4 py-6">
         <div className={cn(
           "flex gap-4",
-          isArabic && "flex-row-reverse"
+          isRTL && "flex-row-reverse"
         )}>
           {/* Avatar */}
           <div
@@ -82,7 +82,7 @@ export function ChatMessage({
             )}
           >
             {isUser ? (
-              <span>أ</span>
+              <span>{isRTL ? "أ" : "U"}</span>
             ) : (
               <span>V</span>
             )}
@@ -93,12 +93,9 @@ export function ChatMessage({
             {/* Role Label */}
             <div className={cn(
               "text-sm font-semibold text-foreground",
-              isArabic && "text-right"
+              isRTL && "text-right font-arabic"
             )}>
-              {isUser 
-                ? (isArabic ? "أنت" : "You") 
-                : "Vipe"
-              }
+              {isUser ? t("you") : "Vipe"}
             </div>
 
             {/* Image if present */}
@@ -106,7 +103,7 @@ export function ChatMessage({
               <div className="mt-2">
                 <img 
                   src={imageUrl} 
-                  alt={isArabic ? "صورة مشتركة" : "Shared image"}
+                  alt={t("sharedImage")}
                   className="max-w-sm h-auto rounded-xl border border-border"
                 />
               </div>
@@ -115,7 +112,7 @@ export function ChatMessage({
             {/* Message Content */}
             <div className={cn(
               "text-[15px] leading-7 text-foreground/90 whitespace-pre-wrap",
-              isArabic && "text-right font-arabic"
+              isRTL && "text-right font-arabic"
             )}>
               {displayContent}
               {isStreaming && (
@@ -127,7 +124,7 @@ export function ChatMessage({
             {actions && actions.length > 0 && !isStreaming && (
               <div className={cn(
                 "flex flex-wrap gap-2 pt-3",
-                isArabic && "justify-end"
+                isRTL && "justify-end"
               )}>
                 {actions.map((action) => (
                   <Button
@@ -139,7 +136,7 @@ export function ChatMessage({
                   >
                     {getActionIcon(action.icon)}
                     <span className={action.icon ? "ml-2" : ""}>
-                      {isArabic ? (action.labelAr || action.label) : action.label}
+                      {isRTL ? (action.labelDz || action.label) : action.label}
                     </span>
                   </Button>
                 ))}
@@ -150,7 +147,7 @@ export function ChatMessage({
             {hasCode && !isStreaming && (
               <div className={cn(
                 "flex gap-2 pt-3",
-                isArabic && "justify-end"
+                isRTL && "justify-end"
               )}>
                 <Button
                   size="sm"
@@ -158,8 +155,8 @@ export function ChatMessage({
                   className="h-9 text-sm rounded-lg border-border/50"
                   onClick={onViewPreview}
                 >
-                  <Eye className="w-4 h-4 mr-2" />
-                  {isArabic ? "معاينة" : "Preview"}
+                  <Eye className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+                  {t("preview")}
                 </Button>
                 <Button
                   size="sm"
@@ -167,8 +164,8 @@ export function ChatMessage({
                   className="h-9 text-sm rounded-lg border-border/50"
                   onClick={onViewCode}
                 >
-                  <Code className="w-4 h-4 mr-2" />
-                  {isArabic ? "الكود" : "Code"}
+                  <Code className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+                  {t("code")}
                 </Button>
               </div>
             )}
@@ -177,12 +174,12 @@ export function ChatMessage({
             {!isUser && !isStreaming && (
               <div className={cn(
                 "flex items-center gap-1 pt-2 opacity-0 group-hover:opacity-100 transition-opacity",
-                isArabic && "justify-end"
+                isRTL && "justify-end"
               )}>
                 <button
                   onClick={handleCopy}
                   className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                  title={isArabic ? "نسخ" : "Copy"}
+                  title={t("copy")}
                 >
                   {copied ? (
                     <Check className="w-4 h-4 text-green-500" />
@@ -196,7 +193,7 @@ export function ChatMessage({
                     "p-1.5 rounded-md hover:bg-secondary transition-colors",
                     feedback === "up" ? "text-green-500" : "text-muted-foreground hover:text-foreground"
                   )}
-                  title={isArabic ? "جيد" : "Good"}
+                  title={t("good")}
                 >
                   <ThumbsUp className="w-4 h-4" />
                 </button>
@@ -206,7 +203,7 @@ export function ChatMessage({
                     "p-1.5 rounded-md hover:bg-secondary transition-colors",
                     feedback === "down" ? "text-red-500" : "text-muted-foreground hover:text-foreground"
                   )}
-                  title={isArabic ? "سيء" : "Bad"}
+                  title={t("bad")}
                 >
                   <ThumbsDown className="w-4 h-4" />
                 </button>
@@ -214,7 +211,7 @@ export function ChatMessage({
                   <button
                     onClick={onRegenerate}
                     className="p-1.5 rounded-md hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors"
-                    title={isArabic ? "إعادة التوليد" : "Regenerate"}
+                    title={t("regenerate")}
                   >
                     <RotateCcw className="w-4 h-4" />
                   </button>

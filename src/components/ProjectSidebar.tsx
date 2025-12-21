@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useI18n, LanguageToggle } from "@/lib/i18n";
 
 interface ProjectSidebarProps {
   projects: Project[];
@@ -42,6 +43,7 @@ export function ProjectSidebar({
 }: ProjectSidebarProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const { t, isRTL } = useI18n();
 
   const startEditing = (project: Project) => {
     setEditingId(project.id);
@@ -60,10 +62,16 @@ export function ProjectSidebar({
   };
 
   return (
-    <div className="w-64 h-full flex flex-col bg-sidebar border-r border-sidebar-border">
+    <div className={cn(
+      "w-64 h-full flex flex-col bg-sidebar border-sidebar-border",
+      isRTL ? "border-l font-arabic" : "border-r"
+    )} dir={isRTL ? "rtl" : "ltr"}>
       {/* Header */}
       <div className="p-4 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
+        <div className={cn(
+          "flex items-center gap-2",
+          isRTL && "flex-row-reverse"
+        )}>
           <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center shadow-glow">
             <Zap className="w-5 h-5 text-primary-foreground" />
           </div>
@@ -71,11 +79,19 @@ export function ProjectSidebar({
         </div>
       </div>
 
+      {/* Language Toggle */}
+      <div className="px-4 py-2">
+        <LanguageToggle className="w-full" />
+      </div>
+
       {/* Projects List */}
       <div className="flex-1 overflow-y-auto p-2">
-        <div className="flex items-center justify-between px-2 py-2">
+        <div className={cn(
+          "flex items-center justify-between px-2 py-2",
+          isRTL && "flex-row-reverse"
+        )}>
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            Projects
+            {t("projects")}
           </span>
           <Button
             variant="ghost"
@@ -93,6 +109,7 @@ export function ProjectSidebar({
               key={project.id}
               className={cn(
                 "group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors",
+                isRTL && "flex-row-reverse",
                 currentProject?.id === project.id
                   ? "bg-sidebar-accent text-sidebar-accent-foreground"
                   : "hover:bg-sidebar-accent/50 text-sidebar-foreground"
@@ -102,7 +119,10 @@ export function ProjectSidebar({
               <Folder className="w-4 h-4 shrink-0 text-muted-foreground" />
 
               {editingId === project.id ? (
-                <div className="flex-1 flex items-center gap-1">
+                <div className={cn(
+                  "flex-1 flex items-center gap-1",
+                  isRTL && "flex-row-reverse"
+                )}>
                   <Input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
@@ -151,17 +171,17 @@ export function ProjectSidebar({
                         <MoreVertical className="w-3 h-3" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                    <DropdownMenuContent align={isRTL ? "start" : "end"}>
                       <DropdownMenuItem onClick={() => startEditing(project)}>
-                        <Edit2 className="w-4 h-4 mr-2" />
-                        Rename
+                        <Edit2 className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+                        {t("rename")}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => onDeleteProject(project.id)}
                       >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete
+                        <Trash2 className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+                        {t("delete")}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -172,15 +192,15 @@ export function ProjectSidebar({
 
           {projects.length === 0 && (
             <div className="px-3 py-8 text-center">
-              <p className="text-sm text-muted-foreground">No projects yet</p>
+              <p className="text-sm text-muted-foreground">{t("noProjects")}</p>
               <Button
                 variant="outline"
                 size="sm"
                 className="mt-2"
                 onClick={onCreateProject}
               >
-                <Plus className="w-4 h-4 mr-1" />
-                New Project
+                <Plus className={cn("w-4 h-4", isRTL ? "ml-1" : "mr-1")} />
+                {t("newProject")}
               </Button>
             </div>
           )}
@@ -191,11 +211,14 @@ export function ProjectSidebar({
       <div className="p-2 border-t border-sidebar-border">
         <Button
           variant="ghost"
-          className="w-full justify-start text-muted-foreground hover:text-foreground"
+          className={cn(
+            "w-full text-muted-foreground hover:text-foreground",
+            isRTL ? "justify-end" : "justify-start"
+          )}
           onClick={onSignOut}
         >
-          <LogOut className="w-4 h-4 mr-2" />
-          Sign Out
+          <LogOut className={cn("w-4 h-4", isRTL ? "ml-2" : "mr-2")} />
+          {t("signOut")}
         </Button>
       </div>
     </div>
