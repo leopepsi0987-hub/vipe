@@ -1,19 +1,32 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Send, Loader2, Image, X, Edit3, ChevronRight } from "lucide-react";
+import { ArrowUp, Loader2, Paperclip, X, Globe, StopCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ChatInputProps {
   onSend: (message: string, imageUrl?: string) => void;
+  onStop?: () => void;
   disabled?: boolean;
   placeholder?: string;
+  placeholderAr?: string;
   currentPath?: string;
   onVisualEdit?: () => void;
+  isArabic?: boolean;
 }
 
-export function ChatInput({ onSend, disabled, placeholder, currentPath = "/", onVisualEdit }: ChatInputProps) {
+export function ChatInput({ 
+  onSend, 
+  onStop,
+  disabled, 
+  placeholder, 
+  placeholderAr,
+  currentPath = "/", 
+  onVisualEdit,
+  isArabic = false
+}: ChatInputProps) {
   const [message, setMessage] = useState("");
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isFocused, setIsFocused] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -43,7 +56,7 @@ export function ChatInput({ onSend, disabled, placeholder, currentPath = "/", on
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
-        alert("Image must be less than 10MB");
+        alert(isArabic ? "يجب أن تكون الصورة أقل من 10 ميجابايت" : "Image must be less than 10MB");
         return;
       }
       const reader = new FileReader();
@@ -61,91 +74,131 @@ export function ChatInput({ onSend, disabled, placeholder, currentPath = "/", on
     }
   };
 
+  const defaultPlaceholder = isArabic 
+    ? (placeholderAr || "اسأل أي شيء أو صف التطبيق الذي تريد بناءه...")
+    : (placeholder || "Ask anything or describe the app you want to build...");
+
   return (
-    <div className="space-y-2">
+    <div className="w-full max-w-3xl mx-auto px-4" dir={isArabic ? "rtl" : "ltr"}>
       {/* Image Preview */}
       {imagePreview && (
-        <div className="relative inline-block">
+        <div className="relative inline-block mb-3">
           <img 
             src={imagePreview} 
-            alt="Upload preview" 
-            className="h-20 w-auto rounded-lg border border-border"
+            alt={isArabic ? "معاينة الصورة" : "Upload preview"}
+            className="h-24 w-auto rounded-xl border border-border shadow-sm"
           />
           <button
             onClick={removeImage}
-            className="absolute -top-2 -right-2 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center hover:bg-destructive/80 transition-colors"
+            className="absolute -top-2 -right-2 w-6 h-6 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center hover:bg-destructive/80 transition-colors shadow-md"
           >
-            <X className="w-3 h-3" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
       
-      {/* Visual Edit Button with Path */}
-      {onVisualEdit && (
-        <button
-          onClick={onVisualEdit}
+      {/* ChatGPT-style Input Container */}
+      <div 
+        className={cn(
+          "relative flex flex-col bg-secondary border border-border rounded-2xl transition-all duration-200",
+          isFocused && "border-primary/50 shadow-lg shadow-primary/5"
+        )}
+      >
+        {/* Textarea */}
+        <textarea
+          ref={textareaRef}
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          placeholder={defaultPlaceholder}
           disabled={disabled}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border hover:bg-secondary hover:border-primary/50 transition-all group w-full"
-        >
-          <div className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-            <Edit3 className="w-3.5 h-3.5" />
-          </div>
-          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-            <span className="text-foreground font-medium">Visual Edits</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-            <span className="text-xs bg-muted px-2 py-0.5 rounded font-mono">{currentPath}</span>
-          </div>
-        </button>
-      )}
-      
-      <div className="relative flex items-end gap-2">
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageUpload}
-          className="hidden"
+          rows={1}
+          className={cn(
+            "w-full resize-none bg-transparent px-4 py-4 text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none min-h-[56px] max-h-[200px]",
+            isArabic && "text-right font-arabic"
+          )}
+          dir={isArabic ? "rtl" : "ltr"}
         />
-        
-        {/* Image upload button */}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={disabled}
-          className="shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          <Image className="w-5 h-5" />
-        </Button>
 
-        <div className="relative flex-1">
-          <textarea
-            ref={textareaRef}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder || "Chat with Vipe..."}
-            disabled={disabled}
-            rows={1}
-            className="w-full resize-none bg-secondary border border-border rounded-xl px-4 py-3 pr-14 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-          />
-          <Button
-            onClick={handleSubmit}
-            disabled={disabled || (!message.trim() && !imagePreview)}
-            size="icon"
-            variant="glow"
-            className="absolute right-2 bottom-2"
-          >
-            {disabled ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Send className="w-4 h-4" />
-            )}
-          </Button>
+        {/* Bottom Actions Bar */}
+        <div className={cn(
+          "flex items-center justify-between px-3 pb-3",
+          isArabic && "flex-row-reverse"
+        )}>
+          {/* Left Actions */}
+          <div className={cn(
+            "flex items-center gap-1",
+            isArabic && "flex-row-reverse"
+          )}>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageUpload}
+              className="hidden"
+            />
+            
+            {/* Attach button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={disabled}
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors disabled:opacity-50"
+              title={isArabic ? "إرفاق صورة" : "Attach image"}
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
+
+            {/* Web search indicator */}
+            <button
+              type="button"
+              className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              title={isArabic ? "بحث الويب" : "Web search"}
+            >
+              <Globe className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Send/Stop Button */}
+          {disabled ? (
+            <Button
+              onClick={onStop}
+              size="icon"
+              className="w-9 h-9 rounded-xl bg-destructive hover:bg-destructive/90"
+            >
+              <StopCircle className="w-5 h-5" />
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSubmit}
+              disabled={!message.trim() && !imagePreview}
+              size="icon"
+              className={cn(
+                "w-9 h-9 rounded-xl transition-all",
+                message.trim() || imagePreview
+                  ? "bg-foreground text-background hover:bg-foreground/90"
+                  : "bg-muted text-muted-foreground cursor-not-allowed"
+              )}
+            >
+              <ArrowUp className="w-5 h-5" />
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Footer Text */}
+      <p className={cn(
+        "text-xs text-muted-foreground text-center mt-3",
+        isArabic && "font-arabic"
+      )}>
+        {isArabic 
+          ? "Vipe يستخدم الذكاء الاصطناعي. تحقق من المعلومات المهمة."
+          : "Vipe uses AI. Check important info."
+        }
+      </p>
     </div>
   );
 }
