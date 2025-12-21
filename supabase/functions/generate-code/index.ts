@@ -76,13 +76,13 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, currentCode, projectSlug, projectId, dbChoice } = await req.json();
-    const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
+    const { prompt, currentCode, projectSlug, projectId, dbChoice, hasConnectedSupabase } = await req.json();
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
-    if (!GOOGLE_GEMINI_API_KEY) {
-      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+    if (!LOVABLE_API_KEY) {
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     // Fetch user's connected Supabase if projectId provided
@@ -105,6 +105,11 @@ serve(async (req) => {
         }
       }
     }
+    
+    // Build database status context for the AI
+    const dbStatusContext = hasConnectedSupabase 
+      ? "🔌 **DATABASE STATUS: CONNECTED!** The user has connected their Supabase database. You have FULL control to create tables, RLS policies, and build full-stack apps!"
+      : "⚠️ **DATABASE STATUS: NOT CONNECTED** The user has NOT connected a database yet. When they ask for data features, remind them to connect their Supabase first using the Data tab, OR offer to use localStorage for simple demos.";
 
     // Build database context based on connection status
     let dbChoiceContext = "";
@@ -189,6 +194,8 @@ Use the Supabase client for all auth, database queries, and storage operations.`
     }
 
     const systemPrompt = `## 🚨🚨🚨 ABSOLUTE CRITICAL - READ THIS FIRST 🚨🚨🚨
+
+${dbStatusContext}
 
 YOU ARE VIPE AI - THE BEST FULL-STACK DEVELOPER IN THE WORLD.
 
@@ -2051,39 +2058,25 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
       });
     }
 
-    console.log("Calling Google Gemini 2.5 Pro with prompt:", prompt);
+    console.log("Calling Lovable AI Gateway with google/gemini-2.5-pro model. Prompt:", prompt);
 
-    // Convert messages to Gemini format
-    const geminiContents = messages.map(msg => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }]
-    }));
-
-    // Extract system instruction
-    const systemInstruction = messages.find(m => m.role === "system")?.content || "";
-    const userContents = geminiContents.filter(c => c.role !== "user" || !messages.find(m => m.role === "system" && m.content === c.parts[0].text));
-
-    const response = await fetch(`https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${GOOGLE_GEMINI_API_KEY}`, {
+    // Use Lovable AI Gateway for better model access
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemInstruction }] },
-        contents: messages.filter(m => m.role !== "system").map(msg => ({
-          role: msg.role === "assistant" ? "model" : "user",
-          parts: [{ text: msg.content }]
-        })),
-        generationConfig: {
-          temperature: 1.0,
-          maxOutputTokens: 65536,
-        }
+        model: "google/gemini-2.5-pro", // Using the best model!
+        messages: messages,
+        stream: true,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Google Gemini error:", response.status, errorText);
+      console.error("Lovable AI Gateway error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
@@ -2091,8 +2084,14 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      if (response.status === 402) {
+        return new Response(JSON.stringify({ error: "Payment required. Please add funds to continue." }), {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       if (response.status === 400) {
-        return new Response(JSON.stringify({ error: "Invalid request to AI service. Check your API key." }), {
+        return new Response(JSON.stringify({ error: "Invalid request to AI service." }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -2104,8 +2103,7 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
       });
     }
 
-    // Transform Gemini SSE to OpenAI-compatible SSE format
-    // Also collect full content to extract and execute migrations
+    // Stream the response and collect for migration extraction
     let fullContent = "";
     
     const transformStream = new TransformStream({
@@ -2116,21 +2114,16 @@ JUST OUTPUT THE CODE. NOTHING ELSE.`;
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const jsonStr = line.slice(6).trim();
-          if (!jsonStr) continue;
+          if (!jsonStr || jsonStr === "[DONE]") continue;
           
           try {
-            const geminiData = JSON.parse(jsonStr);
-            const textContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+            const parsed = JSON.parse(jsonStr);
+            const textContent = parsed.choices?.[0]?.delta?.content;
             
             if (textContent) {
               fullContent += textContent;
-              // Transform to OpenAI format
-              const openAIFormat = {
-                choices: [{
-                  delta: { content: textContent }
-                }]
-              };
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+              // Already in OpenAI format, just forward
+              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(parsed)}\n\n`));
             }
           } catch (e) {
             // Skip invalid JSON

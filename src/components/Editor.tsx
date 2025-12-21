@@ -126,6 +126,30 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     }
   };
 
+  // Check if user has connected their Supabase
+  const [hasConnectedSupabase, setHasConnectedSupabase] = useState(false);
+  
+  useEffect(() => {
+    const checkSupabaseConnection = async () => {
+      try {
+        const { data } = await supabase
+          .from("project_data")
+          .select("value")
+          .eq("project_id", project.id)
+          .eq("key", "supabase_connection")
+          .maybeSingle();
+        
+        if (data?.value) {
+          const conn = data.value as { connected?: boolean };
+          setHasConnectedSupabase(!!conn.connected);
+        }
+      } catch (error) {
+        console.log("No Supabase connection found");
+      }
+    };
+    checkSupabaseConnection();
+  }, [project.id]);
+
   const handleSendMessage = async (content: string, imageUrl?: string) => {
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -152,6 +176,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         projectSlug: project.slug,
         projectId: project.id,
         dbChoice,
+        hasConnectedSupabase, // Tell AI if user connected their database
       });
 
       const response = await fetch(endpoint, {
