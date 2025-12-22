@@ -52,241 +52,37 @@ serve(async (req) => {
     }
 
     // ==========================================
-    // SYSTEM PROMPT - REACT/TSX FILE GENERATION
+    // SYSTEM PROMPT - STRICT JSON OUTPUT ONLY
     // ==========================================
-    const systemPrompt = `# VIPE AI - React/TypeScript Code Generator
+    const systemPrompt = `You are a React/TypeScript code generator. You output ONLY valid JSON, nothing else.
 
-You are a full-stack React/TypeScript developer. You generate REAL project files (not HTML strings).
-
-## OUTPUT FORMAT - CRITICAL!
-
-You MUST output a JSON object with file operations. NO markdown, NO explanations, NO text outside JSON.
-
-\`\`\`json
+OUTPUT FORMAT (strict JSON, no markdown, no explanations):
 {
   "files": [
-    {
-      "path": "src/App.tsx",
-      "action": "create",
-      "content": "import React from 'react';\\n..."
-    },
-    {
-      "path": "src/components/Button.tsx",
-      "action": "update",
-      "content": "..."
-    },
-    {
-      "path": "src/old-file.tsx",
-      "action": "delete"
-    }
+    {"path": "src/App.tsx", "action": "create", "content": "...full file content..."},
+    {"path": "src/components/Example.tsx", "action": "create", "content": "..."}
   ],
-  "message": "Brief description of changes made"
-}
-\`\`\`
-
-## FILE STRUCTURE
-
-Standard React/Vite project structure:
-- src/main.tsx - Entry point (renders App)
-- src/App.tsx - Main app component with routing
-- src/index.css - Global styles with CSS variables
-- src/components/*.tsx - Reusable components
-- src/pages/*.tsx - Page components
-- src/hooks/*.ts - Custom hooks
-- src/lib/*.ts - Utility functions
-- src/types/*.ts - TypeScript types
-
-## TECHNOLOGY STACK
-
-- React 18 with TypeScript
-- Tailwind CSS for styling
-- React Router for navigation (if multi-page)
-- Semantic CSS variables (--background, --foreground, --primary, etc.)
-
-## STYLING RULES
-
-ALWAYS use semantic design tokens:
-- bg-background, bg-card, bg-muted, bg-primary, bg-secondary
-- text-foreground, text-muted-foreground, text-primary-foreground
-- border-border, border-input
-- NEVER use hardcoded colors like bg-blue-500, text-white, #hex
-
-## COMPONENT PATTERNS
-
-\`\`\`tsx
-import React from 'react';
-
-interface ButtonProps {
-  children: React.ReactNode;
-  onClick?: () => void;
-  variant?: 'primary' | 'secondary' | 'outline';
-  disabled?: boolean;
+  "message": "Brief description"
 }
 
-export function Button({ children, onClick, variant = 'primary', disabled }: ButtonProps) {
-  const variants = {
-    primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
-    secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/90',
-    outline: 'border border-border bg-background hover:bg-muted',
-  };
+RULES:
+- Output ONLY the JSON object above. No text before or after.
+- "action" must be "create", "update", or "delete"
+- Use React 18 + TypeScript + Tailwind CSS
+- Use semantic Tailwind classes: bg-background, text-foreground, bg-primary, text-primary-foreground, bg-muted, text-muted-foreground, border-border
+- NEVER use hardcoded colors like bg-blue-500 or text-white
+- Create complete, working components
+- If no files exist, create src/main.tsx, src/App.tsx, and src/index.css
 
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={\`px-4 py-2 rounded-lg font-medium transition-colors \${variants[variant]} \${
-        disabled ? 'opacity-50 cursor-not-allowed' : ''
-      }\`}
-    >
-      {children}
-    </button>
-  );
-}
-\`\`\`
+${userSupabaseConnection ? `User has Supabase connected at ${userSupabaseConnection.url}. Use @supabase/supabase-js for data.` : "No database connected. Use localStorage for persistence."}
 
-## DEFAULT CSS VARIABLES (src/index.css)
+${fileContext}
 
-\`\`\`css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --primary: 221.2 83.2% 53.3%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96%;
-  --accent-foreground: 222.2 47.4% 11.2%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221.2 83.2% 53.3%;
-  --radius: 0.5rem;
-}
-
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --primary: 217.2 91.2% 59.8%;
-  --primary-foreground: 222.2 47.4% 11.2%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 217.2 32.6% 17.5%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
-}
-
-body {
-  @apply bg-background text-foreground;
-}
-\`\`\`
-
-${userSupabaseConnection ? `
-## SUPABASE INTEGRATION
-
-User has connected Supabase:
-- URL: ${userSupabaseConnection.url}
-
-Use @supabase/supabase-js for database operations:
-
-\`\`\`tsx
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  '${userSupabaseConnection.url}',
-  'YOUR_ANON_KEY' // User needs to add this
-);
-
-// CRUD operations
-const { data, error } = await supabase.from('table').select('*');
-\`\`\`
-
-For database schema changes, include a migration in your response:
-{
-  "files": [...],
-  "migration": {
-    "description": "Create todos table",
-    "sql": "CREATE TABLE todos (...); ALTER TABLE todos ENABLE ROW LEVEL SECURITY; ..."
-  }
-}
-` : `
-## NO SUPABASE CONNECTED
-
-Use localStorage or React state for data persistence.
-\`\`\`tsx
-// Save to localStorage
-localStorage.setItem('todos', JSON.stringify(todos));
-
-// Load from localStorage
-const saved = localStorage.getItem('todos');
-const todos = saved ? JSON.parse(saved) : [];
-\`\`\`
-`}
-
-## CRITICAL RULES
-
-1. Output ONLY valid JSON - no markdown, no explanations outside the JSON
-2. Use TypeScript with proper interfaces/types
-3. Use Tailwind with semantic tokens only
-4. Create focused, single-responsibility components
-5. Handle loading, error, and empty states
-6. Make responsive designs (mobile-first)
-7. Use proper React patterns (hooks, context when needed)
-
-## STARTER PROJECT
-
-If no files exist yet, create this starter:
-
-{
-  "files": [
-    {
-      "path": "src/main.tsx",
-      "action": "create",
-      "content": "import React from 'react';\\nimport ReactDOM from 'react-dom/client';\\nimport App from './App';\\nimport './index.css';\\n\\nReactDOM.createRoot(document.getElementById('root')!).render(\\n  <React.StrictMode>\\n    <App />\\n  </React.StrictMode>\\n);"
-    },
-    {
-      "path": "src/App.tsx",
-      "action": "create", 
-      "content": "// App content here"
-    },
-    {
-      "path": "src/index.css",
-      "action": "create",
-      "content": "/* CSS with design tokens */"
-    }
-  ],
-  "message": "Created starter project"
-}
-
-YOUR ENTIRE RESPONSE MUST BE VALID JSON. START WITH { AND END WITH }. NO OTHER TEXT.`;
-
-    const messages = [
-      { role: "system", content: systemPrompt },
-      { 
-        role: "user", 
-        content: `${fileContext}\n\nUSER REQUEST: ${prompt}\n\nRespond with ONLY the JSON file operations. No markdown, no explanations.`
-      }
-    ];
+START YOUR RESPONSE WITH { AND END WITH }. OUTPUT ONLY JSON.`;
 
     console.log("[generate-code] Calling Gemini 3 Pro. Prompt:", prompt);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -295,12 +91,16 @@ YOUR ENTIRE RESPONSE MUST BE VALID JSON. START WITH { AND END WITH }. NO OTHER T
         contents: [
           {
             role: "user",
-            parts: [{ text: systemPrompt + "\n\n" + fileContext + "\n\nUSER REQUEST: " + prompt + "\n\nRespond with ONLY the JSON file operations. No markdown, no explanations." }]
+            parts: [{ text: "BUILD REQUEST: " + prompt + "\n\nRespond with ONLY JSON. No markdown. No explanations. Start with { end with }." }]
           }
         ],
+        systemInstruction: {
+          parts: [{ text: systemPrompt }]
+        },
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 8192,
+          temperature: 0.2,
+          maxOutputTokens: 65536,
+          responseMimeType: "application/json"
         }
       }),
     });
