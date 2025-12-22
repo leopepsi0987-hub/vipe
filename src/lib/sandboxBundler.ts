@@ -146,17 +146,22 @@ export function generateBundledHTML(files: Record<string, string>): string {
   <script type="text/babel" data-presets="typescript,react">
     const { useState, useEffect, useContext, createContext, useCallback, useMemo, useRef, useReducer } = React;
 
-    const __errEl = document.getElementById('__sandbox_error');
-    const __showErr = (title, err) => {
-      try {
-        __errEl.style.display = 'block';
-        const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
-        __errEl.textContent = title + "\n\n" + msg;
-      } catch (_) {}
-    };
+     const __errEl = document.getElementById('__sandbox_error');
+     const __showErr = (title, err) => {
+       try {
+         __errEl.style.display = 'block';
+         const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
+         const text = title + "\n\n" + msg;
+         __errEl.textContent = text;
+         // Also forward to parent so the editor can show the real error instead of a blank screen.
+         try {
+           window.parent && window.parent.postMessage({ type: 'SANDBOX_ERROR', title, message: msg }, '*');
+         } catch (_) {}
+       } catch (_) {}
+     };
 
-    window.addEventListener('error', (e) => __showErr('Sandbox runtime error', (e && (e.error || e.message))));
-    window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e && e.reason));
+     window.addEventListener('error', (e) => __showErr('Sandbox runtime error', (e && (e.error || e.message))));
+     window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e && e.reason));
 
     // Modules (components, types, utils, etc.)
     ${processedModules}
