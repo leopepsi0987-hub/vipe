@@ -82,7 +82,7 @@ START YOUR RESPONSE WITH { AND END WITH }. OUTPUT ONLY JSON.`;
 
     console.log("[generate-code] Calling Gemini 3 Pro. Prompt:", prompt);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-06:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
