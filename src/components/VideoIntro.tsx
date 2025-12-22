@@ -10,12 +10,13 @@ export const VideoIntro = ({ onComplete }: VideoIntroProps) => {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (video) {
-      video.play().catch(() => {
-        // Autoplay blocked, skip intro
-        onComplete();
-      });
-    }
+    if (!video) return;
+
+    video.play().catch(() => {
+      // Autoplay blocked: hide intro immediately and continue
+      setIsVisible(false);
+      onComplete();
+    });
   }, [onComplete]);
 
   const handleVideoEnd = () => {
@@ -31,8 +32,8 @@ export const VideoIntro = ({ onComplete }: VideoIntroProps) => {
   if (!isVisible) return null;
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-300 ${
+    <div
+      className={`fixed inset-0 z-50 bg-background flex items-center justify-center transition-opacity duration-300 ${
         isVisible ? "opacity-100" : "opacity-0"
       }`}
     >
@@ -46,7 +47,7 @@ export const VideoIntro = ({ onComplete }: VideoIntroProps) => {
       />
       <button
         onClick={handleSkip}
-        className="absolute bottom-8 right-8 px-6 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg backdrop-blur-sm transition-colors text-sm font-medium"
+        className="absolute bottom-8 right-8 px-6 py-2 bg-secondary/60 hover:bg-secondary/80 text-secondary-foreground rounded-lg backdrop-blur-sm transition-colors text-sm font-medium"
       >
         Skip
       </button>
