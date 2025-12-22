@@ -269,7 +269,7 @@ export function generateBundledHTML(files: FileMap): string {
       try {
         const t = __errEl.querySelector('[data-role="title"]').textContent || 'Sandbox error';
         const m = __errEl.querySelector('[data-role="msg"]').textContent || '';
-        await navigator.clipboard.writeText([t, m].filter(Boolean).join('\n\n'));
+        await navigator.clipboard.writeText([t, m].filter(Boolean).join('\\n\\n'));
       } catch (_) {}
     });
 
