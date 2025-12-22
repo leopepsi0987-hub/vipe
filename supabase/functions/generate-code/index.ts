@@ -112,119 +112,33 @@ serve(async (req) => {
     // ==========================================
     // SYSTEM PROMPT - STRICT JSON OUTPUT ONLY
     // ==========================================
-    const systemPrompt = `You are a professional React/TypeScript code generator.
+    const systemPrompt = `You are an expert React/TypeScript developer. You generate COMPLETE, PRODUCTION-READY code.
 
-## ABSOLUTE RULE - VIOLATION MEANS FAILURE:
-❌ NEVER put all code in src/App.tsx - THIS IS WRONG AND WILL BREAK THE APP
-❌ NEVER create just 1-3 files - THIS IS WRONG
-✅ ALWAYS create 6+ separate files in the correct folders
+## ⚠️ CRITICAL RULES - VIOLATION = FAILURE:
 
-## YOU MUST CREATE THESE EXACT FILES (MINIMUM):
-1. src/types/index.ts - TypeScript interfaces
-2. src/lib/utils.ts - Utility functions  
-3. src/hooks/use[Feature].ts - Custom hooks for state/logic
-4. src/components/[Name].tsx - ONE component per file (create 2-5 component files)
-5. src/pages/Index.tsx - Main page component
-6. src/App.tsx - ONLY imports and renders pages, NO business logic here
+1. MINIMUM 200+ LINES OF CODE TOTAL across all files
+2. MINIMUM 6 FILES - Always create separate files for types, hooks, utils, components, pages
+3. NEVER put everything in App.tsx - App.tsx should ONLY import and render pages
+4. Each component file should have 30-100+ lines of real code
+5. Create BEAUTIFUL, DETAILED UI with proper styling
 
-## App.tsx MUST BE SIMPLE LIKE THIS:
-\`\`\`
-import Index from '@/pages/Index';
-function App() { return <Index />; }
-export default App;
-\`\`\`
+## MANDATORY FILE STRUCTURE:
 
-NEVER put any components, hooks, types, or logic directly in App.tsx!
+src/types/index.ts        - All TypeScript interfaces
+src/lib/utils.ts          - Utility functions (cn helper, formatters)
+src/hooks/use*.ts         - Custom hooks for state/data
+src/components/*.tsx      - ONE component per file (create 3-8 files)
+src/pages/Index.tsx       - Main page (this has the main layout)
+src/App.tsx               - ONLY imports pages, no logic here
 
-OUTPUT FORMAT (strict JSON, no markdown, no explanations):
-{
-  "files": [
-    {"path": "src/main.tsx", "action": "create", "content": "..."},
-    {"path": "src/App.tsx", "action": "create", "content": "..."},
-    {"path": "src/App.css", "action": "create", "content": "..."},
-    {"path": "src/index.css", "action": "create", "content": "..."},
-    {"path": "src/types/index.ts", "action": "create", "content": "..."},
-    {"path": "src/hooks/useTodos.ts", "action": "create", "content": "..."},
-    {"path": "src/lib/utils.ts", "action": "create", "content": "..."},
-    {"path": "src/components/TodoItem.tsx", "action": "create", "content": "..."},
-    {"path": "src/components/TodoList.tsx", "action": "create", "content": "..."},
-    {"path": "src/pages/Index.tsx", "action": "create", "content": "..."}
-  ],
-  "message": "Created todo app with 10 files"
-}
-
-## MANDATORY FILE STRUCTURE (create ALL of these):
-
-### Core Files (ALWAYS create these):
-- src/main.tsx - React DOM render entry point
-- src/App.tsx - Main app with routing
-- src/App.css - App-specific styles  
-- src/index.css - Global styles with Tailwind @tailwind directives
-
-### Types (ALWAYS create):
-- src/types/index.ts - All TypeScript interfaces and types
-
-### Hooks (create for any state logic):
-- src/hooks/use[Feature].ts - Custom hooks (useTodos, useAuth, useForm, etc.)
-- src/hooks/useLocalStorage.ts - If using localStorage
-
-### Lib/Utils (ALWAYS create):
-- src/lib/utils.ts - Utility functions (cn, formatDate, etc.)
-- src/lib/constants.ts - App constants
-
-### Components (ALWAYS create separate files):
-- src/components/[Name].tsx - One component per file
-- NEVER put multiple components in one file
-- Each component imports from @/components/ui/ for base UI
-
-### Pages (for multi-page apps):
-- src/pages/Index.tsx - Home page
-- src/pages/[PageName].tsx - Other pages
-
-### Context (if needed):
-- src/context/[Name]Context.tsx - React context providers
-
-## IMPORT RULES (CRITICAL):
-- Use "@/" alias: import { Button } from "@/components/ui/button"
-- NEVER use relative imports like "./components/Button"
-- Import types: import type { Todo } from "@/types"
-- Import hooks: import { useTodos } from "@/hooks/useTodos"
-- Import utils: import { cn } from "@/lib/utils"
-
-## EXISTING UI COMPONENTS (use these, don't recreate):
-- @/components/ui/button - Button
-- @/components/ui/card - Card, CardContent, CardHeader, CardTitle, CardFooter
-- @/components/ui/input - Input
-- @/components/ui/checkbox - Checkbox
-- @/components/ui/label - Label
-- @/components/ui/badge - Badge
-- @/components/ui/dialog - Dialog, DialogContent, DialogHeader, DialogTitle
-- @/components/ui/tabs - Tabs, TabsContent, TabsList, TabsTrigger
-- @/components/ui/select - Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-- @/components/ui/textarea - Textarea
-- @/components/ui/switch - Switch
-- @/components/ui/progress - Progress
-- @/components/ui/skeleton - Skeleton
-- @/components/ui/scroll-area - ScrollArea
-- @/components/ui/separator - Separator
-- @/components/ui/avatar - Avatar, AvatarFallback, AvatarImage
-- @/components/ui/dropdown-menu - DropdownMenu components
-- @/components/ui/tooltip - Tooltip components
-- @/components/ui/table - Table components
-- @/components/ui/accordion - Accordion components
-
-## STYLING RULES:
-- Use Tailwind semantic classes ONLY: bg-background, text-foreground, bg-primary, text-primary-foreground, bg-secondary, bg-muted, text-muted-foreground, bg-card, border-border
-- NEVER use hardcoded colors like bg-blue-500 or text-white
-
-## COMPLETE EXAMPLE - TODO APP (creates 8+ files):
+## LANDING PAGE EXAMPLE (what you MUST generate for "build a landing page"):
 
 {
   "files": [
     {
       "path": "src/types/index.ts",
       "action": "create",
-      "content": "export interface Todo {\\n  id: string;\\n  text: string;\\n  completed: boolean;\\n  createdAt: number;\\n}"
+      "content": "export interface NavItem {\\n  label: string;\\n  href: string;\\n}\\n\\nexport interface Feature {\\n  icon: string;\\n  title: string;\\n  description: string;\\n}\\n\\nexport interface Testimonial {\\n  name: string;\\n  role: string;\\n  content: string;\\n  avatar: string;\\n}\\n\\nexport interface PricingPlan {\\n  name: string;\\n  price: string;\\n  features: string[];\\n  popular?: boolean;\\n}"
     },
     {
       "path": "src/lib/utils.ts",
@@ -232,29 +146,34 @@ OUTPUT FORMAT (strict JSON, no markdown, no explanations):
       "content": "import { type ClassValue, clsx } from 'clsx';\\nimport { twMerge } from 'tailwind-merge';\\n\\nexport function cn(...inputs: ClassValue[]) {\\n  return twMerge(clsx(inputs));\\n}"
     },
     {
-      "path": "src/hooks/useTodos.ts",
+      "path": "src/components/Navbar.tsx",
       "action": "create",
-      "content": "import { useState, useEffect } from 'react';\\nimport type { Todo } from '@/types';\\n\\nexport function useTodos() {\\n  const [todos, setTodos] = useState<Todo[]>(() => {\\n    const saved = localStorage.getItem('todos');\\n    return saved ? JSON.parse(saved) : [];\\n  });\\n\\n  useEffect(() => {\\n    localStorage.setItem('todos', JSON.stringify(todos));\\n  }, [todos]);\\n\\n  const addTodo = (text: string) => {\\n    const newTodo: Todo = {\\n      id: crypto.randomUUID(),\\n      text,\\n      completed: false,\\n      createdAt: Date.now(),\\n    };\\n    setTodos(prev => [...prev, newTodo]);\\n  };\\n\\n  const toggleTodo = (id: string) => {\\n    setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: !t.completed } : t));\\n  };\\n\\n  const deleteTodo = (id: string) => {\\n    setTodos(prev => prev.filter(t => t.id !== id));\\n  };\\n\\n  return { todos, addTodo, toggleTodo, deleteTodo };\\n}"
+      "content": "import { Button } from '@/components/ui/button';\\nimport type { NavItem } from '@/types';\\n\\nconst navItems: NavItem[] = [\\n  { label: 'Features', href: '#features' },\\n  { label: 'Pricing', href: '#pricing' },\\n  { label: 'Testimonials', href: '#testimonials' },\\n  { label: 'Contact', href: '#contact' },\\n];\\n\\nexport function Navbar() {\\n  return (\\n    <nav className=\\"fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border\\">\\n      <div className=\\"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8\\">\\n        <div className=\\"flex items-center justify-between h-16\\">\\n          <div className=\\"flex items-center gap-2\\">\\n            <div className=\\"w-8 h-8 bg-primary rounded-lg\\" />\\n            <span className=\\"text-xl font-bold text-foreground\\">Brand</span>\\n          </div>\\n          <div className=\\"hidden md:flex items-center gap-8\\">\\n            {navItems.map((item) => (\\n              <a\\n                key={item.label}\\n                href={item.href}\\n                className=\\"text-muted-foreground hover:text-foreground transition-colors\\"\\n              >\\n                {item.label}\\n              </a>\\n            ))}\\n          </div>\\n          <div className=\\"flex items-center gap-4\\">\\n            <Button variant=\\"ghost\\">Sign In</Button>\\n            <Button>Get Started</Button>\\n          </div>\\n        </div>\\n      </div>\\n    </nav>\\n  );\\n}"
     },
     {
-      "path": "src/components/TodoInput.tsx",
+      "path": "src/components/Hero.tsx",
       "action": "create",
-      "content": "import { useState } from 'react';\\nimport { Input } from '@/components/ui/input';\\nimport { Button } from '@/components/ui/button';\\nimport { Plus } from 'lucide-react';\\n\\ninterface TodoInputProps {\\n  onAdd: (text: string) => void;\\n}\\n\\nexport function TodoInput({ onAdd }: TodoInputProps) {\\n  const [text, setText] = useState('');\\n\\n  const handleSubmit = (e: React.FormEvent) => {\\n    e.preventDefault();\\n    if (text.trim()) {\\n      onAdd(text.trim());\\n      setText('');\\n    }\\n  };\\n\\n  return (\\n    <form onSubmit={handleSubmit} className=\\"flex gap-2\\">\\n      <Input\\n        value={text}\\n        onChange={(e) => setText(e.target.value)}\\n        placeholder=\\"Add a task...\\"\\n        className=\\"flex-1\\"\\n      />\\n      <Button type=\\"submit\\">\\n        <Plus className=\\"w-4 h-4\\" />\\n      </Button>\\n    </form>\\n  );\\n}"
+      "content": "import { Button } from '@/components/ui/button';\\nimport { ArrowRight, Play } from 'lucide-react';\\n\\nexport function Hero() {\\n  return (\\n    <section className=\\"pt-32 pb-20 px-4\\">\\n      <div className=\\"max-w-7xl mx-auto text-center\\">\\n        <div className=\\"inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-8\\">\\n          <span className=\\"text-sm font-medium\\">🚀 New Feature Released</span>\\n        </div>\\n        <h1 className=\\"text-4xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight\\">\\n          Build Something\\n          <span className=\\"text-primary\\"> Amazing</span>\\n          <br />Together\\n        </h1>\\n        <p className=\\"text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10\\">\\n          The all-in-one platform that helps teams collaborate, build, and ship products faster than ever before.\\n        </p>\\n        <div className=\\"flex flex-col sm:flex-row items-center justify-center gap-4\\">\\n          <Button size=\\"lg\\" className=\\"gap-2\\">\\n            Start Free Trial <ArrowRight className=\\"w-4 h-4\\" />\\n          </Button>\\n          <Button size=\\"lg\\" variant=\\"outline\\" className=\\"gap-2\\">\\n            <Play className=\\"w-4 h-4\\" /> Watch Demo\\n          </Button>\\n        </div>\\n        <div className=\\"mt-16 relative\\">\\n          <div className=\\"absolute inset-0 bg-gradient-to-t from-background to-transparent z-10\\" />\\n          <div className=\\"bg-card border border-border rounded-xl shadow-2xl p-4 max-w-4xl mx-auto\\">\\n            <div className=\\"aspect-video bg-muted rounded-lg flex items-center justify-center\\">\\n              <span className=\\"text-muted-foreground\\">Product Screenshot</span>\\n            </div>\\n          </div>\\n        </div>\\n      </div>\\n    </section>\\n  );\\n}"
     },
     {
-      "path": "src/components/TodoItem.tsx",
+      "path": "src/components/Features.tsx",
       "action": "create",
-      "content": "import { Checkbox } from '@/components/ui/checkbox';\\nimport { Button } from '@/components/ui/button';\\nimport { Trash2 } from 'lucide-react';\\nimport type { Todo } from '@/types';\\nimport { cn } from '@/lib/utils';\\n\\ninterface TodoItemProps {\\n  todo: Todo;\\n  onToggle: (id: string) => void;\\n  onDelete: (id: string) => void;\\n}\\n\\nexport function TodoItem({ todo, onToggle, onDelete }: TodoItemProps) {\\n  return (\\n    <div className=\\"flex items-center gap-3 p-3 rounded-lg bg-card border border-border\\">\\n      <Checkbox\\n        checked={todo.completed}\\n        onCheckedChange={() => onToggle(todo.id)}\\n      />\\n      <span className={cn(\\"flex-1\\", todo.completed && \\"line-through text-muted-foreground\\")}>\\n        {todo.text}\\n      </span>\\n      <Button variant=\\"ghost\\" size=\\"icon\\" onClick={() => onDelete(todo.id)}>\\n        <Trash2 className=\\"w-4 h-4 text-destructive\\" />\\n      </Button>\\n    </div>\\n  );\\n}"
+      "content": "import { Card, CardContent } from '@/components/ui/card';\\nimport { Zap, Shield, Globe, Layers, Users, BarChart } from 'lucide-react';\\nimport type { Feature } from '@/types';\\n\\nconst features: Feature[] = [\\n  { icon: 'Zap', title: 'Lightning Fast', description: 'Built for speed with optimized performance at every level.' },\\n  { icon: 'Shield', title: 'Secure by Default', description: 'Enterprise-grade security with end-to-end encryption.' },\\n  { icon: 'Globe', title: 'Global Scale', description: 'Deploy worldwide with our distributed infrastructure.' },\\n  { icon: 'Layers', title: 'Modular Design', description: 'Flexible architecture that grows with your needs.' },\\n  { icon: 'Users', title: 'Team Collaboration', description: 'Real-time collaboration tools for modern teams.' },\\n  { icon: 'BarChart', title: 'Analytics', description: 'Deep insights with comprehensive analytics dashboard.' },\\n];\\n\\nconst iconMap: Record<string, any> = { Zap, Shield, Globe, Layers, Users, BarChart };\\n\\nexport function Features() {\\n  return (\\n    <section id=\\"features\\" className=\\"py-20 px-4 bg-muted/30\\">\\n      <div className=\\"max-w-7xl mx-auto\\">\\n        <div className=\\"text-center mb-16\\">\\n          <h2 className=\\"text-3xl md:text-4xl font-bold text-foreground mb-4\\">\\n            Everything You Need\\n          </h2>\\n          <p className=\\"text-lg text-muted-foreground max-w-2xl mx-auto\\">\\n            Powerful features to help you build, deploy, and scale your applications.\\n          </p>\\n        </div>\\n        <div className=\\"grid md:grid-cols-2 lg:grid-cols-3 gap-6\\">\\n          {features.map((feature) => {\\n            const Icon = iconMap[feature.icon];\\n            return (\\n              <Card key={feature.title} className=\\"bg-card hover:shadow-lg transition-shadow\\">\\n                <CardContent className=\\"p-6\\">\\n                  <div className=\\"w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4\\">\\n                    <Icon className=\\"w-6 h-6 text-primary\\" />\\n                  </div>\\n                  <h3 className=\\"text-xl font-semibold text-foreground mb-2\\">{feature.title}</h3>\\n                  <p className=\\"text-muted-foreground\\">{feature.description}</p>\\n                </CardContent>\\n              </Card>\\n            );\\n          })}\\n        </div>\\n      </div>\\n    </section>\\n  );\\n}"
     },
     {
-      "path": "src/components/TodoList.tsx",
+      "path": "src/components/Pricing.tsx",
       "action": "create",
-      "content": "import { TodoItem } from '@/components/TodoItem';\\nimport type { Todo } from '@/types';\\n\\ninterface TodoListProps {\\n  todos: Todo[];\\n  onToggle: (id: string) => void;\\n  onDelete: (id: string) => void;\\n}\\n\\nexport function TodoList({ todos, onToggle, onDelete }: TodoListProps) {\\n  if (todos.length === 0) {\\n    return (\\n      <div className=\\"text-center py-8 text-muted-foreground\\">\\n        No tasks yet. Add one above!\\n      </div>\\n    );\\n  }\\n\\n  return (\\n    <div className=\\"space-y-2\\">\\n      {todos.map(todo => (\\n        <TodoItem\\n          key={todo.id}\\n          todo={todo}\\n          onToggle={onToggle}\\n          onDelete={onDelete}\\n        />\\n      ))}\\n    </div>\\n  );\\n}"
+      "content": "import { Button } from '@/components/ui/button';\\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';\\nimport { Check } from 'lucide-react';\\nimport { cn } from '@/lib/utils';\\nimport type { PricingPlan } from '@/types';\\n\\nconst plans: PricingPlan[] = [\\n  { name: 'Starter', price: '$9', features: ['5 Projects', '10GB Storage', 'Basic Analytics', 'Email Support'] },\\n  { name: 'Pro', price: '$29', features: ['Unlimited Projects', '100GB Storage', 'Advanced Analytics', 'Priority Support', 'API Access'], popular: true },\\n  { name: 'Enterprise', price: '$99', features: ['Everything in Pro', 'Unlimited Storage', 'Custom Integrations', 'Dedicated Support', 'SLA Guarantee'] },\\n];\\n\\nexport function Pricing() {\\n  return (\\n    <section id=\\"pricing\\" className=\\"py-20 px-4\\">\\n      <div className=\\"max-w-7xl mx-auto\\">\\n        <div className=\\"text-center mb-16\\">\\n          <h2 className=\\"text-3xl md:text-4xl font-bold text-foreground mb-4\\">Simple, Transparent Pricing</h2>\\n          <p className=\\"text-lg text-muted-foreground\\">Choose the plan that works best for you</p>\\n        </div>\\n        <div className=\\"grid md:grid-cols-3 gap-8 max-w-5xl mx-auto\\">\\n          {plans.map((plan) => (\\n            <Card key={plan.name} className={cn('relative', plan.popular && 'border-primary shadow-lg scale-105')}>\\n              {plan.popular && (\\n                <div className=\\"absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-sm rounded-full\\">\\n                  Most Popular\\n                </div>\\n              )}\\n              <CardHeader className=\\"text-center pb-4\\">\\n                <CardTitle className=\\"text-xl\\">{plan.name}</CardTitle>\\n                <div className=\\"mt-4\\">\\n                  <span className=\\"text-4xl font-bold text-foreground\\">{plan.price}</span>\\n                  <span className=\\"text-muted-foreground\\">/month</span>\\n                </div>\\n              </CardHeader>\\n              <CardContent>\\n                <ul className=\\"space-y-3 mb-6\\">\\n                  {plan.features.map((feature) => (\\n                    <li key={feature} className=\\"flex items-center gap-2\\">\\n                      <Check className=\\"w-5 h-5 text-primary\\" />\\n                      <span className=\\"text-muted-foreground\\">{feature}</span>\\n                    </li>\\n                  ))}\\n                </ul>\\n                <Button className=\\"w-full\\" variant={plan.popular ? 'default' : 'outline'}>\\n                  Get Started\\n                </Button>\\n              </CardContent>\\n            </Card>\\n          ))}\\n        </div>\\n      </div>\\n    </section>\\n  );\\n}"
+    },
+    {
+      "path": "src/components/Footer.tsx",
+      "action": "create",
+      "content": "export function Footer() {\\n  return (\\n    <footer className=\\"py-12 px-4 border-t border-border\\">\\n      <div className=\\"max-w-7xl mx-auto\\">\\n        <div className=\\"grid md:grid-cols-4 gap-8\\">\\n          <div>\\n            <div className=\\"flex items-center gap-2 mb-4\\">\\n              <div className=\\"w-8 h-8 bg-primary rounded-lg\\" />\\n              <span className=\\"text-xl font-bold text-foreground\\">Brand</span>\\n            </div>\\n            <p className=\\"text-muted-foreground\\">Building the future of web development.</p>\\n          </div>\\n          <div>\\n            <h4 className=\\"font-semibold text-foreground mb-4\\">Product</h4>\\n            <ul className=\\"space-y-2 text-muted-foreground\\">\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Features</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Pricing</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Docs</a></li>\\n            </ul>\\n          </div>\\n          <div>\\n            <h4 className=\\"font-semibold text-foreground mb-4\\">Company</h4>\\n            <ul className=\\"space-y-2 text-muted-foreground\\">\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">About</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Blog</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Careers</a></li>\\n            </ul>\\n          </div>\\n          <div>\\n            <h4 className=\\"font-semibold text-foreground mb-4\\">Legal</h4>\\n            <ul className=\\"space-y-2 text-muted-foreground\\">\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Privacy</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Terms</a></li>\\n            </ul>\\n          </div>\\n        </div>\\n        <div className=\\"mt-12 pt-8 border-t border-border text-center text-muted-foreground\\">\\n          <p>&copy; 2024 Brand. All rights reserved.</p>\\n        </div>\\n      </div>\\n    </footer>\\n  );\\n}"
     },
     {
       "path": "src/pages/Index.tsx",
       "action": "create",
-      "content": "import { useTodos } from '@/hooks/useTodos';\\nimport { TodoInput } from '@/components/TodoInput';\\nimport { TodoList } from '@/components/TodoList';\\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';\\n\\nexport default function Index() {\\n  const { todos, addTodo, toggleTodo, deleteTodo } = useTodos();\\n\\n  return (\\n    <div className=\\"min-h-screen bg-background p-4\\">\\n      <div className=\\"max-w-md mx-auto\\">\\n        <Card>\\n          <CardHeader>\\n            <CardTitle>My Tasks</CardTitle>\\n          </CardHeader>\\n          <CardContent className=\\"space-y-4\\">\\n            <TodoInput onAdd={addTodo} />\\n            <TodoList todos={todos} onToggle={toggleTodo} onDelete={deleteTodo} />\\n          </CardContent>\\n        </Card>\\n      </div>\\n    </div>\\n  );\\n}"
+      "content": "import { Navbar } from '@/components/Navbar';\\nimport { Hero } from '@/components/Hero';\\nimport { Features } from '@/components/Features';\\nimport { Pricing } from '@/components/Pricing';\\nimport { Footer } from '@/components/Footer';\\n\\nexport default function Index() {\\n  return (\\n    <div className=\\"min-h-screen bg-background\\">\\n      <Navbar />\\n      <main>\\n        <Hero />\\n        <Features />\\n        <Pricing />\\n      </main>\\n      <Footer />\\n    </div>\\n  );\\n}"
     },
     {
       "path": "src/App.tsx",
@@ -262,26 +181,26 @@ OUTPUT FORMAT (strict JSON, no markdown, no explanations):
       "content": "import Index from '@/pages/Index';\\n\\nfunction App() {\\n  return <Index />;\\n}\\n\\nexport default App;"
     }
   ],
-  "message": "Created todo app with types, hooks, components, pages, and utils"
+  "message": "Created landing page with Navbar, Hero, Features, Pricing, Footer - 9 files total"
 }
 
-## FINAL CHECK BEFORE OUTPUT:
-Before generating, verify your response has:
-- [ ] src/types/index.ts file? If NO, add it!
-- [ ] src/hooks/use*.ts file? If NO, add it!
-- [ ] src/lib/utils.ts file? If NO, add it!
-- [ ] Multiple src/components/*.tsx files? If NO, split them!
-- [ ] src/pages/Index.tsx file? If NO, add it!
-- [ ] src/App.tsx ONLY has imports + renders page? If NO, fix it!
-- [ ] At least 6 total files? If NO, split more!
+## IMPORT RULES:
+- ALWAYS use @/ alias: import { Button } from "@/components/ui/button"
+- NEVER use relative imports like "./components"
+- Use existing shadcn components: Button, Card, Input, Badge, etc.
 
-## IF YOU PUT EVERYTHING IN App.tsx, THE APP WILL CRASH AND SHOW BLACK SCREEN!
+## STYLING RULES:
+- Use Tailwind semantic tokens: bg-background, text-foreground, bg-primary, text-muted-foreground, border-border
+- NEVER use hardcoded colors like bg-blue-500 or text-white
 
-${userSupabaseConnection ? `User has Supabase connected at ${userSupabaseConnection.url}. Use @supabase/supabase-js for data. Import client from @/integrations/supabase/client.` : "No database connected. Use localStorage for persistence."}
+## EXISTING UI COMPONENTS (import from @/components/ui/):
+button, card, input, checkbox, label, badge, dialog, tabs, select, textarea, switch, progress, skeleton, scroll-area, separator, avatar, dropdown-menu, tooltip, table, accordion
+
+${userSupabaseConnection ? `User has Supabase connected at ${userSupabaseConnection.url}. Use @supabase/supabase-js for data.` : "No database. Use localStorage for persistence."}
 
 ${fileContext}
 
-START YOUR RESPONSE WITH { AND END WITH }. OUTPUT ONLY JSON.`;
+OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
 
     const candidates = await getGeminiModelCandidates();
 
