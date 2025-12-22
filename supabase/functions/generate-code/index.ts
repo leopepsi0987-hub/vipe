@@ -58,7 +58,11 @@ serve(async (req) => {
       const apiVersion: "v1beta" | "v1" = beta.length ? "v1beta" : "v1";
 
       const preferred = [
-        // These names vary by key/region; we pick the best that exists in models.list.
+        // Prefer current Gemini 2.5 line first (most keys support these in v1beta).
+        "gemini-2.5-flash",
+        "gemini-2.5-pro",
+        "gemini-2.5-flash-lite",
+        // Older fallbacks (some keys/regions still expose these)
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
         "gemini-1.5-pro",

@@ -144,14 +144,23 @@ function generateBundledHTML(files: Record<string, string>): string {
 </head>
 <body class="bg-background text-foreground">
   <div id="root"></div>
+  <div id="__sandbox_error" style="display:none; position:fixed; inset:12px; padding:12px; border-radius:12px; background:rgba(0,0,0,0.75); color:#fff; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono','Courier New', monospace; font-size:12px; line-height:1.4; white-space:pre-wrap; overflow:auto; z-index:99999;"></div>
   
-  <script type="text/babel" data-type="module" data-presets="typescript,react">
+  <script type="text/babel" data-presets="typescript,react">
     const { useState, useEffect, useContext, createContext, useCallback, useMemo, useRef, useReducer } = React;
+
+    const __errEl = document.getElementById('__sandbox_error');
+    const __showErr = (title, err) => {
+      try {
+        __errEl.style.display = 'block';
+        const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
+        __errEl.textContent = title + "\n\n" + msg;
+      } catch (_) {}
+    };
+
+    window.addEventListener('error', (e) => __showErr('Sandbox runtime error', e?.error || e?.message));
+    window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e?.reason));
     
-    // Toast utility
-    function useToast() {
-      const [toasts, setToasts] = useState([]);
-      
       const toast = useCallback((message, type = 'info') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
