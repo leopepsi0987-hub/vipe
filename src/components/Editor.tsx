@@ -257,17 +257,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         return;
       }
 
-      // build mode
+      // build mode (React project) - generate file operations and apply them
       const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
-
-      const body = JSON.stringify({
-        prompt: promptForBuild,
-        currentCode: project.html_code,
-        projectSlug: project.slug,
-        projectId: project.id,
-        dbChoice,
-        hasConnectedSupabase,
-      });
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -275,40 +266,51 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body,
+        body: JSON.stringify({
+          prompt: promptForBuild,
+          projectId: project.id,
+          currentFiles: files,
+        }),
         signal: abortControllerRef.current?.signal,
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to get response");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Build failed");
       }
 
-      const fullContent = await streamSseToText(response, (next) => setStreamingContent(next));
+      // We stream into a single JSON string, but we DON'T show it in chat while streaming.
+      const fullContent = await streamSseToText(response, () => {});
 
-      if (fullContent) {
-        let cleanedCode = fullContent;
-        const htmlMatch = cleanedCode.match(/```html\n?([\s\S]*?)```/);
-        if (htmlMatch) {
-          cleanedCode = htmlMatch[1];
-        } else {
-          cleanedCode = cleanedCode.replace(/```\w*\n?/g, "").trim();
-        }
-
-        await saveVersion(project.html_code);
-        onUpdateCode(cleanedCode);
-
-        const assistantMessage: Message = {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: "Done! Your app is ready.",
-          hasCode: true,
-        };
-        const finalMessages = [...newMessages, assistantMessage];
-        setMessages(finalMessages);
-        saveMessages(finalMessages);
+      let parsed: any;
+      try {
+        parsed = JSON.parse(fullContent);
+      } catch {
+        // Common failure: model includes code fences or leading text
+        const trimmed = fullContent
+          .replace(/^```json\s*/i, "")
+          .replace(/```\s*$/i, "")
+          .trim();
+        parsed = JSON.parse(trimmed);
       }
 
+      const ops = Array.isArray(parsed?.files) ? parsed.files : [];
+      if (ops.length === 0) {
+        throw new Error("Build returned no file operations");
+      }
+
+      await applyOperations(ops);
+
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: parsed?.message || "Done! Applied changes to your React project.",
+        hasCode: true,
+      };
+
+      const finalMessages = [...newMessages, assistantMessage];
+      setMessages(finalMessages);
+      saveMessages(finalMessages);
       setStreamingContent("");
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
