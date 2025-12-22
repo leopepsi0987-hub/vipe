@@ -712,7 +712,7 @@ ONLY OUTPUT CODE.`;
       });
     }
 
-    console.log("Calling Google Gemini API with gemini-2.5-flash model. Prompt:", prompt);
+    console.log("Calling Google Gemini API with gemini-2.5-pro model. Prompt:", prompt);
 
     // Convert messages to Gemini format - filter out system messages for contents
     const geminiContents = messages
@@ -723,9 +723,8 @@ ONLY OUTPUT CODE.`;
       }));
 
     // Use Google AI Studio API with API key authentication
-    // Note: This uses the generativelanguage.googleapis.com endpoint with API key
-    // Different from Vertex AI which requires OAuth2
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse`;
+    // gemini-2.5-pro is the most capable model for code generation
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse`;
     
     const response = await fetch(apiUrl, {
       method: "POST",
