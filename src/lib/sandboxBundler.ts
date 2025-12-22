@@ -1,40 +1,230 @@
-// Shared helper to bundle a React (Vite-style) file map into a single HTML document for sandbox/publish.
-// NOTE: This is a lightweight bundler intended for preview/publish within this app.
+// Lightweight in-browser bundler for preview/publish.
+// It converts a Vite-style file map into a single HTML document executed in an iframe.
+//
+// Key requirement: support multi-file projects with ESM-style imports/exports.
+// We implement a minimal module system (no npm deps resolution) for src/* files.
 
-export function generateBundledHTML(files: Record<string, string>): string {
-  const appContent = files["src/App.tsx"] || files["src/App.jsx"] || "";
-  const cssContent = files["src/index.css"] || "";
+type FileMap = Record<string, string>;
 
-  // Extract all TS/JS source files under src/ (excluding the entry and App, which we handle separately)
-  const moduleFiles = Object.entries(files).filter(
-    ([path]) =>
-      path.startsWith("src/") &&
-      (path.endsWith(".ts") || path.endsWith(".tsx") || path.endsWith(".js") || path.endsWith(".jsx")) &&
-      path !== "src/App.tsx" &&
-      path !== "src/App.jsx" &&
-      path !== "src/main.tsx" &&
-      path !== "src/main.jsx",
-  );
+type ResolvedPath = {
+  path: string;
+  content: string;
+};
 
-  // Build modules blob for inline usage (we strip imports/exports later)
-  const modulesCode = moduleFiles
-    .map(([path, content]) => {
-      const name = path.replace(/^src\//, "");
-      return `// ${name}\n${content}`;
-    })
-    .join("\n\n");
+function normalizeSpecifier(spec: string) {
+  // Remove query/hash and normalize slashes
+  return spec.split("?")[0].split("#")[0].replace(/\\/g, "/");
+}
 
-  // Process modules to remove ESM syntax for the in-iframe runtime
-  const processedModules = modulesCode
+function resolveModulePath(files: FileMap, rawSpecifier: string, fromPath?: string): string | null {
+  const spec = normalizeSpecifier(rawSpecifier);
+
+  // Alias @/ -> src/
+  if (spec.startsWith("@/")) {
+    const stem = `src/${spec.slice(2)}`;
+    const candidates = [
+      stem,
+      `${stem}.ts`,
+      `${stem}.tsx`,
+      `${stem}.js`,
+      `${stem}.jsx`,
+      `${stem}/index.ts`,
+      `${stem}/index.tsx`,
+      `${stem}/index.js`,
+      `${stem}/index.jsx`,
+    ];
+    return candidates.find((c) => files[c] != null) ?? null;
+  }
+
+  // Relative paths (./, ../)
+  if ((spec.startsWith("./") || spec.startsWith("../")) && fromPath) {
+    const fromDir = fromPath.split("/").slice(0, -1).join("/") || "src";
+    const joined = `${fromDir}/${spec}`.replace(/\/\.\//g, "/");
+    // normalize ../ segments
+    const parts: string[] = [];
+    for (const p of joined.split("/")) {
+      if (!p || p === ".") continue;
+      if (p === "..") parts.pop();
+      else parts.push(p);
+    }
+    const stem = parts.join("/");
+
+    const candidates = [
+      stem,
+      `${stem}.ts`,
+      `${stem}.tsx`,
+      `${stem}.js`,
+      `${stem}.jsx`,
+      `${stem}/index.ts`,
+      `${stem}/index.tsx`,
+      `${stem}/index.js`,
+      `${stem}/index.jsx`,
+    ];
+    return candidates.find((c) => files[c] != null) ?? null;
+  }
+
+  // We do not resolve node_modules imports in the sandbox
+  return null;
+}
+
+function extractExports(original: string) {
+  const named = new Set<string>();
+  let defaultName: string | null = null;
+
+  // export default function Name
+  const m1 = original.match(/export\s+default\s+function\s+([A-Za-z_$][\w$]*)/);
+  if (m1) defaultName = m1[1];
+
+  // export default Name
+  if (!defaultName) {
+    const m2 = original.match(/export\s+default\s+([A-Za-z_$][\w$]*)\s*;?/);
+    if (m2) defaultName = m2[1];
+  }
+
+  // export function Foo / export const Foo / export class Foo
+  for (const mm of original.matchAll(/export\s+(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) named.add(mm[1]);
+  for (const mm of original.matchAll(/export\s+const\s+([A-Za-z_$][\w$]*)/g)) named.add(mm[1]);
+  for (const mm of original.matchAll(/export\s+let\s+([A-Za-z_$][\w$]*)/g)) named.add(mm[1]);
+  for (const mm of original.matchAll(/export\s+var\s+([A-Za-z_$][\w$]*)/g)) named.add(mm[1]);
+  for (const mm of original.matchAll(/export\s+class\s+([A-Za-z_$][\w$]*)/g)) named.add(mm[1]);
+
+  // export { A, B as C }
+  for (const mm of original.matchAll(/export\s*\{([^}]+)\}\s*;?/g)) {
+    const inside = mm[1];
+    for (const part of inside.split(",")) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      const asMatch = trimmed.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+      if (!asMatch) continue;
+      const exportedName = asMatch[2] ?? asMatch[1];
+      named.add(exportedName);
+    }
+  }
+
+  return { defaultName, named: Array.from(named) };
+}
+
+function stripExportsAndImports(code: string) {
+  // Remove *type-only* exports/imports don't matter; we just strip all imports.
+  // Convert exports to normal declarations.
+  return code
     .replace(/^import\s+.*?['"].*?['"];?\s*$/gm, "")
+    .replace(/export\s+default\s+function\s+/g, "function ")
     .replace(/export\s+default\s+/g, "")
-    .replace(/^export\s+/gm, "");
+    .replace(/^export\s+(?=(const|let|var|function|class)\b)/gm, "")
+    .replace(/^export\s*\{[^}]+\}\s*;?\s*$/gm, "");
+}
 
-  // Process App.tsx to extract the actual component
-  const processedApp = appContent
-    .replace(/^import\s+.*?['"].*?['"];?\s*$/gm, "")
-    .replace(/export\s+default\s+/, "")
-    .replace(/^export\s+/gm, "");
+function transformImportLine(files: FileMap, fromPath: string, line: string): string {
+  // Handles:
+  // import X from '...'
+  // import { A, B as C } from '...'
+  // import X, { A } from '...'
+
+  const m = line.match(/^import\s+(.+?)\s+from\s+['"]([^'"]+)['"];?\s*$/);
+  if (!m) return "";
+
+  const bindings = m[1].trim();
+  const spec = m[2].trim();
+  const resolved = resolveModulePath(files, spec, fromPath);
+
+  // For unsupported imports (node_modules), we drop them; the sandbox cannot run those.
+  if (!resolved) return "";
+
+  const moduleRef = `__modules[${JSON.stringify(resolved)}]`;
+
+  // Split default + named
+  const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) return "";
+
+  const out: string[] = [];
+
+  const first = parts[0];
+  const hasNamed = bindings.includes("{");
+
+  // default import
+  if (!first.startsWith("{") && !first.startsWith("*")) {
+    out.push(`const ${first} = ${moduleRef}.default;`);
+  }
+
+  // named import
+  const namedMatch = bindings.match(/\{([^}]+)\}/);
+  if (namedMatch) {
+    const inside = namedMatch[1]
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => {
+        const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+        if (!mm) return null;
+        return mm[2] ? `${mm[1]}: ${mm[2]}` : mm[1];
+      })
+      .filter(Boolean)
+      .join(", ");
+
+    if (inside) out.push(`const { ${inside} } = ${moduleRef};`);
+  }
+
+  // namespace import: import * as X from '...'
+  if (first.startsWith("*")) {
+    const mm = bindings.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+    if (mm) out.push(`const ${mm[1]} = ${moduleRef};`);
+  }
+
+  // If it was ONLY named (no default), we handled namedMatch.
+  // If it was ONLY default, we handled default.
+  // If it was mixed, both were handled.
+
+  return out.join("\n");
+}
+
+function transformImports(files: FileMap, fromPath: string, code: string) {
+  return code.replace(/^import\s+.*?from\s+['"][^'"]+['"];?\s*$/gm, (line) => transformImportLine(files, fromPath, line));
+}
+
+function buildModule(files: FileMap, path: string): ResolvedPath {
+  const original = files[path] ?? "";
+  const { defaultName, named } = extractExports(original);
+  const body = stripExportsAndImports(original);
+
+  const exportLines: string[] = [];
+  if (defaultName) exportLines.push(`default: (typeof ${defaultName} !== 'undefined' ? ${defaultName} : undefined)`);
+  for (const n of named) exportLines.push(`${JSON.stringify(n)}: (typeof ${n} !== 'undefined' ? ${n} : undefined)`);
+
+  const exportsObj = `{ ${exportLines.join(", ")} }`;
+
+  const wrapped = `// ${path}\n__modules[${JSON.stringify(path)}] = (function(){\n${body}\nreturn ${exportsObj};\n})();`;
+
+  return { path, content: wrapped };
+}
+
+function buildApp(files: FileMap): string {
+  const appPath = files["src/App.tsx"] ? "src/App.tsx" : files["src/App.jsx"] ? "src/App.jsx" : "";
+  const original = appPath ? files[appPath] : "";
+  if (!appPath || !original) {
+    return `function App(){\n  return (\n    <div className=\"min-h-screen flex items-center justify-center\">\n      <div className=\"text-center\">\n        <h1 className=\"text-3xl font-bold\">No src/App.tsx found</h1>\n        <p className=\"text-muted-foreground\">Generate files with /build</p>\n      </div>\n    </div>\n  );\n}`;
+  }
+
+  // Transform imports into const assignments using __modules
+  const withImports = transformImports(files, appPath, original);
+  // Strip remaining export keywords
+  const body = withImports
+    .replace(/export\s+default\s+/g, "")
+    .replace(/^export\s+(?=(const|let|var|function|class)\b)/gm, "");
+
+  return `// ${appPath}\n${body}`;
+}
+
+export function generateBundledHTML(files: FileMap): string {
+  const cssContent = files["src/index.css"] || files["src/App.css"] || "";
+
+  const sourceFiles = Object.keys(files)
+    .filter((p) => p.startsWith("src/") && (p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".js") || p.endsWith(".jsx")))
+    .filter((p) => p !== "src/App.tsx" && p !== "src/App.jsx")
+    .sort();
+
+  const modules = sourceFiles.map((p) => buildModule(files, p).content).join("\n\n");
+  const appCode = buildApp(files);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -43,12 +233,10 @@ export function generateBundledHTML(files: Record<string, string>): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Preview</title>
 
-  <!-- React 18 -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -146,52 +334,33 @@ export function generateBundledHTML(files: Record<string, string>): string {
   <script type="text/babel" data-presets="typescript,react">
     const { useState, useEffect, useContext, createContext, useCallback, useMemo, useRef, useReducer } = React;
 
-     const __errEl = document.getElementById('__sandbox_error');
-     const __showErr = (title, err) => {
-       try {
-         __errEl.style.display = 'block';
-         const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
-         const text = title + "\n\n" + msg;
-         __errEl.textContent = text;
-         // Also forward to parent so the editor can show the real error instead of a blank screen.
-         try {
-           window.parent && window.parent.postMessage({ type: 'SANDBOX_ERROR', title, message: msg }, '*');
-         } catch (_) {}
-       } catch (_) {}
-     };
+    const __errEl = document.getElementById('__sandbox_error');
+    const __showErr = (title, err) => {
+      try {
+        __errEl.style.display = 'block';
+        const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
+        __errEl.textContent = title + "\n\n" + msg;
+        try { window.parent && window.parent.postMessage({ type: 'SANDBOX_ERROR', title, message: msg }, '*'); } catch (_) {}
+      } catch (_) {}
+    };
 
-     window.addEventListener('error', (e) => __showErr('Sandbox runtime error', (e && (e.error || e.message))));
-     window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e && e.reason));
+    window.addEventListener('error', (e) => __showErr('Sandbox runtime error', (e && (e.error || e.message))));
+    window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e && e.reason));
 
-    // Modules (components, types, utils, etc.)
-    ${processedModules}
+    // Minimal module system
+    const __modules = {};
 
-    // Main App
-    ${processedApp || `
-    function App() {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent mb-4">
-              Welcome to Vipe
-            </h1>
-            <p className="text-muted-foreground text-lg">
-              Start building by sending a message to the AI
-            </p>
-          </div>
-        </div>
-      );
-    }
-    `}
-
-    // Find the App component (it might be named differently)
-    const AppComponent = typeof App !== 'undefined' ? App :
-      typeof Main !== 'undefined' ? Main :
-      typeof Application !== 'undefined' ? Application :
-      () => <div>No App component found</div>;
-
-    // Render
     try {
+      ${modules}
+    } catch (e) {
+      __showErr('Sandbox module evaluation failed', e);
+    }
+
+    // App entry
+    try {
+      ${appCode}
+
+      const AppComponent = typeof App !== 'undefined' ? App : () => <div>No App component found</div>;
       const root = ReactDOM.createRoot(document.getElementById('root'));
       root.render(
         <React.StrictMode>
