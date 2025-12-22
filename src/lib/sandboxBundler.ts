@@ -226,6 +226,10 @@ export function generateBundledHTML(files: FileMap): string {
   const modules = sourceFiles.map((p) => buildModule(files, p).content).join("\n\n");
   const appCode = buildApp(files);
 
+  // Escape any script closing tags in the generated code to prevent breaking the HTML
+  const escapedModules = modules.replace(/<\/script>/gi, '<\\/script>');
+  const escapedAppCode = appCode.replace(/<\/script>/gi, '<\\/script>');
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -233,11 +237,11 @@ export function generateBundledHTML(files: FileMap): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Preview</title>
 
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"><\/script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"><\/script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"><\/script>
 
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.tailwindcss.com"><\/script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -270,7 +274,7 @@ export function generateBundledHTML(files: FileMap): string {
         }
       }
     }
-  </script>
+  <\/script>
 
   <style>
     :root {
@@ -339,38 +343,38 @@ export function generateBundledHTML(files: FileMap): string {
       try {
         __errEl.style.display = 'block';
         const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
-        __errEl.textContent = title + "\n\n" + msg;
-        try { window.parent && window.parent.postMessage({ type: 'SANDBOX_ERROR', title, message: msg }, '*'); } catch (_) {}
+        __errEl.textContent = title + '\\n\\n' + msg;
+        try { window.parent && window.parent.postMessage({ type: 'SANDBOX_ERROR', title: title, message: msg }, '*'); } catch (_) {}
       } catch (_) {}
     };
 
-    window.addEventListener('error', (e) => __showErr('Sandbox runtime error', (e && (e.error || e.message))));
-    window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e && e.reason));
+    window.addEventListener('error', function(e) { __showErr('Sandbox runtime error', (e && (e.error || e.message))); });
+    window.addEventListener('unhandledrejection', function(e) { __showErr('Sandbox unhandled promise rejection', e && e.reason); });
 
     // Minimal module system
     const __modules = {};
 
     try {
-      ${modules}
+      ${escapedModules}
     } catch (e) {
       __showErr('Sandbox module evaluation failed', e);
     }
 
     // App entry
     try {
-      ${appCode}
+      ${escapedAppCode}
 
-      const AppComponent = typeof App !== 'undefined' ? App : () => <div>No App component found</div>;
+      const AppComponent = typeof App !== 'undefined' ? App : function() { return React.createElement('div', null, 'No App component found'); };
       const root = ReactDOM.createRoot(document.getElementById('root'));
       root.render(
-        <React.StrictMode>
-          <AppComponent />
-        </React.StrictMode>
+        React.createElement(React.StrictMode, null,
+          React.createElement(AppComponent, null)
+        )
       );
     } catch (e) {
       __showErr('Sandbox render failed', e);
     }
-  </script>
+  <\/script>
 </body>
 </html>`;
 }
