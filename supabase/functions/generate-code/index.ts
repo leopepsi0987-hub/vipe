@@ -712,7 +712,7 @@ ONLY OUTPUT CODE.`;
       });
     }
 
-    console.log("Calling Google Gemini API with gemini-2.5-pro model. Prompt:", prompt);
+    console.log("Calling Google Gemini API with gemini-3-pro-preview model. Prompt:", prompt);
 
     // Convert messages to Gemini format - filter out system messages for contents
     const geminiContents = messages
@@ -722,9 +722,8 @@ ONLY OUTPUT CODE.`;
         parts: [{ text: msg.content }]
       }));
 
-    // Use Google AI Studio API with API key authentication
-    // gemini-2.5-pro is the most capable model for code generation
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse`;
+    // Use Google AI Studio API with gemini-3-pro-preview - the most intelligent model
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-preview:streamGenerateContent?alt=sse`;
     
     const response = await fetch(apiUrl, {
       method: "POST",
