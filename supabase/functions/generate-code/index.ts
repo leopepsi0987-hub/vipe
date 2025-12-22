@@ -70,24 +70,22 @@ Use built-in Cloud Storage API for data persistence.
 - NEVER put SQL in markdown code blocks as suggestions
 - NEVER say "run this SQL manually"
 - NEVER output SQL without executing it via tool call
-- ALWAYS use VIPE_TOOL_CALL to execute SQL migrations
+- NEVER store SQL as JSON data - ALWAYS execute it as a real migration
+- NEVER put RLS policies or CREATE TABLE statements in project_data - they must be EXECUTED
+- ALWAYS use VIPE_TOOL_CALL to execute SQL migrations (this runs the SQL, not stores it)
 - ALWAYS wait for tool confirmation before proceeding
 - ALWAYS enable RLS on EVERY table immediately after creation
 - ALWAYS create appropriate policies for SELECT, INSERT, UPDATE, DELETE
 
 ### CODE RULES - REACT + TYPESCRIPT + TAILWIND:
-- NEVER output plain HTML files (.html)
-- NEVER output plain CSS files (.css)
+- NEVER output plain HTML files
+- NEVER output just <style> tags without React components
 - NEVER use vanilla JavaScript without React patterns
-- NEVER use <style> tags with custom CSS - use Tailwind
-- NEVER use inline style={{}} objects - use Tailwind classes
-- NEVER use class="" attribute - use className=""
-- NEVER use onclick handlers - use onClick
-- NEVER use document.getElementById or DOM manipulation
 - ALWAYS use React 18 functional components with hooks
 - ALWAYS use TypeScript patterns (interfaces, types)
 - ALWAYS use Tailwind CSS for styling
 - ALWAYS use semantic design tokens (bg-primary, text-foreground, etc.)
+- Output a complete HTML document with React loaded via CDN and your React app inside a <script type="text/babel"> tag
 
 ### STYLING RULES - SEMANTIC TOKENS:
 - NEVER use hardcoded colors like "bg-blue-500", "text-white", "#3b82f6"
@@ -145,9 +143,11 @@ const Button = ({ children, onClick, variant = 'primary', disabled = false }: Bu
 ## 4. DATABASE TOOL CALLING - CRITICAL!
 
 ${userSupabaseConnection ? `
-### HOW TO CREATE DATABASE TABLES:
+### IMPORTANT: EXECUTE REAL MIGRATIONS, DON'T STORE AS DATA!
 
 When user asks for features requiring database (todo app, users, posts, etc.):
+
+**THE TOOL CALL EXECUTES THE SQL ON THE REAL DATABASE. It does NOT store it as JSON data.**
 
 **STEP 1**: Include this tool call block BEFORE your React code:
 
@@ -161,20 +161,20 @@ VIPE_TOOL_CALL -->
 
 **STEP 2**: Then generate the React code that uses Supabase client.
 
-### RLS POLICY PATTERNS - ALWAYS USE:
+**NEVER** store migrations as JSON in project_data. The tool call EXECUTES the SQL.
 
-\`\`\`sql
+### RLS POLICY PATTERNS - MUST EXECUTE VIA TOOL CALL:
+
 -- Private data (user owns it)
 ALTER TABLE tablename ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users CRUD own data" ON tablename FOR ALL USING (auth.uid() = user_id);
 
--- Public read, authenticated write
+-- Public read, authenticated write  
 ALTER TABLE tablename ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read" ON tablename FOR SELECT USING (true);
 CREATE POLICY "Auth users can insert" ON tablename FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
 CREATE POLICY "Users update own" ON tablename FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users delete own" ON tablename FOR DELETE USING (auth.uid() = user_id);
-\`\`\`
 
 ### SUPABASE CLIENT IN REACT:
 
