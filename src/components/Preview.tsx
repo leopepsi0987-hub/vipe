@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SandboxPreview } from "./SandboxPreview";
+import { generateBundledHTML } from "@/lib/sandboxBundler";
 
 interface PreviewProps {
   html: string;
@@ -33,8 +34,8 @@ interface PreviewProps {
   projectName?: string;
   isPublished?: boolean;
   slug?: string | null;
-  onPublish?: (customSlug?: string) => Promise<any>;
-  onUpdatePublished?: () => Promise<any>;
+  onPublish?: (customSlug?: string, bundledHtml?: string) => Promise<any>;
+  onUpdatePublished?: (bundledHtml?: string) => Promise<any>;
   activeView?: "preview" | "code";
   onViewChange?: (view: "preview" | "code") => void;
   onCodeChange?: (code: string) => void;
@@ -141,8 +142,15 @@ export function Preview({
     if (!onPublish) return;
     setPublishing(true);
     try {
-      const slugToUse = customSlug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-");
-      const result = await onPublish(slugToUse || undefined);
+      const slugToUse = customSlug
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-]/g, "-")
+        .replace(/-+/g, "-");
+
+      const bundledHtml = isFileMode ? generateBundledHTML(files ?? {}) : undefined;
+
+      const result = await onPublish(slugToUse || undefined, bundledHtml);
       if (result) {
         toast.success("App published", { description: "Your app is now live." });
         setShowPublishDialog(false);
@@ -159,7 +167,8 @@ export function Preview({
     if (!onUpdatePublished) return;
     setPublishing(true);
     try {
-      await onUpdatePublished();
+      const bundledHtml = isFileMode ? generateBundledHTML(files ?? {}) : undefined;
+      await onUpdatePublished(bundledHtml);
       toast.success("App updated", { description: "Your changes are now live." });
     } catch {
       toast.error("Failed to update");
