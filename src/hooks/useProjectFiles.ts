@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { rewriteFileOperations } from "@/lib/importRewriter";
 
 export interface ProjectFile {
   id: string;
@@ -62,8 +63,11 @@ export function useProjectFiles(projectId: string | null) {
   const applyOperations = useCallback(async (operations: FileOperation[]) => {
     if (!projectId) return false;
 
+    // Rewrite imports before applying operations (maps ./components/Button -> @/components/ui/button etc.)
+    const rewrittenOps = rewriteFileOperations(operations) as FileOperation[];
+
     try {
-      for (const op of operations) {
+      for (const op of rewrittenOps) {
         if (op.action === "create" || op.action === "update") {
           // Upsert file
           const { error: upsertError } = await supabase
