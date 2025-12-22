@@ -14,6 +14,7 @@ import {
   Smartphone,
   Tablet,
   Save,
+  ChevronDown,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { toast } from "sonner";
@@ -25,7 +26,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SandboxPreview } from "./SandboxPreview";
+import { FileExplorer } from "./FileExplorer";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface PreviewProps {
   html: string;
@@ -43,6 +51,28 @@ interface PreviewProps {
 }
 
 type DeviceMode = "desktop" | "tablet" | "mobile";
+
+function getLanguageForFile(path: string): string {
+  const ext = path.split(".").pop()?.toLowerCase();
+  switch (ext) {
+    case "ts":
+    case "tsx":
+      return "typescript";
+    case "js":
+    case "jsx":
+      return "javascript";
+    case "css":
+      return "css";
+    case "html":
+      return "html";
+    case "json":
+      return "json";
+    case "md":
+      return "markdown";
+    default:
+      return "plaintext";
+  }
+}
 
 export function Preview({
   html,
@@ -69,8 +99,34 @@ export function Preview({
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [customSlug, setCustomSlug] = useState("");
 
-  const isFileMode = !!files;
+  const isFileMode = !!files && Object.keys(files).length > 0;
   const currentView = onViewChange ? activeView : localView;
+
+  // File mode: track selected file and edited content
+  const filePaths = useMemo(() => (files ? Object.keys(files).sort() : []), [files]);
+  const defaultFile = filePaths.find((p) => p === "src/App.tsx") || filePaths[0] || "";
+  const [selectedFile, setSelectedFile] = useState<string>(defaultFile);
+  const [editedFiles, setEditedFiles] = useState<Record<string, string>>({});
+
+  // Reset selected file when files change
+  useEffect(() => {
+    if (files && !files[selectedFile]) {
+      const newDefault = filePaths.find((p) => p === "src/App.tsx") || filePaths[0] || "";
+      setSelectedFile(newDefault);
+    }
+  }, [files, filePaths, selectedFile]);
+
+  // Get current file content (edited or original)
+  const currentFileContent = useMemo(() => {
+    if (!files || !selectedFile) return "";
+    return editedFiles[selectedFile] ?? files[selectedFile] ?? "";
+  }, [files, selectedFile, editedFiles]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!files || !selectedFile) return false;
+    const edited = editedFiles[selectedFile];
+    return edited !== undefined && edited !== files[selectedFile];
+  }, [files, selectedFile, editedFiles]);
 
   const deviceConfig = {
     desktop: { width: "100%", height: "100%" },
@@ -83,7 +139,7 @@ export function Preview({
     else setLocalView(view);
   };
 
-  // HTML mode state
+  // HTML mode state (legacy single-file mode)
   const [editedHtml, setEditedHtml] = useState(html);
   const [hasUnsavedHtml, setHasUnsavedHtml] = useState(false);
 
@@ -91,17 +147,6 @@ export function Preview({
     setEditedHtml(html);
     setHasUnsavedHtml(false);
   }, [html]);
-
-  // File mode state (minimal: App.tsx only)
-  const appPath = "src/App.tsx";
-  const fileModeCode = useMemo(() => files?.[appPath] ?? "", [files]);
-  const [editedFile, setEditedFile] = useState(fileModeCode);
-  const [hasUnsavedFile, setHasUnsavedFile] = useState(false);
-
-  useEffect(() => {
-    setEditedFile(fileModeCode);
-    setHasUnsavedFile(false);
-  }, [fileModeCode]);
 
   // HTML preview injection
   useEffect(() => {
@@ -179,10 +224,18 @@ export function Preview({
 
   const handleSave = () => {
     if (isFileMode) {
-      if (!onFileChange) return;
-      onFileChange(appPath, editedFile);
-      setHasUnsavedFile(false);
-      toast.success("Saved App.tsx");
+      if (!onFileChange || !selectedFile) return;
+      const content = editedFiles[selectedFile];
+      if (content !== undefined) {
+        onFileChange(selectedFile, content);
+        // Clear the edited state for this file
+        setEditedFiles((prev) => {
+          const next = { ...prev };
+          delete next[selectedFile];
+          return next;
+        });
+        toast.success(`Saved ${selectedFile.split("/").pop()}`);
+      }
       return;
     }
 
@@ -192,11 +245,10 @@ export function Preview({
     toast.success("Code saved!");
   };
 
-  const showSave = currentView === "code" && (isFileMode ? hasUnsavedFile : hasUnsavedHtml);
+  const showSave = currentView === "code" && (isFileMode ? hasUnsavedChanges : hasUnsavedHtml);
 
   return (
-    <div className={cn("flex flex-col h-full bg-card rounded-xl overflow-hidden", isFullscreen && "fixed inset-0 z-50")}
-    >
+    <div className={cn("flex flex-col h-full bg-card rounded-xl overflow-hidden", isFullscreen && "fixed inset-0 z-50")}>
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 bg-card border-b border-border">
         <div className="flex items-center gap-2">
@@ -205,9 +257,33 @@ export function Preview({
             <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
             <div className="w-3 h-3 rounded-full bg-green-500/80" />
           </div>
-          <span className="text-muted-foreground text-sm ml-2">
-            {currentView === "preview" ? "Preview" : isFileMode ? "src/App.tsx" : "index.html"}
-          </span>
+
+          {currentView === "code" && isFileMode ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="ml-2 h-7 gap-1 text-sm text-muted-foreground">
+                  {selectedFile || "Select file"}
+                  <ChevronDown className="w-3 h-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-80 overflow-auto">
+                {filePaths.map((path) => (
+                  <DropdownMenuItem
+                    key={path}
+                    onClick={() => setSelectedFile(path)}
+                    className={cn(selectedFile === path && "bg-primary/10")}
+                  >
+                    {path}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <span className="text-muted-foreground text-sm ml-2">
+              {currentView === "preview" ? "Preview" : "index.html"}
+            </span>
+          )}
+
           {showSave && <span className="text-xs text-yellow-500 ml-2">• Unsaved</span>}
         </div>
 
@@ -292,13 +368,7 @@ export function Preview({
                     {copied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
                     {copied ? "Copied!" : "Copy Link"}
                   </Button>
-                  <Button
-                    variant="glow"
-                    size="sm"
-                    className="h-8 gap-2"
-                    onClick={handleUpdate}
-                    disabled={publishing}
-                  >
+                  <Button variant="glow" size="sm" className="h-8 gap-2" onClick={handleUpdate} disabled={publishing}>
                     {publishing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
                     Update
                   </Button>
@@ -375,17 +445,30 @@ export function Preview({
           </div>
         ) : (
           <ResizablePanelGroup direction="horizontal" className="h-full">
-            <ResizablePanel defaultSize={100} minSize={40}>
+            {/* File Explorer Sidebar */}
+            {isFileMode && (
+              <>
+                <ResizablePanel defaultSize={20} minSize={15} maxSize={35}>
+                  <FileExplorer files={files ?? {}} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+              </>
+            )}
+
+            {/* Code Editor */}
+            <ResizablePanel defaultSize={isFileMode ? 80 : 100} minSize={40}>
               <Editor
                 height="100%"
-                language={isFileMode ? "typescript" : "html"}
+                language={isFileMode ? getLanguageForFile(selectedFile) : "html"}
                 theme="vs-dark"
-                value={isFileMode ? editedFile : editedHtml}
+                value={isFileMode ? currentFileContent : editedHtml}
                 onChange={(value) => {
                   if (value === undefined) return;
                   if (isFileMode) {
-                    setEditedFile(value);
-                    setHasUnsavedFile(value !== fileModeCode);
+                    setEditedFiles((prev) => ({
+                      ...prev,
+                      [selectedFile]: value,
+                    }));
                   } else {
                     setEditedHtml(value);
                     setHasUnsavedHtml(value !== html);
@@ -398,11 +481,6 @@ export function Preview({
                   automaticLayout: true,
                 }}
               />
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={0} minSize={0} collapsible>
-              {/* reserved */}
-              <div className="h-full bg-card" />
             </ResizablePanel>
           </ResizablePanelGroup>
         )}
