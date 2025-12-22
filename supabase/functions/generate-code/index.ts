@@ -16,10 +16,50 @@ serve(async (req) => {
     const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
+
     if (!GEMINI_API_KEY) {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
+
+    const pickGeminiModel = async () => {
+      // List models to avoid hardcoding a model name that isn't enabled for this API key.
+      const listResp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`,
+        { method: "GET" },
+      );
+
+      if (!listResp.ok) {
+        const t = await listResp.text();
+        console.warn("[generate-code] models.list failed, falling back to known defaults:", listResp.status, t);
+        return "gemini-1.5-pro";
+      }
+
+      const json = await listResp.json();
+      const models: Array<{ name?: string; supportedGenerationMethods?: string[] }> = json?.models ?? [];
+
+      const supportsStream = (m: { name?: string; supportedGenerationMethods?: string[] }) =>
+        (m.supportedGenerationMethods ?? []).includes("streamGenerateContent") &&
+        (m.supportedGenerationMethods ?? []).includes("generateContent");
+
+      const available = models
+        .filter((m) => m?.name?.startsWith("models/") && supportsStream(m))
+        .map((m) => (m.name as string).replace(/^models\//, ""));
+
+      const preferred = [
+        // Newer names vary by account/region; we choose the best available.
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash",
+      ];
+
+      for (const p of preferred) {
+        if (available.includes(p)) return p;
+      }
+
+      // Last resort: any stream-capable model.
+      return available[0] ?? "gemini-1.5-pro";
+    };
 
     // Fetch user's connected Supabase if projectId provided
     let userSupabaseConnection: { url: string; anonKey: string } | null = null;
@@ -80,30 +120,41 @@ ${fileContext}
 
 START YOUR RESPONSE WITH { AND END WITH }. OUTPUT ONLY JSON.`;
 
-    console.log("[generate-code] Calling Gemini 3 Pro. Prompt:", prompt);
+    const model = await pickGeminiModel();
+    console.log(`[generate-code] Using Gemini model: ${model}. Prompt: ${prompt}`);
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-05-06:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: "BUILD REQUEST: " + prompt + "\n\nRespond with ONLY JSON. No markdown. No explanations. Start with { end with }." }]
-          }
-        ],
-        systemInstruction: {
-          parts: [{ text: systemPrompt }]
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 65536,
-          responseMimeType: "application/json"
-        }
-      }),
-    });
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text:
+                    "BUILD REQUEST: " +
+                    prompt +
+                    "\n\nRespond with ONLY JSON. No markdown. No explanations. Start with { end with }." ,
+                },
+              ],
+            },
+          ],
+          systemInstruction: {
+            parts: [{ text: systemPrompt }],
+          },
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 65536,
+            responseMimeType: "application/json",
+          },
+        }),
+      },
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
