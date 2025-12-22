@@ -16,6 +16,7 @@ import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useI18n, LanguageToggle } from "@/lib/i18n";
+import { useProjectFiles } from "@/hooks/useProjectFiles";
 
 interface QuickAction {
   id: string;
@@ -55,9 +56,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const { t, isRTL } = useI18n();
-
   // Version history
   const { versions, loading: versionsLoading, saveVersion, refreshVersions } = useVersionHistory(project.id);
+
+  // Project files (React project mode)
+  const { files, applyOperations, updateFile } = useProjectFiles(project.id);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -422,6 +425,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           ) : (
             <Preview 
               html={project.html_code} 
+              files={files}
               projectId={project.id}
               projectName={project.name}
               isPublished={project.is_published}
@@ -431,6 +435,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               activeView={previewView}
               onViewChange={setPreviewView}
               onCodeChange={onUpdateCode}
+              onFileChange={(path, content) => updateFile(path, content)}
             />
           )}
         </div>
