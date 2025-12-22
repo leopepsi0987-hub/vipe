@@ -51,7 +51,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
-  const [requestMode, setRequestMode] = useState<"chat" | "build">("chat");
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
