@@ -49,6 +49,41 @@ export type Database = {
           },
         ]
       }
+      project_files: {
+        Row: {
+          content: string
+          created_at: string
+          file_path: string
+          id: string
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          file_path: string
+          id?: string
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_path?: string
+          id?: string
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_files_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_versions: {
         Row: {
           created_at: string
