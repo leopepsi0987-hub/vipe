@@ -145,7 +145,7 @@ function generateBundledHTML(files: Record<string, string>): string {
 <body class="bg-background text-foreground">
   <div id="root"></div>
   
-  <script type="text/babel" data-type="module">
+  <script type="text/babel" data-type="module" data-presets="typescript,react">
     const { useState, useEffect, useContext, createContext, useCallback, useMemo, useRef, useReducer } = React;
     
     // Toast utility
