@@ -51,11 +51,12 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+  const [requestMode, setRequestMode] = useState<"chat" | "build">("chat");
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const { t, isRTL } = useI18n();
-  
+
   // Version history
   const { versions, loading: versionsLoading, saveVersion, refreshVersions } = useVersionHistory(project.id);
 
@@ -63,14 +64,14 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl/Cmd + P to toggle preview/code
-      if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+      if ((e.ctrlKey || e.metaKey) && e.key === "p") {
         e.preventDefault();
-        setPreviewView(prev => prev === "preview" ? "code" : "preview");
+        setPreviewView((prev) => (prev === "preview" ? "code" : "preview"));
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   // Load messages from database on project change - clear first!
@@ -110,18 +111,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         .single();
 
       if (existing) {
-        await supabase
-          .from("project_data")
-          .update({ value: newMessages as any })
-          .eq("id", existing.id);
+        await supabase.from("project_data").update({ value: newMessages as any }).eq("id", existing.id);
       } else {
-        await supabase
-          .from("project_data")
-          .insert({
-            project_id: project.id,
-            key: "chat_messages",
-            value: newMessages as any,
-          });
+        await supabase.from("project_data").insert({
+          project_id: project.id,
+          key: "chat_messages",
+          value: newMessages as any,
+        });
       }
     } catch (error) {
       console.error("Error saving messages:", error);
@@ -130,7 +126,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
   // Check if user has connected their Supabase
   const [hasConnectedSupabase, setHasConnectedSupabase] = useState(false);
-  
+
   useEffect(() => {
     const checkSupabaseConnection = async () => {
       try {
@@ -140,7 +136,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           .eq("project_id", project.id)
           .eq("key", "supabase_connection")
           .maybeSingle();
-        
+
         if (data?.value) {
           const conn = data.value as { connected?: boolean };
           setHasConnectedSupabase(!!conn.connected);
@@ -152,7 +148,57 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     checkSupabaseConnection();
   }, [project.id]);
 
-  const handleSendMessage = async (content: string, imageUrl?: string) => {
+  const streamSseToText = async (response: Response, onDelta: (delta: string) => void) => {
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let fullContent = "";
+    let textBuffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      textBuffer += decoder.decode(value, { stream: true });
+
+      let newlineIndex: number;
+      while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+        let line = textBuffer.slice(0, newlineIndex);
+        textBuffer = textBuffer.slice(newlineIndex + 1);
+
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        if (line.startsWith(":" ) || line.trim() === "") continue;
+        if (!line.startsWith("data: ")) continue;
+
+        const jsonStr = line.slice(6).trim();
+        if (jsonStr === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(jsonStr);
+          const delta = parsed.choices?.[0]?.delta?.content;
+          if (delta) {
+            fullContent += delta;
+            onDelta(fullContent);
+          }
+        } catch {
+          // ignore partial/incomplete JSON
+        }
+      }
+    }
+
+    return fullContent;
+  };
+
+  const handleSendMessage = async (rawContent: string, imageUrl?: string) => {
+    const content = rawContent.trim();
+
+    // Explicit build commands only (prevents "hi" from triggering a build)
+    const isBuildCommand = /^\/(build|edit)\b/i.test(content);
+    const mode: "chat" | "build" = isBuildCommand ? "build" : "chat";
+
+    const promptForBuild = isBuildCommand ? content.replace(/^\/(build|edit)\b\s*/i, "").trim() : content;
+
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "user",
@@ -169,16 +215,56 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     abortControllerRef.current = new AbortController();
 
     try {
-      // Use single-agent generate-code endpoint
+      if (mode === "chat") {
+        const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+        // send full conversation history for better continuity
+        const chatMessages = newMessages.map((m) => ({
+          role: m.role,
+          content: m.content,
+          ...(m.imageUrl ? { imageUrl: m.imageUrl } : {}),
+        }));
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({ messages: chatMessages, imageUrl }),
+          signal: abortControllerRef.current?.signal,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || "Failed to get response");
+        }
+
+        const finalText = await streamSseToText(response, (next) => setStreamingContent(next));
+
+        const assistantMessage: Message = {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: finalText || "",
+        };
+
+        const finalMessages = [...newMessages, assistantMessage];
+        setMessages(finalMessages);
+        saveMessages(finalMessages);
+        setStreamingContent("");
+        return;
+      }
+
+      // build mode
       const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
 
       const body = JSON.stringify({
-        prompt: content,
+        prompt: promptForBuild,
         currentCode: project.html_code,
         projectSlug: project.slug,
         projectId: project.id,
         dbChoice,
-        hasConnectedSupabase, // Tell AI if user connected their database
+        hasConnectedSupabase,
       });
 
       const response = await fetch(endpoint, {
@@ -196,45 +282,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         throw new Error(errorData.error || "Failed to get response");
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      const fullContent = await streamSseToText(response, (next) => setStreamingContent(next));
 
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let textBuffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        textBuffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              fullContent += delta;
-              setStreamingContent(fullContent);
-            }
-          } catch (e) {
-            // Ignore parse errors for incomplete JSON
-          }
-        }
-      }
-
-      // Process the streamed code
       if (fullContent) {
         let cleanedCode = fullContent;
         const htmlMatch = cleanedCode.match(/```html\n?([\s\S]*?)```/);
@@ -244,14 +293,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           cleanedCode = cleanedCode.replace(/```\w*\n?/g, "").trim();
         }
 
-        // Save version before updating code
         await saveVersion(project.html_code);
         onUpdateCode(cleanedCode);
 
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",
-          content: "Done! Your app is ready. 🚀",
+          content: "Done! Your app is ready.",
           hasCode: true,
         };
         const finalMessages = [...newMessages, assistantMessage];
@@ -261,19 +309,18 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
       setStreamingContent("");
     } catch (error) {
-      // Handle abort gracefully
       if (error instanceof Error && error.name === "AbortError") {
-        toast.info("Build stopped");
+        toast.info(mode === "build" ? "Build stopped" : "Stopped");
         return;
       }
-      
+
       console.error("Error:", error);
       toast.error(error instanceof Error ? error.message : "Something went wrong");
-      
+
       const errorMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: "Oops, something went wrong! Try again? 😅",
+        content: "Oops, something went wrong. Try again?",
       };
       const finalMessages = [...newMessages, errorMessage];
       setMessages(finalMessages);
