@@ -9,34 +9,36 @@ interface SandboxPreviewProps {
 function generateBundledHTML(files: Record<string, string>): string {
   const appContent = files["src/App.tsx"] || files["src/App.jsx"] || "";
   const cssContent = files["src/index.css"] || "";
-  
-  // Extract component files
-  const componentFiles = Object.entries(files).filter(
-    ([path]) => path.startsWith("src/components/") && (path.endsWith(".tsx") || path.endsWith(".jsx"))
+
+  // Extract all TS/JS source files under src/ (excluding the entry and App, which we handle separately)
+  const moduleFiles = Object.entries(files).filter(
+    ([path]) =>
+      path.startsWith("src/") &&
+      (path.endsWith(".ts") || path.endsWith(".tsx") || path.endsWith(".js") || path.endsWith(".jsx")) &&
+      path !== "src/App.tsx" &&
+      path !== "src/App.jsx" &&
+      path !== "src/main.tsx" &&
+      path !== "src/main.jsx",
   );
 
-  // Build components object for inline usage
-  const componentsCode = componentFiles
+  // Build modules blob for inline usage (we strip imports/exports later)
+  const modulesCode = moduleFiles
     .map(([path, content]) => {
-      const name = path.split("/").pop()?.replace(/\.(tsx|jsx)$/, "") || "";
-      // Extract the component definition
+      const name = path.replace(/^src\//, "");
       return `// ${name}\n${content}`;
     })
     .join("\n\n");
 
-  // Process App.tsx to extract the actual component
-  let processedApp = appContent
-    // Remove imports (we'll provide React globally)
-    .replace(/^import\s+.*?['"].*?['"];?\s*$/gm, "")
-    // Remove export default
-    .replace(/export\s+default\s+/, "")
-    // Remove export
-    .replace(/^export\s+/gm, "");
-
-  // Process components similarly
-  let processedComponents = componentsCode
+  // Process modules to remove ESM syntax for the in-iframe runtime
+  const processedModules = modulesCode
     .replace(/^import\s+.*?['"].*?['"];?\s*$/gm, "")
     .replace(/export\s+default\s+/g, "")
+    .replace(/^export\s+/gm, "");
+
+  // Process App.tsx to extract the actual component
+  const processedApp = appContent
+    .replace(/^import\s+.*?['"].*?['"];?\s*$/gm, "")
+    .replace(/export\s+default\s+/, "")
     .replace(/^export\s+/gm, "");
 
   return `<!DOCTYPE html>
@@ -45,12 +47,12 @@ function generateBundledHTML(files: Record<string, string>): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Preview</title>
-  
+
   <!-- React 18 -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
+
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -86,7 +88,7 @@ function generateBundledHTML(files: Record<string, string>): string {
       }
     }
   </script>
-  
+
   <style>
     :root {
       --background: 0 0% 100%;
@@ -108,7 +110,7 @@ function generateBundledHTML(files: Record<string, string>): string {
       --ring: 221.2 83.2% 53.3%;
       --radius: 0.5rem;
     }
-    
+
     @media (prefers-color-scheme: dark) {
       :root {
         --background: 222.2 84% 4.9%;
@@ -130,7 +132,7 @@ function generateBundledHTML(files: Record<string, string>): string {
         --ring: 224.3 76.3% 48%;
       }
     }
-    
+
     body {
       background-color: hsl(var(--background));
       color: hsl(var(--foreground));
@@ -145,7 +147,7 @@ function generateBundledHTML(files: Record<string, string>): string {
 <body class="bg-background text-foreground">
   <div id="root"></div>
   <div id="__sandbox_error" style="display:none; position:fixed; inset:12px; padding:12px; border-radius:12px; background:rgba(0,0,0,0.75); color:#fff; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono','Courier New', monospace; font-size:12px; line-height:1.4; white-space:pre-wrap; overflow:auto; z-index:99999;"></div>
-  
+
   <script type="text/babel" data-presets="typescript,react">
     const { useState, useEffect, useContext, createContext, useCallback, useMemo, useRef, useReducer } = React;
 
@@ -158,15 +160,19 @@ function generateBundledHTML(files: Record<string, string>): string {
       } catch (_) {}
     };
 
-    window.addEventListener('error', (e) => __showErr('Sandbox runtime error', e?.error || e?.message));
-    window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e?.reason));
-    
+    window.addEventListener('error', (e) => __showErr('Sandbox runtime error', (e && (e.error || e.message))));
+    window.addEventListener('unhandledrejection', (e) => __showErr('Sandbox unhandled promise rejection', e && e.reason));
+
+    // Toast utility (minimal)
+    function useToast() {
+      const [toasts, setToasts] = useState([]);
+
       const toast = useCallback((message, type = 'info') => {
         const id = Date.now();
         setToasts(prev => [...prev, { id, message, type }]);
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
       }, []);
-      
+
       return {
         toasts,
         success: (msg) => toast(msg, 'success'),
@@ -177,11 +183,12 @@ function generateBundledHTML(files: Record<string, string>): string {
             {toasts.map(t => (
               <div
                 key={t.id}
-                className={\`px-4 py-3 rounded-lg shadow-lg text-sm font-medium \${
-                  t.type === 'success' ? 'bg-green-500 text-white' :
-                  t.type === 'error' ? 'bg-red-500 text-white' :
-                  'bg-primary text-primary-foreground'
-                }\`}
+                className={
+                  'px-4 py-3 rounded-lg shadow-lg text-sm font-medium ' +
+                  (t.type === 'success' ? 'bg-green-500 text-white' :
+                    t.type === 'error' ? 'bg-red-500 text-white' :
+                      'bg-primary text-primary-foreground')
+                }
               >
                 {t.message}
               </div>
@@ -190,10 +197,10 @@ function generateBundledHTML(files: Record<string, string>): string {
         ) : null
       };
     }
-    
-    // Components
-    ${processedComponents}
-    
+
+    // Modules (components, types, utils, etc.)
+    ${processedModules}
+
     // Main App
     ${processedApp || `
     function App() {
@@ -211,20 +218,24 @@ function generateBundledHTML(files: Record<string, string>): string {
       );
     }
     `}
-    
+
     // Find the App component (it might be named differently)
-    const AppComponent = typeof App !== 'undefined' ? App : 
-                         typeof Main !== 'undefined' ? Main :
-                         typeof Application !== 'undefined' ? Application :
-                         () => <div>No App component found</div>;
-    
+    const AppComponent = typeof App !== 'undefined' ? App :
+      typeof Main !== 'undefined' ? Main :
+      typeof Application !== 'undefined' ? Application :
+      () => <div>No App component found</div>;
+
     // Render
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(
-      <React.StrictMode>
-        <AppComponent />
-      </React.StrictMode>
-    );
+    try {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(
+        <React.StrictMode>
+          <AppComponent />
+        </React.StrictMode>
+      );
+    } catch (e) {
+      __showErr('Sandbox render failed', e);
+    }
   </script>
 </body>
 </html>`;
@@ -233,7 +244,6 @@ function generateBundledHTML(files: Record<string, string>): string {
 export function SandboxPreview({ files, className }: SandboxPreviewProps) {
   const bundledHTML = useMemo(() => {
     if (!files || Object.keys(files).length === 0) {
-      // Return default welcome screen
       return generateBundledHTML({});
     }
     return generateBundledHTML(files);
