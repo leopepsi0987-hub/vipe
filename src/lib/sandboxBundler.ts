@@ -343,7 +343,7 @@ export function generateBundledHTML(files: FileMap): string {
       try {
         __errEl.style.display = 'block';
         const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
-        __errEl.textContent = title + '\\n\\n' + msg;
+        __errEl.textContent = [title, msg].filter(Boolean).join('\\n\\n');
         try { window.parent && window.parent.postMessage({ type: 'SANDBOX_ERROR', title: title, message: msg }, '*'); } catch (_) {}
       } catch (_) {}
     };
