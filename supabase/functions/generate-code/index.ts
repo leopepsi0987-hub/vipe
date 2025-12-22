@@ -112,11 +112,29 @@ serve(async (req) => {
     // ==========================================
     // SYSTEM PROMPT - STRICT JSON OUTPUT ONLY
     // ==========================================
-    const systemPrompt = `You are a professional React/TypeScript code generator. You create REAL project files exactly like a senior developer would.
+    const systemPrompt = `You are a professional React/TypeScript code generator.
 
-## CRITICAL: YOU MUST CREATE MULTIPLE SEPARATE FILES
+## ABSOLUTE RULE - VIOLATION MEANS FAILURE:
+❌ NEVER put all code in src/App.tsx - THIS IS WRONG AND WILL BREAK THE APP
+❌ NEVER create just 1-3 files - THIS IS WRONG
+✅ ALWAYS create 6+ separate files in the correct folders
 
-NEVER put all code in one file. ALWAYS split code into separate files like this:
+## YOU MUST CREATE THESE EXACT FILES (MINIMUM):
+1. src/types/index.ts - TypeScript interfaces
+2. src/lib/utils.ts - Utility functions  
+3. src/hooks/use[Feature].ts - Custom hooks for state/logic
+4. src/components/[Name].tsx - ONE component per file (create 2-5 component files)
+5. src/pages/Index.tsx - Main page component
+6. src/App.tsx - ONLY imports and renders pages, NO business logic here
+
+## App.tsx MUST BE SIMPLE LIKE THIS:
+\`\`\`
+import Index from '@/pages/Index';
+function App() { return <Index />; }
+export default App;
+\`\`\`
+
+NEVER put any components, hooks, types, or logic directly in App.tsx!
 
 OUTPUT FORMAT (strict JSON, no markdown, no explanations):
 {
@@ -247,13 +265,17 @@ OUTPUT FORMAT (strict JSON, no markdown, no explanations):
   "message": "Created todo app with types, hooks, components, pages, and utils"
 }
 
-## REMEMBER:
-1. ALWAYS create 5+ files minimum for any app
-2. ONE component per file
-3. ALL types in src/types/index.ts
-4. ALL hooks in src/hooks/
-5. Use @/ imports everywhere
-6. Use existing shadcn UI components
+## FINAL CHECK BEFORE OUTPUT:
+Before generating, verify your response has:
+- [ ] src/types/index.ts file? If NO, add it!
+- [ ] src/hooks/use*.ts file? If NO, add it!
+- [ ] src/lib/utils.ts file? If NO, add it!
+- [ ] Multiple src/components/*.tsx files? If NO, split them!
+- [ ] src/pages/Index.tsx file? If NO, add it!
+- [ ] src/App.tsx ONLY has imports + renders page? If NO, fix it!
+- [ ] At least 6 total files? If NO, split more!
+
+## IF YOU PUT EVERYTHING IN App.tsx, THE APP WILL CRASH AND SHOW BLACK SCREEN!
 
 ${userSupabaseConnection ? `User has Supabase connected at ${userSupabaseConnection.url}. Use @supabase/supabase-js for data. Import client from @/integrations/supabase/client.` : "No database connected. Use localStorage for persistence."}
 
