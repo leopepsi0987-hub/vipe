@@ -311,7 +311,7 @@ export function generateBundledHTML(files: FileMap): string {
 
       const source = document.getElementById('__sandbox_runtime').textContent || '';
       try {
-        const out = Babel.transform(source, { presets: ['typescript', 'react'] }).code;
+        const out = Babel.transform(source, { filename: 'runtime.tsx', presets: ['typescript', 'react'] }).code;
         (0, eval)(out);
       } catch (e) {
         // If even the runtime fails, show a minimal error.
