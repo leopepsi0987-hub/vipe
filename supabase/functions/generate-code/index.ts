@@ -21,44 +21,58 @@ serve(async (req) => {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
-    const pickGeminiModel = async () => {
-      // List models to avoid hardcoding a model name that isn't enabled for this API key.
-      const listResp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_API_KEY}`,
-        { method: "GET" },
-      );
+    const getGeminiModelCandidates = async (): Promise<Array<{ apiVersion: "v1beta" | "v1"; model: string }>> => {
+      const parseModels = (json: any): string[] => {
+        const models: Array<{ name?: string; supportedGenerationMethods?: string[] }> = json?.models ?? [];
+        const supportsStream = (m: { name?: string; supportedGenerationMethods?: string[] }) =>
+          (m.supportedGenerationMethods ?? []).includes("streamGenerateContent") ||
+          (m.supportedGenerationMethods ?? []).includes("generateContent");
 
-      if (!listResp.ok) {
-        const t = await listResp.text();
-        console.warn("[generate-code] models.list failed, falling back to known defaults:", listResp.status, t);
-        return "gemini-1.5-pro";
-      }
+        return models
+          .filter((m) => m?.name?.startsWith("models/") && supportsStream(m))
+          .map((m) => (m.name as string).replace(/^models\//, ""));
+      };
 
-      const json = await listResp.json();
-      const models: Array<{ name?: string; supportedGenerationMethods?: string[] }> = json?.models ?? [];
+      const listOnce = async (apiVersion: "v1beta" | "v1") => {
+        const url = `https://generativelanguage.googleapis.com/${apiVersion}/models`;
+        const resp = await fetch(url, {
+          method: "GET",
+          headers: {
+            "x-goog-api-key": GEMINI_API_KEY,
+          },
+        });
+        if (!resp.ok) {
+          const t = await resp.text();
+          console.warn(`[generate-code] models.list failed (${apiVersion}):`, resp.status, t);
+          return [] as string[];
+        }
+        const json = await resp.json();
+        return parseModels(json);
+      };
 
-      const supportsStream = (m: { name?: string; supportedGenerationMethods?: string[] }) =>
-        (m.supportedGenerationMethods ?? []).includes("streamGenerateContent") &&
-        (m.supportedGenerationMethods ?? []).includes("generateContent");
+      // Try v1beta first, then v1.
+      const beta = await listOnce("v1beta");
+      const v1 = beta.length ? [] : await listOnce("v1");
 
-      const available = models
-        .filter((m) => m?.name?.startsWith("models/") && supportsStream(m))
-        .map((m) => (m.name as string).replace(/^models\//, ""));
+      const available = beta.length ? beta : v1;
+      const apiVersion: "v1beta" | "v1" = beta.length ? "v1beta" : "v1";
 
       const preferred = [
-        // Newer names vary by account/region; we choose the best available.
+        // These names vary by key/region; we pick the best that exists in models.list.
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
         "gemini-1.5-pro",
         "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
       ];
 
-      for (const p of preferred) {
-        if (available.includes(p)) return p;
-      }
+      const ordered = [...preferred.filter((m) => available.includes(m)), ...available.filter((m) => !preferred.includes(m))];
 
-      // Last resort: any stream-capable model.
-      return available[0] ?? "gemini-1.5-pro";
+      // If listing fails entirely, fall back to common names (we'll still retry on 404).
+      const fallback = preferred;
+      const modelsToTry = ordered.length ? ordered : fallback;
+
+      return modelsToTry.map((model) => ({ apiVersion, model }));
     };
 
     // Fetch user's connected Supabase if projectId provided
@@ -120,15 +134,20 @@ ${fileContext}
 
 START YOUR RESPONSE WITH { AND END WITH }. OUTPUT ONLY JSON.`;
 
-    const model = await pickGeminiModel();
-    console.log(`[generate-code] Using Gemini model: ${model}. Prompt: ${prompt}`);
+    const candidates = await getGeminiModelCandidates();
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`,
-      {
+    let response: Response | null = null;
+    let lastErrorText = "";
+
+    for (const c of candidates) {
+      const url = `https://generativelanguage.googleapis.com/${c.apiVersion}/models/${c.model}:streamGenerateContent?alt=sse`;
+      console.log(`[generate-code] Trying Gemini model: ${c.model} (${c.apiVersion})`);
+
+      const r = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-goog-api-key": GEMINI_API_KEY,
         },
         body: JSON.stringify({
           contents: [
@@ -153,8 +172,47 @@ START YOUR RESPONSE WITH { AND END WITH }. OUTPUT ONLY JSON.`;
             responseMimeType: "application/json",
           },
         }),
-      },
-    );
+      });
+
+      if (r.ok) {
+        response = r;
+        break;
+      }
+
+      lastErrorText = await r.text().catch(() => "");
+      console.warn(`[generate-code] Model ${c.model} failed:`, r.status, lastErrorText);
+
+      // Try next model on 404/400 model-not-supported.
+      if (r.status === 404 || r.status === 400) continue;
+
+      // Surface rate limits immediately.
+      if (r.status === 429) {
+        return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Other errors: stop early.
+      return new Response(JSON.stringify({ error: "AI service error: " + lastErrorText }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!response) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "AI service error: No available Gemini model supports streamGenerateContent for this API key. Last error: " +
+            lastErrorText,
+        }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
