@@ -152,10 +152,10 @@ export function useProjects() {
     return true;
   };
 
-  const publishProject = async (id: string, customSlug?: string) => {
+  const publishProject = async (id: string, customSlug?: string, bundledHtml?: string) => {
     // Use custom slug or generate a unique one
     const slug = customSlug || `${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
-    
+
     // Check if slug is already taken
     if (customSlug) {
       const { data: existing } = await supabase
@@ -164,50 +164,49 @@ export function useProjects() {
         .eq("slug", customSlug)
         .neq("id", id)
         .single();
-      
+
       if (existing) {
         throw new Error("This domain name is already taken");
       }
     }
-    
-    const { data, error } = await supabase
-      .from("projects")
-      .update({ is_published: true, slug })
-      .eq("id", id)
-      .select()
-      .single();
+
+    const updatePayload: Partial<Project> = {
+      is_published: true,
+      slug,
+      ...(bundledHtml ? { html_code: bundledHtml } : {}),
+      // bump timestamp to avoid any caching layers serving stale HTML
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase.from("projects").update(updatePayload).eq("id", id).select().single();
 
     if (error) {
       console.error("Error publishing project:", error);
       return null;
     }
 
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? data : p))
-    );
+    setProjects((prev) => prev.map((p) => (p.id === id ? data : p)));
     if (currentProject?.id === id) {
       setCurrentProject(data);
     }
     return data;
   };
 
-  const updatePublishedProject = async (id: string) => {
+  const updatePublishedProject = async (id: string, bundledHtml?: string) => {
+    const updatePayload: Partial<Project> = {
+      ...(bundledHtml ? { html_code: bundledHtml } : {}),
+      updated_at: new Date().toISOString(),
+    };
+
     // Just trigger an update to refresh the published content
-    const { data, error } = await supabase
-      .from("projects")
-      .update({ updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await supabase.from("projects").update(updatePayload).eq("id", id).select().single();
 
     if (error) {
       console.error("Error updating published project:", error);
       return null;
     }
 
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? data : p))
-    );
+    setProjects((prev) => prev.map((p) => (p.id === id ? data : p)));
     if (currentProject?.id === id) {
       setCurrentProject(data);
     }

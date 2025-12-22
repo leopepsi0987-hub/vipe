@@ -36,8 +36,8 @@ interface Message {
 interface EditorProps {
   project: Project;
   onUpdateCode: (code: string) => void;
-  onPublish: (customSlug?: string) => Promise<any>;
-  onUpdatePublished: () => Promise<any>;
+  onPublish: (customSlug?: string, bundledHtml?: string) => Promise<any>;
+  onUpdatePublished: (bundledHtml?: string) => Promise<any>;
 }
 
 type LeftTab = "chat" | "data" | "history";

@@ -63,12 +63,12 @@ const Project = () => {
     await updateProject(currentProject.id, { html_code: code });
   };
 
-  const handlePublish = async (customSlug?: string) => {
-    return await publishProject(currentProject.id, customSlug);
+  const handlePublish = async (customSlug?: string, bundledHtml?: string) => {
+    return await publishProject(currentProject.id, customSlug, bundledHtml);
   };
 
-  const handleUpdatePublished = async () => {
-    return await updatePublishedProject(currentProject.id);
+  const handleUpdatePublished = async (bundledHtml?: string) => {
+    return await updatePublishedProject(currentProject.id, bundledHtml);
   };
 
   return (
