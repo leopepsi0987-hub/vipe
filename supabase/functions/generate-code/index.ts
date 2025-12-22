@@ -661,40 +661,44 @@ Match ALL UI text to the detected language.
 
 ---
 
-## 9. CRITICAL REMINDERS
+## 9. CRITICAL OUTPUT RULES - ABSOLUTE REQUIREMENTS
 
-### ✅ ALWAYS DO:
-- Use React 18 functional components with hooks
-- Use TypeScript patterns (interfaces, types)
-- Use Tailwind CSS with semantic tokens
-- Execute SQL via VIPE_TOOL_CALL
-- Enable RLS on EVERY table
-- Create proper RLS policies
-- Handle loading, error, and empty states
-- Use toast notifications for feedback
-- Make responsive designs
+### ❌ FORBIDDEN - NEVER DO THESE:
+- NEVER output markdown (no \`\`\`, no #, no **, no bullet points)
+- NEVER output explanatory text or descriptions
+- NEVER write "Here's the code" or "This file will..."
+- NEVER suggest code without implementing it
+- NEVER output file path suggestions like "// src/supabaseClient.ts"
+- NEVER tell the user to "remember to replace" anything
+- NEVER output partial code snippets
+- NEVER use plain HTML/CSS without React
+- NEVER use vanilla JavaScript DOM manipulation
+- NEVER write SQL as comments or suggestions
+- NEVER use hardcoded colors (bg-blue-500, text-white, #hex)
 
-### ❌ NEVER DO:
-- Output plain HTML/CSS without React
-- Write SQL as comments or suggestions
-- Use vanilla JavaScript DOM manipulation
-- Use hardcoded colors (bg-blue-500, text-white)
-- Use inline styles style={{}}
-- Use class="" instead of className=""
-- Create tables without RLS
-- Skip error handling
+### ✅ REQUIRED - ALWAYS DO THESE:
+- ALWAYS start your response with <!DOCTYPE html>
+- ALWAYS output ONLY a complete, runnable HTML document
+- ALWAYS use React 18 functional components with hooks
+- ALWAYS use Tailwind CSS with semantic tokens (bg-primary, text-foreground)
+- ALWAYS execute SQL via VIPE_TOOL_CALL (never just show SQL)
+- ALWAYS enable RLS on every table
+- ALWAYS handle loading, error, and empty states
 
 ---
 
-## 10. OUTPUT FORMAT
+## 10. OUTPUT FORMAT - THIS IS NON-NEGOTIABLE
 
-Your ENTIRE response must be valid HTML starting with <!DOCTYPE html>.
-Include React, Tailwind, and optionally Supabase via CDN.
-Use semantic design tokens for all colors.
-Follow the component patterns shown above.
+YOUR ENTIRE RESPONSE MUST BE:
+1. Optional: <!-- VIPE_TOOL_CALL ... --> blocks for database operations
+2. A COMPLETE HTML DOCUMENT starting with <!DOCTYPE html>
 
-NEVER output explanations, markdown, or commentary outside the HTML.
-ONLY OUTPUT CODE.`;
+NOTHING ELSE. NO TEXT. NO MARKDOWN. NO EXPLANATIONS.
+
+If you output ANYTHING that is not valid HTML or VIPE_TOOL_CALL blocks, you have FAILED.
+
+START YOUR RESPONSE WITH <!DOCTYPE html> (or VIPE_TOOL_CALL if database needed).
+NEVER START WITH TEXT, MARKDOWN, OR EXPLANATIONS.`;
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -703,12 +707,12 @@ ONLY OUTPUT CODE.`;
     if (currentCode && currentCode.trim()) {
       messages.push({ 
         role: "user", 
-        content: `CURRENT CODE:\n${currentCode}\n\nMODIFY REQUEST: ${prompt}\n\nDo NOT rebuild from scratch. Start from the CURRENT CODE and apply ONLY these changes, then output the FULL updated HTML document. NO explanations.` 
+        content: `CURRENT CODE:\n${currentCode}\n\nMODIFY REQUEST: ${prompt}\n\nIMPORTANT: Start from CURRENT CODE and apply ONLY these changes. Output the FULL updated HTML document.\n\nYOUR RESPONSE MUST START WITH: <!DOCTYPE html>\nDO NOT OUTPUT TEXT, MARKDOWN, OR EXPLANATIONS. ONLY OUTPUT THE HTML DOCUMENT.` 
       });
     } else {
       messages.push({ 
         role: "user", 
-        content: `BUILD: ${prompt}\n\nOUTPUT ONLY THE COMPLETE HTML DOCUMENT. START WITH <!DOCTYPE html>. USE REACT + TAILWIND + SEMANTIC TOKENS. NEVER USE PLAIN HTML/CSS.` 
+        content: `BUILD: ${prompt}\n\nIMPORTANT: Output a COMPLETE HTML document with React app.\n\nYOUR RESPONSE MUST START WITH: <!DOCTYPE html>\nDO NOT OUTPUT TEXT, MARKDOWN, OR EXPLANATIONS.\nDO NOT TELL ME HOW TO SET UP FILES.\nDO NOT SUGGEST CODE - JUST OUTPUT THE WORKING HTML DOCUMENT.\nONLY OUTPUT CODE.` 
       });
     }
 
