@@ -585,19 +585,19 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       {/* Quick Suggestions */}
                       <div className="flex flex-wrap justify-center gap-2 mt-8">
                         <button
-                          onClick={() => handleSendMessage(t("buildTodoApp"))}
+                          onClick={() => handleSendMessage(`/build ${t("buildTodoApp")}`)}
                           className="px-4 py-2 text-sm rounded-xl border border-border hover:bg-secondary transition-colors"
                         >
                           {t("buildTodoApp")}
                         </button>
                         <button
-                          onClick={() => handleSendMessage(t("createLandingPage"))}
+                          onClick={() => handleSendMessage(`/build ${t("createLandingPage")}`)}
                           className="px-4 py-2 text-sm rounded-xl border border-border hover:bg-secondary transition-colors"
                         >
                           {t("createLandingPage")}
                         </button>
                         <button
-                          onClick={() => handleSendMessage(t("makeDashboard"))}
+                          onClick={() => handleSendMessage(`/build ${t("makeDashboard")}`)}
                           className="px-4 py-2 text-sm rounded-xl border border-border hover:bg-secondary transition-colors"
                         >
                           {t("makeDashboard")}
@@ -672,7 +672,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
       <ResizablePanel defaultSize={65}>
         <div className="relative h-full">
           <Preview 
-            html={project.html_code} 
+            html={project.html_code}
+            files={files}
             projectId={project.id}
             projectName={project.name}
             isPublished={project.is_published}
@@ -682,6 +683,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             activeView={previewView}
             onViewChange={setPreviewView}
             onCodeChange={onUpdateCode}
+            onFileChange={(path, content) => updateFile(path, content)}
           />
           <BuildingOverlay isBuilding={isGenerating} />
         </div>
