@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
+import { Button } from "@/components/ui/button";
+import { AlertTriangle, Copy, Check, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 interface SandboxPreviewProps {
   files: Record<string, string>;
@@ -13,16 +16,12 @@ type ImportCheck = {
 };
 
 function resolveImportToCandidatePaths(importPath: string): string[] {
-  // Only handle relative imports here. Aliases (like @/) are handled by generation prompt, not this resolver.
   if (!importPath.startsWith("./") && !importPath.startsWith("../")) return [];
 
   const base = "src/";
   const cleaned = importPath.replace(/^\.\//, "").replace(/^\.\.\//, "");
-
-  // If the model uses ./components/Foo, assume src/components/Foo
   const stem = `${base}${cleaned}`;
 
-  // Common TS/JS extensions
   return [
     stem,
     `${stem}.ts`,
@@ -60,6 +59,8 @@ function findMissingImports(files: Record<string, string>): ImportCheck[] {
 
 export function SandboxPreview({ files, className }: SandboxPreviewProps) {
   const [lastError, setLastError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const missingImports = useMemo(() => findMissingImports(files ?? {}), [files]);
 
@@ -69,7 +70,7 @@ export function SandboxPreview({ files, className }: SandboxPreviewProps) {
       return generateBundledHTML({});
     }
     return generateBundledHTML(files);
-  }, [files]);
+  }, [files, refreshKey]);
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
@@ -77,18 +78,37 @@ export function SandboxPreview({ files, className }: SandboxPreviewProps) {
       if (!data || data.type !== "SANDBOX_ERROR") return;
       const title = typeof data.title === "string" ? data.title : "Sandbox error";
       const msg = typeof data.message === "string" ? data.message : JSON.stringify(data.message);
-      setLastError(`${title}: ${msg}`);
+      setLastError(`${title}\n\n${msg}`);
     };
 
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
+  const handleCopyError = async () => {
+    if (!lastError) return;
+    try {
+      await navigator.clipboard.writeText(lastError);
+      setCopied(true);
+      toast.success("Error copied to clipboard");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Failed to copy");
+    }
+  };
+
+  const handleRefresh = () => {
+    setLastError(null);
+    setRefreshKey((k) => k + 1);
+  };
+
   const shouldBlock = missingImports.length > 0;
+  const hasError = shouldBlock || lastError;
 
   return (
     <div className="relative w-full h-full">
       <iframe
+        key={refreshKey}
         srcDoc={bundledHTML}
         className={className}
         sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
@@ -96,41 +116,117 @@ export function SandboxPreview({ files, className }: SandboxPreviewProps) {
         title="Preview"
       />
 
-      {(shouldBlock || lastError) && (
-        <div className="absolute inset-0 p-4 bg-background/95 text-foreground">
-          <div className="h-full w-full rounded-lg border border-border bg-card p-4 overflow-auto">
-            <h2 className="text-base font-semibold">Preview failed to run</h2>
+      {hasError && (
+        <div className="absolute inset-0 p-4 bg-background/98 text-foreground overflow-auto">
+          <div className="max-w-2xl mx-auto mt-8">
+            {/* Error Header */}
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 rounded-full bg-destructive/20 flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-destructive" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-foreground">Preview Failed</h2>
+                <p className="text-sm text-muted-foreground">
+                  {shouldBlock ? "Missing imports detected" : "Runtime error occurred"}
+                </p>
+              </div>
+            </div>
 
             {shouldBlock ? (
-              <>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your App.tsx imports files that don’t exist in this project, so the preview can’t render.
+              /* Missing Imports Error */
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  Your App.tsx imports files that don't exist in this project:
                 </p>
-                <div className="mt-4 space-y-2">
+                <div className="space-y-2">
                   {missingImports.map((imp) => (
-                    <div key={imp.from} className="rounded-md border border-border bg-background p-3">
-                      <div className="text-sm font-medium">Missing: {imp.from}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Create that file under <span className="font-mono">src/</span> or update the import path.
-                      </div>
+                    <div
+                      key={imp.from}
+                      className="rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+                    >
+                      <code className="text-sm font-mono text-destructive">{imp.from}</code>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Create this file under <code className="bg-muted px-1 rounded">src/</code> or update the import path.
+                      </p>
                     </div>
                   ))}
                 </div>
-              </>
+              </div>
             ) : (
-              <>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  The generated app crashed at runtime inside the preview sandbox.
+              /* Runtime Error */
+              <div className="space-y-4">
+                <p className="text-muted-foreground">
+                  The generated app crashed at runtime. Here's the error:
                 </p>
-                <pre className="mt-4 text-xs whitespace-pre-wrap break-words">{lastError}</pre>
-              </>
+
+                {/* Error Box */}
+                <div className="rounded-lg border border-border bg-card overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2 bg-muted/50 border-b border-border">
+                    <span className="text-sm font-medium text-muted-foreground">Error Details</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={handleRefresh}
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Retry
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={handleCopyError}
+                      >
+                        {copied ? (
+                          <>
+                            <Check className="w-3 h-3 text-green-500" />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            Copy Error
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <pre className="p-4 text-xs font-mono text-destructive whitespace-pre-wrap break-words max-h-80 overflow-auto">
+                    {lastError}
+                  </pre>
+                </div>
+
+                {/* Help Tips */}
+                <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <h3 className="text-sm font-medium mb-2">Common Fixes</h3>
+                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+                    <li>Check that all component names match their imports</li>
+                    <li>Ensure all files use <code className="bg-muted px-1 rounded">export default</code> correctly</li>
+                    <li>Verify import paths use <code className="bg-muted px-1 rounded">@/</code> alias</li>
+                    <li>Look for syntax errors in the generated code</li>
+                  </ul>
+                </div>
+              </div>
             )}
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 mt-6">
+              <Button variant="outline" onClick={handleRefresh} className="gap-2">
+                <RefreshCw className="w-4 h-4" />
+                Refresh Preview
+              </Button>
+              {lastError && (
+                <Button variant="secondary" onClick={handleCopyError} className="gap-2">
+                  {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copied ? "Copied!" : "Copy Error"}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 }
-
-
-
