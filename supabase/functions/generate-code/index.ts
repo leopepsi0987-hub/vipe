@@ -712,19 +712,26 @@ ONLY OUTPUT CODE.`;
       });
     }
 
-    console.log("Calling Google Gemini API with gemini-2.5-pro model. Prompt:", prompt);
+    console.log("Calling Google Gemini API with gemini-2.5-flash model. Prompt:", prompt);
 
-    // Convert messages to Gemini format
-    const geminiContents = messages.map((msg: any) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }]
-    }));
+    // Convert messages to Gemini format - filter out system messages for contents
+    const geminiContents = messages
+      .filter((msg: any) => msg.role !== "system")
+      .map((msg: any) => ({
+        role: msg.role === "assistant" ? "model" : "user",
+        parts: [{ text: msg.content }]
+      }));
 
-    // Use Google Gemini API directly (Veutrix API)
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:streamGenerateContent?alt=sse&key=${GOOGLE_GEMINI_API_KEY}`, {
+    // Use Google AI Studio API with API key authentication
+    // Note: This uses the generativelanguage.googleapis.com endpoint with API key
+    // Different from Vertex AI which requires OAuth2
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse`;
+    
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-goog-api-key": GOOGLE_GEMINI_API_KEY,
       },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
