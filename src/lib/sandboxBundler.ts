@@ -284,7 +284,7 @@ export function generateBundledHTML(files: FileMap): string {
           presets: ['typescript', 'react'],
         }).code;
       } catch (e) {
-        throw new Error('Babel compile failed for ' + (filename || 'unknown') + '\n' + String((e && (e.stack || e.message)) || e));
+        throw new Error('Babel compile failed for ' + (filename || 'unknown') + '\\n' + String((e && (e.stack || e.message)) || e));
       }
     };
 
