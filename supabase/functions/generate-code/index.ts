@@ -13,12 +13,12 @@ serve(async (req) => {
 
   try {
     const { prompt, projectId, currentFiles } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    if (!GEMINI_API_KEY) {
+      throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
     // Fetch user's connected Supabase if projectId provided
@@ -284,35 +284,34 @@ YOUR ENTIRE RESPONSE MUST BE VALID JSON. START WITH { AND END WITH }. NO OTHER T
       }
     ];
 
-    console.log("[generate-code] Calling Lovable AI. Prompt:", prompt);
+    console.log("[generate-code] Calling Gemini 2.5 Pro. Prompt:", prompt);
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro-preview-06-05:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages,
-        stream: true,
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: systemPrompt + "\n\n" + fileContext + "\n\nUSER REQUEST: " + prompt + "\n\nRespond with ONLY the JSON file operations. No markdown, no explanations." }]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 8192,
+        }
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Lovable AI error:", response.status, errorText);
+      console.error("Gemini API error:", response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
           status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits." }), {
-          status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -323,8 +322,32 @@ YOUR ENTIRE RESPONSE MUST BE VALID JSON. START WITH { AND END WITH }. NO OTHER T
       });
     }
 
-    // Stream the response
-    return new Response(response.body, {
+    // Transform Gemini SSE format to OpenAI-compatible format for the frontend
+    const transformStream = new TransformStream({
+      transform(chunk, controller) {
+        const text = new TextDecoder().decode(chunk);
+        const lines = text.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+                const content = data.candidates[0].content.parts[0].text;
+                const openAIFormat = {
+                  choices: [{ delta: { content } }]
+                };
+                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+              }
+            } catch (e) {
+              // Skip malformed JSON
+            }
+          }
+        }
+      }
+    });
+
+    return new Response(response.body?.pipeThrough(transformStream), {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
 
