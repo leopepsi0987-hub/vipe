@@ -277,12 +277,24 @@ export function generateBundledHTML(files: FileMap): string {
 
     const payload = JSON.parse(document.getElementById('__sandbox_payload').textContent || '{}');
 
+    const __compile = (code, filename) => {
+      try {
+        return Babel.transform(code, {
+          filename: filename || 'unknown.tsx',
+          presets: ['typescript', 'react'],
+        }).code;
+      } catch (e) {
+        throw new Error('Babel compile failed for ' + (filename || 'unknown') + '\n' + String((e && (e.stack || e.message)) || e));
+      }
+    };
+
     const __cache = {};
     const __require = (path) => {
       if (__cache[path]) return __cache[path];
       const factorySrc = payload.modules && payload.modules[path];
       if (!factorySrc) throw new Error('Module not found: ' + path);
-      const exportsObj = (0, eval)(factorySrc);
+      const compiled = __compile(factorySrc, path);
+      const exportsObj = (0, eval)(compiled);
       __cache[path] = exportsObj;
       return exportsObj;
     };
@@ -292,7 +304,8 @@ export function generateBundledHTML(files: FileMap): string {
 
     try {
       // Evaluate App source (after import transforms). It should define App.
-      (0, eval)(payload.app);
+      const compiledApp = __compile(payload.app || '', 'src/App.tsx');
+      (0, eval)(compiledApp);
 
       const AppComponent = typeof App !== 'undefined' ? App : function(){ return React.createElement('div', null, 'No App component found'); };
       const root = ReactDOM.createRoot(document.getElementById('root'));
