@@ -7,6 +7,10 @@ import Index from "./pages/Index";
 import Project from "./pages/Project";
 import OAuthCallback from "./pages/OAuthCallback";
 import PublishedApp from "./pages/PublishedApp";
+import ProfilePage from "./pages/ProfilePage";
+import BuilderPage from "./pages/BuilderPage";
+import MessagesPage from "./pages/MessagesPage";
+import NewsPage from "./pages/NewsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -19,10 +23,13 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/builder" element={<BuilderPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
+          <Route path="/news" element={<NewsPage />} />
           <Route path="/project/:projectId" element={<Project />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/app/:slug" element={<PublishedApp />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
