@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { StackBlitzPreview } from "./StackBlitzPreview";
+import { SandboxPreview } from "./SandboxPreview";
 import { FileExplorer } from "./FileExplorer";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
 import {
@@ -432,7 +432,7 @@ export function Preview({
               style={{ width: deviceConfig[deviceMode].width, height: deviceConfig[deviceMode].height }}
             >
               {isFileMode ? (
-                <StackBlitzPreview files={files ?? {}} className="w-full h-full" />
+                <SandboxPreview files={files ?? {}} className="w-full h-full" />
               ) : (
                 <iframe
                   ref={iframeRef}
