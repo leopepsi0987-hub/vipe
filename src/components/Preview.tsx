@@ -359,8 +359,20 @@ export function Preview({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className={cn("h-7 px-2 rounded-sm text-xs gap-1", previewEngine === "webcontainer" && "bg-background shadow-sm")}
+                          disabled={!window.crossOriginIsolated}
+                          className={cn(
+                            "h-7 px-2 rounded-sm text-xs gap-1",
+                            previewEngine === "webcontainer" && "bg-background shadow-sm",
+                            !window.crossOriginIsolated && "opacity-60"
+                          )}
                           onClick={() => {
+                            if (!window.crossOriginIsolated) {
+                              toast.error("Full preview needs cross-origin isolation", {
+                                description: "Open the published app (top-level tab) or run locally. The editor preview iframe can’t enable it.",
+                              });
+                              setPreviewEngine("sandbox");
+                              return;
+                            }
                             setPreviewEngine("webcontainer");
                             toast.info("Full mode", { description: "Real Vite dev server, takes longer to load" });
                           }}
@@ -370,7 +382,11 @@ export function Preview({
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Real Vite dev server (like Lovable)</p>
+                        <p>
+                          {window.crossOriginIsolated
+                            ? "Real Vite dev server (like Lovable)"
+                            : "Requires COOP/COEP (only works in a normal top-level tab)"}
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </div>

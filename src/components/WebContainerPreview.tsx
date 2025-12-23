@@ -245,6 +245,15 @@ export function WebContainerPreview({ files, className }: WebContainerPreviewPro
 
   const initWebContainer = useCallback(async () => {
     try {
+      // WebContainers require cross-origin isolation (SharedArrayBuffer)
+      if (!window.crossOriginIsolated) {
+        const msg = "This page is not crossOriginIsolated (COOP/COEP missing).";
+        setError(msg);
+        setStatus("error");
+        addLog(`Error: ${msg}`);
+        return;
+      }
+
       setStatus("booting");
       setError(null);
       addLog("Booting WebContainer...");
@@ -332,7 +341,7 @@ export function WebContainerPreview({ files, className }: WebContainerPreviewPro
               <h3 className="text-lg font-semibold mb-2">WebContainer Error</h3>
               <p className="text-sm text-muted-foreground mb-4">{error}</p>
               <p className="text-xs text-muted-foreground mb-4">
-                WebContainers require specific browser headers (COOP/COEP). Try using Fast mode instead.
+                WebContainers need cross-origin isolation (COOP/COEP). In the editor preview iframe this is usually not possible.
               </p>
               <Button onClick={handleRestart} variant="outline" className="gap-2">
                 <RefreshCw className="w-4 h-4" />
