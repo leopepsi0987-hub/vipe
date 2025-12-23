@@ -15,6 +15,8 @@ import {
   Tablet,
   Save,
   ChevronDown,
+  Zap,
+  Box,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { toast } from "sonner";
@@ -26,6 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SandboxPreview } from "./SandboxPreview";
+import { StackBlitzPreview } from "./StackBlitzPreview";
 import { FileExplorer } from "./FileExplorer";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
 import {
@@ -34,6 +37,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface PreviewProps {
   html: string;
@@ -51,6 +60,7 @@ interface PreviewProps {
 }
 
 type DeviceMode = "desktop" | "tablet" | "mobile";
+type PreviewEngine = "sandbox" | "stackblitz";
 
 function getLanguageForFile(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase();
@@ -92,6 +102,7 @@ export function Preview({
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop");
+  const [previewEngine, setPreviewEngine] = useState<PreviewEngine>("sandbox");
   const [publishing, setPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [localView, setLocalView] = useState<"preview" | "code">(activeView);
@@ -320,6 +331,52 @@ export function Preview({
           {/* Device mode buttons - only show in preview mode */}
           {currentView === "preview" && (
             <>
+              {/* Preview Engine Toggle - only for file mode */}
+              {isFileMode && (
+                <TooltipProvider>
+                  <div className="flex bg-secondary rounded-md p-0.5 mr-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn("h-7 px-2 rounded-sm text-xs gap-1", previewEngine === "sandbox" && "bg-background shadow-sm")}
+                          onClick={() => {
+                            setPreviewEngine("sandbox");
+                            toast.success("Fast mode", { description: "Instant preview, limited npm support" });
+                          }}
+                        >
+                          <Zap className="w-3 h-3" />
+                          Fast
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Instant preview (no npm install)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn("h-7 px-2 rounded-sm text-xs gap-1", previewEngine === "stackblitz" && "bg-background shadow-sm")}
+                          onClick={() => {
+                            setPreviewEngine("stackblitz");
+                            toast.info("Full mode", { description: "Full npm support, takes longer to load" });
+                          }}
+                        >
+                          <Box className="w-3 h-3" />
+                          Full
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Full npm packages (slower)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
+              )}
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -432,7 +489,11 @@ export function Preview({
               style={{ width: deviceConfig[deviceMode].width, height: deviceConfig[deviceMode].height }}
             >
               {isFileMode ? (
-                <SandboxPreview files={files ?? {}} className="w-full h-full" />
+                previewEngine === "stackblitz" ? (
+                  <StackBlitzPreview files={files ?? {}} className="w-full h-full" />
+                ) : (
+                  <SandboxPreview files={files ?? {}} className="w-full h-full" />
+                )
               ) : (
                 <iframe
                   ref={iframeRef}
