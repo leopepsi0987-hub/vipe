@@ -248,6 +248,53 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
         const finalText = await streamSseToText(response, (next) => setStreamingContent(next));
 
+        // Check for SQL execution blocks [VIPE_SQL]...[/VIPE_SQL]
+        const sqlMatch = finalText.match(/\[VIPE_SQL\]([\s\S]*?)\[\/VIPE_SQL\]/);
+        if (sqlMatch && hasConnectedSupabase) {
+          const sql = sqlMatch[1].trim();
+          console.log("[Editor] Detected SQL block, executing migration...");
+          
+          try {
+            const migrationResponse = await fetch(
+              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/execute-migration`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+                },
+                body: JSON.stringify({
+                  action: "run_sql_migration",
+                  projectId: project.id,
+                  sql,
+                  description: "Auto-executed from Vipe AI",
+                }),
+              }
+            );
+
+            const migrationResult = await migrationResponse.json();
+            
+            if (migrationResult.success) {
+              if (migrationResult.data?.requiresManualExecution) {
+                toast.info("SQL ready! Open your Supabase SQL Editor to run it.", {
+                  duration: 8000,
+                  action: {
+                    label: "Open Dashboard",
+                    onClick: () => window.open(migrationResult.data.dashboardUrl, "_blank"),
+                  },
+                });
+              } else {
+                toast.success("Database updated successfully!");
+              }
+            } else {
+              toast.error(`Database error: ${migrationResult.error}`);
+            }
+          } catch (sqlError) {
+            console.error("[Editor] SQL execution error:", sqlError);
+            toast.error("Failed to execute database changes");
+          }
+        }
+
         const assistantMessage: Message = {
           id: crypto.randomUUID(),
           role: "assistant",

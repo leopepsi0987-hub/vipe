@@ -61,7 +61,7 @@ serve(async (req) => {
       return conn;
     }
 
-  // Execute SQL migration directly using service role key
+  // Execute SQL migration using the Supabase Management API
   async function executeMigration(
     connection: { url: string; serviceRoleKey: string; accessToken?: string },
     sql: string
@@ -75,13 +75,12 @@ serve(async (req) => {
       }
 
       console.log(`[executeMigration] Project: ${projectRef}, SQL length: ${sql.length}`);
-      console.log(`[executeMigration] SQL preview: ${sql.substring(0, 300)}...`);
+      console.log(`[executeMigration] SQL preview: ${sql.substring(0, 500)}...`);
 
-      // Split SQL into individual statements and execute via PostgREST RPC
-      // For DDL statements, we need to use the Management API or pg REST
-      
-      // Option 1: Try Management API with OAuth access token
+      // Method 1: Use OAuth access token with Management API (preferred)
       if (connection.accessToken) {
+        console.log("[executeMigration] Trying Management API with OAuth token...");
+        
         const response = await fetch(
           `https://api.supabase.com/v1/projects/${projectRef}/database/query`,
           {
@@ -96,57 +95,60 @@ serve(async (req) => {
 
         if (response.ok) {
           const result = await response.json();
-          console.log("[executeMigration] Success via Management API");
+          console.log("[executeMigration] ✅ Success via Management API");
           return { success: true, data: result };
         }
         
         const errorText = await response.text();
         console.error("[executeMigration] Management API error:", response.status, errorText);
         
-        if (response.status === 401) {
-          // Try service role approach
-          console.log("[executeMigration] OAuth token invalid, falling back to service role");
-        } else {
-          return { success: false, error: `Database error: ${errorText}` };
+        // If 401, token might be expired - but we'll try direct connection
+        if (response.status !== 401) {
+          // Parse error for better message
+          try {
+            const errorJson = JSON.parse(errorText);
+            return { 
+              success: false, 
+              error: errorJson.message || errorJson.error || `Database error: ${errorText}` 
+            };
+          } catch {
+            return { success: false, error: `Database error: ${errorText}` };
+          }
         }
+        
+        console.log("[executeMigration] OAuth token failed, trying direct database connection...");
       }
 
-      // Option 2: Use the user's Supabase service role key directly with pg API
-      // Execute via supabase-js by creating a temporary RPC function or using pg_net
-      const userSupabase = createClient(connection.url, connection.serviceRoleKey, {
-        db: { schema: 'public' },
-        auth: { persistSession: false }
-      });
-
-      // For DDL operations, we need to use the SQL API endpoint
-      // The REST API at /rest/v1/rpc can execute functions
+      // Method 2: Try using pg-meta API endpoint (works with service role)
+      console.log("[executeMigration] Trying pg-meta query endpoint...");
       
-      // Try executing directly via the pg REST endpoint
-      const pgResponse = await fetch(`${connection.url}/rest/v1/rpc/exec_sql`, {
+      const pgMetaResponse = await fetch(`${connection.url}/pg/query`, {
         method: "POST",
         headers: {
           "apikey": connection.serviceRoleKey,
           "Authorization": `Bearer ${connection.serviceRoleKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ sql_query: sql }),
+        body: JSON.stringify({ query: sql }),
       });
 
-      if (pgResponse.ok) {
-        const result = await pgResponse.json();
-        console.log("[executeMigration] Success via exec_sql RPC");
+      if (pgMetaResponse.ok) {
+        const result = await pgMetaResponse.json();
+        console.log("[executeMigration] ✅ Success via pg-meta API");
         return { success: true, data: result };
       }
 
-      // If exec_sql doesn't exist, provide dashboard link
-      console.log("[executeMigration] No exec_sql RPC, returning manual execution info");
+      // Method 3: Return SQL for dashboard execution with copy-ready format
+      console.log("[executeMigration] Direct execution not available, returning SQL for dashboard");
+      
       return {
         success: true,
         data: {
           requiresManualExecution: true,
           sql,
-          message: "Run this SQL in your Supabase SQL Editor",
+          message: "⚠️ Run this SQL in your Supabase SQL Editor:",
           dashboardUrl: `https://supabase.com/dashboard/project/${projectRef}/sql/new`,
+          projectRef,
         },
       };
     } catch (error) {
