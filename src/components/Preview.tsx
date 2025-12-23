@@ -28,7 +28,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SandboxPreview } from "./SandboxPreview";
-import { StackBlitzPreview } from "./StackBlitzPreview";
+import { WebContainerPreview } from "./WebContainerPreview";
 import { FileExplorer } from "./FileExplorer";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
 import {
@@ -60,7 +60,7 @@ interface PreviewProps {
 }
 
 type DeviceMode = "desktop" | "tablet" | "mobile";
-type PreviewEngine = "sandbox" | "stackblitz";
+type PreviewEngine = "sandbox" | "webcontainer";
 
 function getLanguageForFile(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase();
@@ -359,10 +359,10 @@ export function Preview({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className={cn("h-7 px-2 rounded-sm text-xs gap-1", previewEngine === "stackblitz" && "bg-background shadow-sm")}
+                          className={cn("h-7 px-2 rounded-sm text-xs gap-1", previewEngine === "webcontainer" && "bg-background shadow-sm")}
                           onClick={() => {
-                            setPreviewEngine("stackblitz");
-                            toast.info("Full mode", { description: "Full npm support, takes longer to load" });
+                            setPreviewEngine("webcontainer");
+                            toast.info("Full mode", { description: "Real Vite dev server, takes longer to load" });
                           }}
                         >
                           <Box className="w-3 h-3" />
@@ -370,7 +370,7 @@ export function Preview({
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Full npm packages (slower)</p>
+                        <p>Real Vite dev server (like Lovable)</p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -489,8 +489,8 @@ export function Preview({
               style={{ width: deviceConfig[deviceMode].width, height: deviceConfig[deviceMode].height }}
             >
               {isFileMode ? (
-                previewEngine === "stackblitz" ? (
-                  <StackBlitzPreview files={files ?? {}} className="w-full h-full" />
+                previewEngine === "webcontainer" ? (
+                  <WebContainerPreview files={files ?? {}} className="w-full h-full" />
                 ) : (
                   <SandboxPreview files={files ?? {}} className="w-full h-full" />
                 )
