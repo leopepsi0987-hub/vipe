@@ -200,6 +200,7 @@ export function StackBlitzPreview({ files, className }: StackBlitzPreviewProps) 
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const embedRef = useRef<any>(null);
   const filesHashRef = useRef<string>("");
 
@@ -210,9 +211,17 @@ export function StackBlitzPreview({ files, className }: StackBlitzPreviewProps) 
       .join("|");
   };
 
+  // Track when component is mounted
   useEffect(() => {
-    if (!containerRef.current) return;
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
+  useEffect(() => {
+    // Wait for mount and ref to be ready
+    if (!mounted || !containerRef.current) return;
+
+    const container = containerRef.current;
     const currentHash = getFilesHash(files);
     
     // If files haven't changed, don't re-embed
@@ -227,42 +236,46 @@ export function StackBlitzPreview({ files, className }: StackBlitzPreviewProps) 
     const stackblitzFiles = convertFilesToStackBlitz(files);
 
     // Clear previous embed
-    if (containerRef.current) {
-      containerRef.current.innerHTML = "";
-    }
+    container.innerHTML = "";
 
-    sdk.embedProject(
-      containerRef.current,
-      {
-        title: "Vipe Preview",
-        description: "Live preview powered by StackBlitz",
-        template: "node",
-        files: stackblitzFiles,
-      },
-      {
-        clickToLoad: false,
-        openFile: "src/App.tsx",
-        terminalHeight: 0,
-        hideNavigation: true,
-        hideDevTools: true,
-        view: "preview",
-        height: "100%",
-      }
-    )
-      .then((vm) => {
-        embedRef.current = vm;
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("StackBlitz embed error:", err);
-        setError(err.message || "Failed to load preview");
-        setLoading(false);
-      });
+    // Use requestAnimationFrame to ensure DOM is ready
+    const rafId = requestAnimationFrame(() => {
+      if (!container || !document.body.contains(container)) return;
+      
+      sdk.embedProject(
+        container,
+        {
+          title: "Vipe Preview",
+          description: "Live preview powered by StackBlitz",
+          template: "node",
+          files: stackblitzFiles,
+        },
+        {
+          clickToLoad: false,
+          openFile: "src/App.tsx",
+          terminalHeight: 0,
+          hideNavigation: true,
+          hideDevTools: true,
+          view: "preview",
+          height: "100%",
+        }
+      )
+        .then((vm) => {
+          embedRef.current = vm;
+          setLoading(false);
+        })
+        .catch((err) => {
+          console.error("StackBlitz embed error:", err);
+          setError(err.message || "Failed to load preview");
+          setLoading(false);
+        });
+    });
 
     return () => {
+      cancelAnimationFrame(rafId);
       embedRef.current = null;
     };
-  }, [files]);
+  }, [files, mounted]);
 
   const handleRefresh = () => {
     filesHashRef.current = "";
