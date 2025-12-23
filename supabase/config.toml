@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.execute-migration]
 verify_jwt = false
+
+[functions.db-agent]
+verify_jwt = false
