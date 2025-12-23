@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
 import { AuthPage } from "@/components/AuthPage";
-import { Dashboard } from "@/components/Dashboard";
+import { ProfileSetup } from "@/components/ProfileSetup";
 import { VideoIntro } from "@/components/VideoIntro";
 import { Loader2 } from "lucide-react";
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile();
   const [showIntro, setShowIntro] = useState(true);
   const [introComplete, setIntroComplete] = useState(false);
 
@@ -18,6 +22,13 @@ const Index = () => {
     }
   }, []);
 
+  useEffect(() => {
+    // Redirect to builder if user has profile
+    if (user && profile && !authLoading && !profileLoading) {
+      navigate("/builder");
+    }
+  }, [user, profile, authLoading, profileLoading, navigate]);
+
   const handleIntroComplete = () => {
     sessionStorage.setItem("hasSeenIntro", "true");
     setShowIntro(false);
@@ -28,7 +39,7 @@ const Index = () => {
     return <VideoIntro onComplete={handleIntroComplete} />;
   }
 
-  if (loading) {
+  if (authLoading || (user && profileLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -40,7 +51,12 @@ const Index = () => {
     return <AuthPage />;
   }
 
-  return <Dashboard />;
+  // User exists but no profile - show setup
+  if (!profile) {
+    return <ProfileSetup onComplete={() => navigate("/builder")} />;
+  }
+
+  return null;
 };
 
 export default Index;
