@@ -41,8 +41,11 @@ export function ChatMessage({
   const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const { t, isRTL } = useI18n();
 
-  // Parse out [VIPE_ACTIONS] block from content for display
-  const displayContent = content.replace(/\[VIPE_ACTIONS\][\s\S]*?\[\/VIPE_ACTIONS\]/g, '').trim();
+  // Parse out [VIPE_ACTIONS] and [VIPE_SQL] blocks from content for display
+  const displayContent = content
+    .replace(/\[VIPE_ACTIONS\][\s\S]*?\[\/VIPE_ACTIONS\]/g, '')
+    .replace(/\[VIPE_SQL\][\s\S]*?\[\/VIPE_SQL\]/g, '✅ Database changes applied!')
+    .trim();
 
   const handleCopy = () => {
     navigator.clipboard.writeText(displayContent);
