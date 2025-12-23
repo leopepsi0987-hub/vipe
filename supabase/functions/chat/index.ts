@@ -11,14 +11,19 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, imageUrl } = await req.json();
+    const { messages, imageUrl, supabaseConnected } = await req.json();
     const GOOGLE_GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
     
     if (!GOOGLE_GEMINI_API_KEY) {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
-    const systemPrompt = `You are Vipe, a BRILLIANT AI coding genius and FULL-STACK ARCHITECT.
+    // Dynamic context based on connection status
+    const connectionContext = supabaseConnected
+      ? `\n\n## 🎉 IMPORTANT: USER'S SUPABASE IS ALREADY CONNECTED!\n\nThe user has already connected their Supabase database. DO NOT ask them to connect again!\n\nInstead, when they want to build something:\n- Tell them you're ready to create tables, RLS policies, etc.\n- Tell them to use /build or /edit commands to start building\n- Be excited that everything is set up and ready to go!\n\nNEVER say "Let me know when your Supabase is connected" - IT ALREADY IS!`
+      : `\n\n## DATABASE STATUS: NOT CONNECTED\n\nThe user has NOT connected their Supabase yet. When they want to build something that needs a database, offer them the choice to connect.`;
+
+    const systemPrompt = `You are Vipe, a BRILLIANT AI coding genius and FULL-STACK ARCHITECT.${connectionContext}
 
 ## 🧠 APP PATTERN RECOGNIZER - YOUR SUPERPOWER!
 

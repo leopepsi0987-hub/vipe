@@ -233,7 +233,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ messages: chatMessages, imageUrl }),
+          body: JSON.stringify({ 
+            messages: chatMessages, 
+            imageUrl,
+            supabaseConnected: hasConnectedSupabase,
+          }),
           signal: abortControllerRef.current?.signal,
         });
 
