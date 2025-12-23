@@ -6,6 +6,7 @@ import { Preview } from "./Preview";
 import { DataPanel } from "./DataPanel";
 import { VisualEditor } from "./VisualEditor";
 import { VersionHistoryPanel } from "./VersionHistoryPanel";
+import { SqlPreviewModal } from "./SqlPreviewModal";
 import { Project } from "@/hooks/useProjects";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -52,6 +53,12 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showVisualEditor, setShowVisualEditor] = useState(false);
   const [dbChoice, setDbChoice] = useState<"BUILT_IN_DB" | "CUSTOM_DB" | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+  
+  // SQL Preview Modal state
+  const [showSqlModal, setShowSqlModal] = useState(false);
+  const [pendingSql, setPendingSql] = useState("");
+  const [isExecutingSql, setIsExecutingSql] = useState(false);
+  
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -252,47 +259,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         const sqlMatch = finalText.match(/\[VIPE_SQL\]([\s\S]*?)\[\/VIPE_SQL\]/);
         if (sqlMatch && hasConnectedSupabase) {
           const sql = sqlMatch[1].trim();
-          console.log("[Editor] Detected SQL block, executing migration...");
+          console.log("[Editor] Detected SQL block, showing preview modal...");
           
-          try {
-            const migrationResponse = await fetch(
-              `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/execute-migration`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-                },
-                body: JSON.stringify({
-                  action: "run_sql_migration",
-                  projectId: project.id,
-                  sql,
-                  description: "Auto-executed from Vipe AI",
-                }),
-              }
-            );
-
-            const migrationResult = await migrationResponse.json();
-            
-            if (migrationResult.success) {
-              if (migrationResult.data?.requiresManualExecution) {
-                toast.info("SQL ready! Open your Supabase SQL Editor to run it.", {
-                  duration: 8000,
-                  action: {
-                    label: "Open Dashboard",
-                    onClick: () => window.open(migrationResult.data.dashboardUrl, "_blank"),
-                  },
-                });
-              } else {
-                toast.success("Database updated successfully!");
-              }
-            } else {
-              toast.error(`Database error: ${migrationResult.error}`);
-            }
-          } catch (sqlError) {
-            console.error("[Editor] SQL execution error:", sqlError);
-            toast.error("Failed to execute database changes");
-          }
+          // Show the SQL preview modal instead of auto-executing
+          setPendingSql(sql);
+          setShowSqlModal(true);
         }
 
         const assistantMessage: Message = {
@@ -391,6 +362,63 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
+  };
+
+  // SQL Execution Handler
+  const handleExecuteSql = async () => {
+    if (!pendingSql) return;
+    
+    setIsExecutingSql(true);
+    
+    try {
+      const migrationResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/execute-migration`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+          body: JSON.stringify({
+            action: "run_sql_migration",
+            projectId: project.id,
+            sql: pendingSql,
+            description: "Executed from Vipe AI with user approval",
+          }),
+        }
+      );
+
+      const migrationResult = await migrationResponse.json();
+      
+      if (migrationResult.success) {
+        if (migrationResult.data?.requiresManualExecution) {
+          toast.info("SQL ready! Open your Supabase SQL Editor to run it.", {
+            duration: 8000,
+            action: {
+              label: "Open Dashboard",
+              onClick: () => window.open(migrationResult.data.dashboardUrl, "_blank"),
+            },
+          });
+        } else {
+          toast.success("Database updated successfully!");
+        }
+        setShowSqlModal(false);
+        setPendingSql("");
+      } else {
+        toast.error(`Database error: ${migrationResult.error}`);
+      }
+    } catch (sqlError) {
+      console.error("[Editor] SQL execution error:", sqlError);
+      toast.error("Failed to execute database changes");
+    } finally {
+      setIsExecutingSql(false);
+    }
+  };
+
+  const handleCancelSql = () => {
+    setShowSqlModal(false);
+    setPendingSql("");
+    toast.info("Database changes cancelled");
   };
 
   // Mobile Layout
@@ -555,6 +583,16 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           />
         )}
         {isGenerating && <BuildingOverlay isBuilding={true} />}
+
+        {/* SQL Preview Modal (Mobile) */}
+        <SqlPreviewModal
+          open={showSqlModal}
+          onOpenChange={setShowSqlModal}
+          sql={pendingSql}
+          onApprove={handleExecuteSql}
+          onCancel={handleCancelSql}
+          isExecuting={isExecutingSql}
+        />
       </div>
     );
   }
@@ -751,6 +789,16 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           onClose={() => setShowVisualEditor(false)}
         />
       )}
+
+      {/* SQL Preview Modal */}
+      <SqlPreviewModal
+        open={showSqlModal}
+        onOpenChange={setShowSqlModal}
+        sql={pendingSql}
+        onApprove={handleExecuteSql}
+        onCancel={handleCancelSql}
+        isExecuting={isExecutingSql}
+      />
     </ResizablePanelGroup>
   );
 }

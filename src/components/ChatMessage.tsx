@@ -42,9 +42,10 @@ export function ChatMessage({
   const { t, isRTL } = useI18n();
 
   // Parse out [VIPE_ACTIONS] and [VIPE_SQL] blocks from content for display
+  const hasSqlBlock = content.includes('[VIPE_SQL]');
   const displayContent = content
     .replace(/\[VIPE_ACTIONS\][\s\S]*?\[\/VIPE_ACTIONS\]/g, '')
-    .replace(/\[VIPE_SQL\][\s\S]*?\[\/VIPE_SQL\]/g, '✅ Database changes applied!')
+    .replace(/\[VIPE_SQL\][\s\S]*?\[\/VIPE_SQL\]/g, '')
     .trim();
 
   const handleCopy = () => {
@@ -122,6 +123,16 @@ export function ChatMessage({
                 <span className="inline-block w-2 h-5 ml-1 bg-foreground/70 animate-pulse rounded-sm" />
               )}
             </div>
+
+            {/* SQL indicator */}
+            {hasSqlBlock && !isStreaming && (
+              <div className="flex items-center gap-2 mt-3 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                <Database className="w-4 h-4 text-primary" />
+                <span className="text-sm text-primary font-medium">
+                  Database changes detected - Review in modal
+                </span>
+              </div>
+            )}
 
             {/* Quick Action Buttons */}
             {actions && actions.length > 0 && !isStreaming && (
