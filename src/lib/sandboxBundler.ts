@@ -807,10 +807,14 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
       return "// CSS import skipped in sandbox";
     }
 
-    // Handle asset imports (images, fonts, etc.) - return placeholder URL
+    // Handle asset imports (images, fonts, etc.) - return nice placeholder
     if (/\.(png|jpg|jpeg|gif|svg|webp|ico|bmp|tiff)$/i.test(spec)) {
       const varName = bindings.trim();
-      return `const ${varName} = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ddd' width='100' height='100'/%3E%3C/svg%3E"; // Image placeholder`;
+      // Create a nicer placeholder with the image icon and filename
+      const fileName = spec.split('/').pop() || 'image';
+      // SVG placeholder with image icon and filename text
+      const placeholderSvg = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect fill='%23374151' width='400' height='300' rx='8'/%3E%3Crect x='140' y='80' width='120' height='100' rx='8' fill='%234B5563' stroke='%236B7280' stroke-width='2'/%3E%3Ccircle cx='170' cy='115' r='12' fill='%239CA3AF'/%3E%3Cpath d='M150 165 L175 135 L200 155 L225 125 L250 165 Z' fill='%239CA3AF'/%3E%3Ctext x='200' y='220' text-anchor='middle' fill='%239CA3AF' font-family='system-ui, sans-serif' font-size='14'%3E${encodeURIComponent(fileName)}%3C/text%3E%3C/svg%3E`;
+      return `const ${varName} = "${placeholderSvg}"; // Image placeholder`;
     }
 
     if (/\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i.test(spec)) {
