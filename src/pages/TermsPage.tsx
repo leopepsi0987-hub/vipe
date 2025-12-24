@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import logo from "@/assets/logo.png";
 
 export default function TermsPage() {
   const navigate = useNavigate();
@@ -13,8 +14,9 @@ export default function TermsPage() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <button onClick={() => navigate("/")} className="text-xl font-bold text-primary">
-            BuilderAI
+          <button onClick={() => navigate("/")} className="flex items-center gap-2">
+            <img src={logo} alt="VipeAI" className="w-8 h-8" />
+            <span className="text-xl font-bold text-primary">VipeAI</span>
           </button>
         </div>
       </header>
@@ -28,7 +30,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-semibold mb-4">1. Acceptance of Terms</h2>
             <p className="text-muted-foreground leading-relaxed">
-              By accessing or using BuilderAI ("the Service"), you agree to be bound by these Terms of Service. 
+              By accessing or using VipeAI ("the Service"), you agree to be bound by these Terms of Service. 
               If you do not agree to these terms, please do not use the Service. We reserve the right to modify 
               these terms at any time, and your continued use of the Service constitutes acceptance of any changes.
             </p>
@@ -37,7 +39,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-semibold mb-4">2. Description of Service</h2>
             <p className="text-muted-foreground leading-relaxed">
-              BuilderAI is an AI-powered application development platform that allows users to create, edit, 
+              VipeAI is an AI-powered application development platform that allows users to create, edit, 
               and deploy web applications. The Service includes AI assistance, code generation, project hosting, 
               and related features as described on our website.
             </p>
@@ -65,9 +67,9 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-semibold mb-4">5. Intellectual Property</h2>
             <p className="text-muted-foreground leading-relaxed">
-              You retain ownership of any content you create using the Service. However, you grant BuilderAI 
+              You retain ownership of any content you create using the Service. However, you grant VipeAI 
               a license to host, store, and display your content as necessary to provide the Service. The 
-              Service itself, including its code, design, and branding, remains the property of BuilderAI.
+              Service itself, including its code, design, and branding, remains the property of VipeAI.
             </p>
           </section>
 
@@ -83,7 +85,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-2xl font-semibold mb-4">7. Limitation of Liability</h2>
             <p className="text-muted-foreground leading-relaxed">
-              The Service is provided "as is" without warranties of any kind. BuilderAI shall not be liable 
+              The Service is provided "as is" without warranties of any kind. VipeAI shall not be liable 
               for any indirect, incidental, special, or consequential damages arising from your use of the 
               Service. Our total liability shall not exceed the amount you paid for the Service in the 
               preceding 12 months.
@@ -91,9 +93,21 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">8. Contact</h2>
+            <h2 className="text-2xl font-semibold mb-4">8. Governing Law</h2>
             <p className="text-muted-foreground leading-relaxed">
-              If you have any questions about these Terms of Service, please contact us at support@builderai.com.
+              These Terms shall be governed by and construed in accordance with applicable laws. Any disputes 
+              arising from these Terms or the Service shall be resolved through binding arbitration or in 
+              the courts of competent jurisdiction.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">9. Contact</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              If you have any questions about these Terms of Service, please contact us at{" "}
+              <a href="mailto:vipedz@hotmail.com" className="text-primary hover:underline">
+                vipedz@hotmail.com
+              </a>.
             </p>
           </section>
         </div>
@@ -104,7 +118,7 @@ export default function TermsPage() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 BuilderAI. All rights reserved.
+              © 2024 VipeAI. All rights reserved.
             </p>
             <div className="flex gap-6">
               <button onClick={() => navigate("/pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">

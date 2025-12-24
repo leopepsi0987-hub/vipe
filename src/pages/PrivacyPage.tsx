@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import logo from "@/assets/logo.png";
 
 export default function PrivacyPage() {
   const navigate = useNavigate();
@@ -13,8 +14,9 @@ export default function PrivacyPage() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <button onClick={() => navigate("/")} className="text-xl font-bold text-primary">
-            BuilderAI
+          <button onClick={() => navigate("/")} className="flex items-center gap-2">
+            <img src={logo} alt="VipeAI" className="w-8 h-8" />
+            <span className="text-xl font-bold text-primary">VipeAI</span>
           </button>
         </div>
       </header>
@@ -65,45 +67,86 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">5. Your Rights</h2>
+            <h2 className="text-2xl font-semibold mb-4">5. Your Rights (GDPR)</h2>
             <p className="text-muted-foreground leading-relaxed">
-              You have the right to access, correct, or delete your personal information. You can update 
-              your account information at any time through your account settings. You may also request 
-              deletion of your account by contacting us. Note that we may retain certain information as 
-              required by law or for legitimate business purposes.
+              Under the General Data Protection Regulation (GDPR), you have the following rights:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-2">
+              <li><strong>Right to Access:</strong> You can request a copy of your personal data.</li>
+              <li><strong>Right to Rectification:</strong> You can request correction of inaccurate data.</li>
+              <li><strong>Right to Erasure:</strong> You can request deletion of your personal data.</li>
+              <li><strong>Right to Portability:</strong> You can request your data in a portable format.</li>
+              <li><strong>Right to Object:</strong> You can object to processing of your personal data.</li>
+              <li><strong>Right to Restrict Processing:</strong> You can request limited processing of your data.</li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              To exercise these rights, please contact us at{" "}
+              <a href="mailto:vipedz@hotmail.com" className="text-primary hover:underline">
+                vipedz@hotmail.com
+              </a>.
             </p>
           </section>
 
           <section>
             <h2 className="text-2xl font-semibold mb-4">6. Cookies and Tracking</h2>
             <p className="text-muted-foreground leading-relaxed">
-              We use cookies and similar technologies to collect usage data and improve our Service. You 
-              can control cookies through your browser settings, but disabling cookies may affect the 
-              functionality of our Service.
+              We use cookies and similar technologies to collect usage data and improve our Service. 
+              Types of cookies we use include:
+            </p>
+            <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-2">
+              <li><strong>Essential Cookies:</strong> Required for basic site functionality.</li>
+              <li><strong>Analytics Cookies:</strong> Help us understand how you use our Service.</li>
+              <li><strong>Preference Cookies:</strong> Remember your settings and preferences.</li>
+            </ul>
+            <p className="text-muted-foreground leading-relaxed mt-4">
+              You can control cookies through your browser settings or our cookie consent banner.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">7. Children's Privacy</h2>
+            <h2 className="text-2xl font-semibold mb-4">7. Data Retention</h2>
             <p className="text-muted-foreground leading-relaxed">
-              Our Service is not directed to children under 13 years of age. We do not knowingly collect 
-              personal information from children under 13. If we learn that we have collected personal 
-              information from a child under 13, we will delete that information.
+              We retain your personal data only for as long as necessary to fulfill the purposes for which 
+              it was collected, including to satisfy legal, accounting, or reporting requirements. When 
+              your data is no longer required, we will securely delete or anonymize it.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">8. Changes to This Policy</h2>
+            <h2 className="text-2xl font-semibold mb-4">8. International Data Transfers</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              Your information may be transferred to and processed in countries other than your own. 
+              We ensure appropriate safeguards are in place to protect your data in accordance with 
+              applicable data protection laws.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">9. Children's Privacy</h2>
+            <p className="text-muted-foreground leading-relaxed">
+              Our Service is not directed to children under 16 years of age. We do not knowingly collect 
+              personal information from children under 16. If we learn that we have collected personal 
+              information from a child under 16, we will delete that information.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-2xl font-semibold mb-4">10. Changes to This Policy</h2>
             <p className="text-muted-foreground leading-relaxed">
               We may update this Privacy Policy from time to time. We will notify you of any changes by 
-              posting the new Privacy Policy on this page and updating the "Last updated" date.
+              posting the new Privacy Policy on this page and updating the "Last updated" date. We encourage 
+              you to review this policy periodically.
             </p>
           </section>
 
           <section>
-            <h2 className="text-2xl font-semibold mb-4">9. Contact Us</h2>
+            <h2 className="text-2xl font-semibold mb-4">11. Contact Us</h2>
             <p className="text-muted-foreground leading-relaxed">
-              If you have any questions about this Privacy Policy, please contact us at privacy@builderai.com.
+              If you have any questions about this Privacy Policy or wish to exercise your rights, please 
+              contact our Data Protection Officer at{" "}
+              <a href="mailto:vipedz@hotmail.com" className="text-primary hover:underline">
+                vipedz@hotmail.com
+              </a>.
             </p>
           </section>
         </div>
@@ -114,7 +157,7 @@ export default function PrivacyPage() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 BuilderAI. All rights reserved.
+              © 2024 VipeAI. All rights reserved.
             </p>
             <div className="flex gap-6">
               <button onClick={() => navigate("/pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">

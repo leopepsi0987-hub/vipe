@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Sparkles, ArrowRight, Loader2, Zap, Star } from "lucide-react";
+import { Sparkles, ArrowRight, Loader2, Star } from "lucide-react";
 import { useI18n, LanguageToggle } from "@/lib/i18n";
+import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
 export function AuthPage() {
@@ -139,10 +140,10 @@ export function AuthPage() {
             <div className="absolute w-20 h-20 md:w-24 md:h-24 rounded-2xl border-2 border-accent/20 animate-ripple" style={{ animationDelay: '0.5s' }} />
             
             {/* Logo */}
-            <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-gradient-primary flex items-center justify-center shadow-glow hover-scale cursor-pointer overflow-hidden animate-energy-pulse group">
+            <div className="relative w-16 h-16 md:w-20 md:h-20 rounded-2xl bg-card/50 backdrop-blur-sm flex items-center justify-center shadow-glow hover-scale cursor-pointer overflow-hidden animate-energy-pulse group p-2">
               {/* Shimmer */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
-              <Zap className="w-8 h-8 md:w-10 md:h-10 text-white relative z-10 drop-shadow-lg group-hover:animate-wiggle" />
+              <img src={logo} alt="VipeAI Logo" className="w-full h-full object-contain relative z-10 drop-shadow-lg" />
             </div>
           </div>
           
@@ -151,7 +152,7 @@ export function AuthPage() {
             className="text-5xl md:text-7xl font-extrabold text-gradient glow-text-neon mb-2 tracking-tight animate-slide-up opacity-0 hover:animate-glitch cursor-default"
             style={{ animationDelay: '0.15s', animationFillMode: 'forwards' }}
           >
-            Vipe DZ
+            VipeAI
           </h1>
           
           {/* Subtitle with typewriter feel */}
@@ -304,7 +305,7 @@ export function AuthPage() {
             </button>
           </div>
           <p className="text-center text-xs text-muted-foreground/40 mt-4">
-            © 2024 Vipe DZ. All rights reserved.
+            © 2024 VipeAI. All rights reserved.
           </p>
         </div>
       </div>
