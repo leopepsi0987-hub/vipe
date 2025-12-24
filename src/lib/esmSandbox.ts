@@ -830,29 +830,29 @@ export function generateESMSandbox(
         
         const AppModule = await import(entryUrl);
         let App = AppModule.default || AppModule.App;
-        
+
         // Debug: log what we got
         console.log('AppModule:', AppModule);
         console.log('App:', App);
         console.log('typeof App:', typeof App);
-        
-        // Handle case where App is already a React element (JSX) instead of a component function
-        if (App && typeof App === 'object' && App.$$typeof) {
-          // It's already a React element, render it directly
-          console.log('App is already a React element, rendering directly');
+
+        // Only treat as "already rendered" if it's a real React *element*.
+        // Note: forwardRef/memo components are objects with $$typeof too, but they are NOT elements.
+        if (App && React.isValidElement && React.isValidElement(App)) {
+          console.log('App is a React element, rendering directly');
           const root = ReactDOM.createRoot(document.getElementById('root'));
           root.render(React.createElement(React.StrictMode, null, App));
           return;
         }
-        
-        // Ensure App is a valid component
+
+        // Ensure App is a valid component type (function OR react component-type object like memo/forwardRef)
         if (!App || (typeof App !== 'function' && typeof App !== 'object')) {
           console.warn('No valid App component found, creating placeholder');
-          App = () => React.createElement('div', { 
+          App = () => React.createElement('div', {
             style: { padding: '20px', textAlign: 'center' }
           }, 'No App component found');
         }
-        
+
         // Render
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(React.StrictMode, null, React.createElement(App)));
