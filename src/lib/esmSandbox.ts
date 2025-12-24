@@ -605,21 +605,41 @@ export function generateESMSandbox(
     if (appEntry) processFile(appEntry);
   }
   
-  // Step 3: Generate the importmap
-  const importMap = {
-    imports: { ...IMPORT_MAP } as Record<string, string>
-  };
+  // Step 3: Pre-transform all files and create Blob URLs
+  const fileToBlobUrl = new Map<string, string>();
+  const transformedSources: Record<string, string> = {};
   
-  // Step 4: Transform code and create blob URLs
-  // We'll inline Babel transform in the iframe, so we pass raw TSX
-  const moduleRegistry: Record<string, string> = {};
-  
+  // Transform all files first
   for (const [filePath, content] of processedFiles) {
     let transformedCode = content;
     const imports = extractImports(content);
     
-    // Rewrite local imports to use module registry keys
+    // Rewrite local imports
     for (const imp of imports) {
+      // Skip type-only imports
+      if (imp.isType) {
+        transformedCode = transformedCode.replace(imp.full, `// Type import: ${imp.path}`);
+        continue;
+      }
+      
+      // Remove inline type imports
+      if (imp.bindings.includes(" type ")) {
+        const cleanedBindings = imp.bindings
+          .replace(/\btype\s+([A-Za-z_$][\w$]*)/g, "")
+          .replace(/,\s*,/g, ",")
+          .replace(/\{\s*,/g, "{")
+          .replace(/,\s*\}/g, "}")
+          .trim();
+        
+        if (!cleanedBindings || cleanedBindings === "{}" || cleanedBindings === "{ }") {
+          transformedCode = transformedCode.replace(imp.full, `// Type import removed: ${imp.path}`);
+          continue;
+        }
+        
+        const newImport = `import ${cleanedBindings} from "${imp.path}";`;
+        transformedCode = transformedCode.replace(imp.full, newImport);
+      }
+      
       // Skip CSS imports (will be injected as style)
       if (/\.(css|scss|sass|less)$/i.test(imp.path)) {
         transformedCode = transformedCode.replace(imp.full, `// CSS: ${imp.path}`);
@@ -648,23 +668,65 @@ export function generateESMSandbox(
       const actualPath = resolveFilePath(files, resolvedPath, filePath);
       
       if (actualPath) {
-        // Rewrite to use our module system
-        const moduleKey = `./${actualPath}`;
+        // Rewrite to use importmap key format
+        const moduleKey = `__local__/${actualPath}`;
         const newImport = imp.full.replace(/from\s+['"][^'"]+['"]/, `from "${moduleKey}"`);
         transformedCode = transformedCode.replace(imp.full, newImport);
+      } else {
+        // Provide stub for unresolved imports
+        const namedMatch = imp.bindings.match(/\{([^}]+)\}/);
+        let stubCode = "";
+        
+        if (namedMatch) {
+          const names = namedMatch[1]
+            .split(",")
+            .map((s) => s.trim().split(" as ").pop()?.trim())
+            .filter(Boolean);
+          for (const name of names) {
+            if (name === "cn") {
+              stubCode += `const ${name} = (...args) => args.filter(Boolean).join(' ');\n`;
+            } else if (name === "useToast") {
+              stubCode += `const ${name} = () => ({ toast: () => {}, toasts: [] });\n`;
+            } else if (name === "toast") {
+              stubCode += `const ${name} = () => {};\n`;
+            } else {
+              stubCode += `const ${name} = window.React?.forwardRef?.(({ children, ...props }, ref) => window.React.createElement('div', { ref, ...props }, children)) || (() => null);\n`;
+            }
+          }
+        }
+        
+        const defaultMatch = imp.bindings.match(/^([A-Za-z_$][\w$]*)(?:\s*,|$)/);
+        if (defaultMatch && !imp.bindings.startsWith("{")) {
+          stubCode += `const ${defaultMatch[1]} = window.React?.forwardRef?.(({ children, ...props }, ref) => window.React.createElement('div', { ref, ...props }, children)) || (() => null);\n`;
+        }
+        
+        transformedCode = transformedCode.replace(imp.full, `// Stub for: ${imp.path}\n${stubCode}`);
       }
     }
     
-    moduleRegistry[`./${filePath}`] = transformedCode;
+    transformedSources[filePath] = transformedCode;
   }
   
-  // Step 5: Build the HTML
-  const entryModuleKey = `./${resolvedEntry || "src/App.tsx"}`;
+  // Step 4: Generate the importmap with local modules as Blob URLs
+  // We'll do the actual Blob URL creation in the browser, but prepare the module registry
+  const importMap = {
+    imports: { ...IMPORT_MAP } as Record<string, string>
+  };
+  
+  // The runtime script will handle local module loading
+  const moduleRegistry: Record<string, string> = {};
+  for (const [filePath, source] of Object.entries(transformedSources)) {
+    moduleRegistry[`__local__/${filePath}`] = source;
+  }
+  
+  // Step 5: Build the HTML with inline Blob URL creation
+  const entryModuleKey = `__local__/${resolvedEntry || "src/App.tsx"}`;
   
   const runtimeScript = `
-    // Module registry
-    const __modules = ${JSON.stringify(moduleRegistry)};
-    const __cache = {};
+    // Module registry (raw source)
+    const __modules = ${JSON.stringify(moduleRegistry).replace(/<\//g, "<\\/")};
+    const __blobUrls = {};
+    const __moduleCache = {};
     const __pending = {};
     
     // Error display
@@ -686,42 +748,59 @@ export function generateESMSandbox(
       __showError('Unhandled Promise Rejection', e.reason);
     };
     
-    // Dynamic module loader
-    async function __loadModule(key) {
-      if (__cache[key]) return __cache[key];
-      if (__pending[key]) return __pending[key];
+    // Create Blob URLs for all local modules
+    function __createBlobUrls() {
+      const keys = Object.keys(__modules);
       
-      const source = __modules[key];
-      if (!source) {
-        throw new Error('Module not found: ' + key);
-      }
-      
-      __pending[key] = (async () => {
+      // First pass: transform all modules and create blob URLs
+      for (const key of keys) {
+        const source = __modules[key];
         try {
-          // Transform with Babel
           const transformed = Babel.transform(source, {
-            filename: key,
+            filename: key.replace('__local__/', ''),
             presets: ['typescript', 'react'],
           }).code;
           
-          // Create blob URL for this module
-          const blob = new Blob([transformed], { type: 'application/javascript' });
-          const url = URL.createObjectURL(blob);
+          // Rewrite imports to use blob URLs
+          let finalCode = transformed;
           
-          // Import the module
-          const mod = await import(url);
-          __cache[key] = mod;
-          
-          // Cleanup
-          URL.revokeObjectURL(url);
-          
-          return mod;
+          const blob = new Blob([finalCode], { type: 'application/javascript' });
+          __blobUrls[key] = URL.createObjectURL(blob);
         } catch (err) {
-          throw new Error('Failed to load module ' + key + ': ' + (err?.message || err));
+          console.error('Failed to transform:', key, err);
+          __showError('Transform Error: ' + key, err);
         }
-      })();
+      }
       
-      return __pending[key];
+      // Second pass: update all blob content with correct import paths
+      for (const key of keys) {
+        const source = __modules[key];
+        try {
+          let transformed = Babel.transform(source, {
+            filename: key.replace('__local__/', ''),
+            presets: ['typescript', 'react'],
+          }).code;
+          
+          // Replace local module references with blob URLs
+          for (const [modKey, blobUrl] of Object.entries(__blobUrls)) {
+            // Match import statements for this module
+            const escapedKey = modKey.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
+            const importRegex = new RegExp('from\\\\s*["\\'"]' + escapedKey + '["\\'"]', 'g');
+            transformed = transformed.replace(importRegex, 'from "' + blobUrl + '"');
+            
+            // Also handle dynamic imports
+            const dynamicRegex = new RegExp('import\\\\(["\\'"]' + escapedKey + '["\\'"]\\\\)', 'g');
+            transformed = transformed.replace(dynamicRegex, 'import("' + blobUrl + '")');
+          }
+          
+          // Recreate blob with updated imports
+          URL.revokeObjectURL(__blobUrls[key]);
+          const blob = new Blob([transformed], { type: 'application/javascript' });
+          __blobUrls[key] = URL.createObjectURL(blob);
+        } catch (err) {
+          // Keep the old blob URL
+        }
+      }
     }
     
     // Bootstrap the app
@@ -739,8 +818,16 @@ export function generateESMSandbox(
           if (React[name]) window[name] = React[name];
         });
         
-        // Load the entry module
-        const AppModule = await __loadModule('${entryModuleKey}');
+        // Create all blob URLs
+        __createBlobUrls();
+        
+        // Import entry module
+        const entryUrl = __blobUrls['${entryModuleKey}'];
+        if (!entryUrl) {
+          throw new Error('Entry module not found: ${entryModuleKey}');
+        }
+        
+        const AppModule = await import(entryUrl);
         const App = AppModule.default || AppModule.App || (() => React.createElement('div', null, 'No App export found'));
         
         // Render
