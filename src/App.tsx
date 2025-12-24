@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,31 +21,35 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <CookieConsent />
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/builder" element={<BuilderPage />} />
-          <Route path="/messages" element={<MessagesPage />} />
-          <Route path="/posts" element={<NewsPage />} />
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
-          <Route path="/refund" element={<RefundPage />} />
-          <Route path="/project/:projectId" element={<Project />} />
-          <Route path="/oauth/callback" element={<OAuthCallback />} />
-          <Route path="/app/:slug" element={<PublishedApp />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = forwardRef<HTMLDivElement>(function App(_, ref) {
+  return (
+    <div ref={ref}>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <CookieConsent />
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/builder" element={<BuilderPage />} />
+              <Route path="/messages" element={<MessagesPage />} />
+              <Route path="/posts" element={<NewsPage />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy" element={<PrivacyPage />} />
+              <Route path="/refund" element={<RefundPage />} />
+              <Route path="/project/:projectId" element={<Project />} />
+              <Route path="/oauth/callback" element={<OAuthCallback />} />
+              <Route path="/app/:slug" element={<PublishedApp />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </div>
+  );
+});
 
 export default App;
