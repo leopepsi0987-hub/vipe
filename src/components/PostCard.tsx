@@ -128,17 +128,27 @@ export function PostCard({ post, onRemix }: PostCardProps) {
             <img
               src={post.media_url}
               alt="Post media"
-              className="rounded-lg max-h-96 w-full object-cover"
+              className="rounded-lg max-h-96 w-full object-cover bg-muted"
+              loading="lazy"
               onError={(e) => {
-                // Hide broken images
-                (e.target as HTMLImageElement).style.display = 'none';
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                console.error('Failed to load image:', post.media_url);
+              }}
+              onLoad={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'block';
               }}
             />
           ) : post.media_type === "video" ? (
             <video
               src={post.media_url}
               controls
-              className="rounded-lg max-h-96 w-full"
+              className="rounded-lg max-h-96 w-full bg-muted"
+              onError={(e) => {
+                const target = e.target as HTMLVideoElement;
+                target.style.display = 'none';
+              }}
             />
           ) : null}
         </div>
