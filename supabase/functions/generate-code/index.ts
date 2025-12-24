@@ -109,10 +109,28 @@ serve(async (req) => {
       }
     }
 
+    // Check for matching template
+    const matchingTemplate = findMatchingTemplate(prompt);
+    const templateContext = generateTemplateContext();
+    
     // ==========================================
     // SYSTEM PROMPT - STRICT JSON OUTPUT ONLY
     // ==========================================
     const systemPrompt = `You are an expert React/TypeScript developer. You generate COMPLETE, PRODUCTION-READY code.
+
+${matchingTemplate ? `
+## 🎯 TEMPLATE DETECTED: ${matchingTemplate.name}
+Pattern: ${matchingTemplate.pattern}
+Use the pre-built template files below as your starting point. Customize based on user requirements.
+
+### Template Files to Use:
+${JSON.stringify(matchingTemplate.files, null, 2)}
+
+### Database Schema (if needed):
+${matchingTemplate.dbSchema || 'No database required'}
+
+IMPORTANT: Use this template as a base but customize names, colors, and content based on user's specific request.
+` : templateContext}
 
 ## ⚠️ CRITICAL RULES - VIOLATION = FAILURE:
 
