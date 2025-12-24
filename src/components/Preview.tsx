@@ -60,7 +60,7 @@ interface PreviewProps {
 }
 
 type DeviceMode = "desktop" | "tablet" | "mobile";
-type PreviewEngine = "sandbox" | "webcontainer";
+type PreviewEngine = "sandbox" | "esm" | "webcontainer";
 
 function getLanguageForFile(path: string): string {
   const ext = path.split(".").pop()?.toLowerCase();
@@ -359,6 +359,25 @@ export function Preview({
                         <Button
                           variant="ghost"
                           size="sm"
+                          className={cn("h-7 px-2 rounded-sm text-xs gap-1", previewEngine === "esm" && "bg-background shadow-sm")}
+                          onClick={() => {
+                            setPreviewEngine("esm");
+                            toast.success("ESM mode", { description: "Native ES modules via esm.sh CDN" });
+                          }}
+                        >
+                          <Globe className="w-3 h-3" />
+                          ESM
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Native ES modules from CDN (more compatible)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           disabled={!window.crossOriginIsolated}
                           className={cn(
                             "h-7 px-2 rounded-sm text-xs gap-1",
@@ -507,8 +526,10 @@ export function Preview({
               {isFileMode ? (
                 previewEngine === "webcontainer" ? (
                   <WebContainerPreview files={files ?? {}} className="w-full h-full" />
+                ) : previewEngine === "esm" ? (
+                  <SandboxPreview files={files ?? {}} className="w-full h-full" useESM={true} />
                 ) : (
-                  <SandboxPreview files={files ?? {}} className="w-full h-full" />
+                  <SandboxPreview files={files ?? {}} className="w-full h-full" useESM={false} />
                 )
               ) : (
                 <iframe
