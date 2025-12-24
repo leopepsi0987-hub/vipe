@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ export function AuthPage() {
   const [loading, setLoading] = useState(false);
   const { signIn, signUp } = useAuth();
   const { t, isRTL } = useI18n();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,6 +267,45 @@ export function AuthPage() {
             <div className="w-1.5 h-1.5 rounded-full bg-accent animate-bounce-soft" style={{ animationDelay: '0.1s' }} />
             <div className="w-1.5 h-1.5 rounded-full bg-primary/50 animate-bounce-soft" style={{ animationDelay: '0.2s' }} />
           </div>
+        </div>
+
+        {/* Footer Links */}
+        <div 
+          className="mt-8 pt-6 border-t border-border/20 animate-slide-up opacity-0"
+          style={{ animationDelay: '0.65s', animationFillMode: 'forwards' }}
+        >
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground/60">
+            <button 
+              onClick={() => navigate("/pricing")} 
+              className="hover:text-primary transition-colors"
+            >
+              Pricing
+            </button>
+            <span className="text-muted-foreground/30">•</span>
+            <button 
+              onClick={() => navigate("/terms")} 
+              className="hover:text-primary transition-colors"
+            >
+              Terms of Service
+            </button>
+            <span className="text-muted-foreground/30">•</span>
+            <button 
+              onClick={() => navigate("/privacy")} 
+              className="hover:text-primary transition-colors"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-muted-foreground/30">•</span>
+            <button 
+              onClick={() => navigate("/refund")} 
+              className="hover:text-primary transition-colors"
+            >
+              Refund Policy
+            </button>
+          </div>
+          <p className="text-center text-xs text-muted-foreground/40 mt-4">
+            © 2024 Vipe DZ. All rights reserved.
+          </p>
         </div>
       </div>
     </div>
