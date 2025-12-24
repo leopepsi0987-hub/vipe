@@ -1176,29 +1176,139 @@ export function generateBundledHTML(files: FileMap): string {
 
     __reloadBtn.addEventListener('click', () => location.reload());
 
-    // Image fallback: in srcdoc sandbox, relative/public URLs often fail.
-    // Replace broken images with a consistent placeholder.
+    // Image inlining: fetch external images and convert to data URLs
+    // with caching and size limits for performance
     (function(){
+      const __imgCache = {};
+      const __imgPending = {};
+      const MAX_IMG_SIZE = 2 * 1024 * 1024; // 2MB limit per image
+      const MAX_CACHE_SIZE = 20; // Max cached images
+      const FETCH_TIMEOUT = 8000; // 8 second timeout
+
       const __imgPlaceholder = (fileName) => {
         const safe = encodeURIComponent(fileName || 'image');
         return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect fill='%23374151' width='400' height='300' rx='8'/%3E%3Crect x='140' y='80' width='120' height='100' rx='8' fill='%234B5563' stroke='%236B7280' stroke-width='2'/%3E%3Ccircle cx='170' cy='115' r='12' fill='%239CA3AF'/%3E%3Cpath d='M150 165 L175 135 L200 155 L225 125 L250 165 Z' fill='%239CA3AF'/%3E%3Ctext x='200' y='220' text-anchor='middle' fill='%239CA3AF' font-family='system-ui, sans-serif' font-size='14'%3E" + safe + "%3C/text%3E%3C/svg%3E";
       };
 
-      const __patchImg = (img) => {
+      const __loadingPlaceholder = () => {
+        return "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'%3E%3Crect fill='%231f2937' width='400' height='300' rx='8'/%3E%3Ccircle cx='200' cy='130' r='30' fill='none' stroke='%236B7280' stroke-width='4' stroke-dasharray='60 30'%3E%3CanimateTransform attributeName='transform' type='rotate' from='0 200 130' to='360 200 130' dur='1s' repeatCount='indefinite'/%3E%3C/circle%3E%3Ctext x='200' y='190' text-anchor='middle' fill='%239CA3AF' font-family='system-ui, sans-serif' font-size='14'%3ELoading...%3C/text%3E%3C/svg%3E";
+      };
+
+      const __fetchImageAsDataUrl = async (url) => {
+        // Check cache first
+        if (__imgCache[url]) return __imgCache[url];
+        
+        // Check if already fetching
+        if (__imgPending[url]) return __imgPending[url];
+
+        // Start fetch with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+
+        __imgPending[url] = (async () => {
+          try {
+            const response = await fetch(url, { 
+              signal: controller.signal,
+              mode: 'cors',
+              credentials: 'omit'
+            });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+
+            // Check content length if available
+            const contentLength = response.headers.get('content-length');
+            if (contentLength && parseInt(contentLength) > MAX_IMG_SIZE) {
+              console.warn('Sandbox: Image too large, using placeholder:', url);
+              return null;
+            }
+
+            const blob = await response.blob();
+            
+            // Check actual size
+            if (blob.size > MAX_IMG_SIZE) {
+              console.warn('Sandbox: Image too large, using placeholder:', url);
+              return null;
+            }
+
+            // Convert to data URL
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                const dataUrl = reader.result;
+                
+                // Manage cache size
+                const cacheKeys = Object.keys(__imgCache);
+                if (cacheKeys.length >= MAX_CACHE_SIZE) {
+                  delete __imgCache[cacheKeys[0]];
+                }
+                
+                __imgCache[url] = dataUrl;
+                delete __imgPending[url];
+                resolve(dataUrl);
+              };
+              reader.onerror = () => {
+                delete __imgPending[url];
+                resolve(null);
+              };
+              reader.readAsDataURL(blob);
+            });
+          } catch (err) {
+            clearTimeout(timeoutId);
+            delete __imgPending[url];
+            if (err.name !== 'AbortError') {
+              console.warn('Sandbox: Failed to fetch image:', url, err.message);
+            }
+            return null;
+          }
+        })();
+
+        return __imgPending[url];
+      };
+
+      const __patchImg = async (img) => {
         if (!img || img.__sandboxPatched) return;
         img.__sandboxPatched = true;
-        img.addEventListener('error', () => {
+
+        const src = img.getAttribute('src') || '';
+        
+        // Skip data URLs and empty sources
+        if (!src || src.startsWith('data:')) return;
+        
+        // Check if it's an external URL (http/https)
+        if (src.startsWith('http://') || src.startsWith('https://')) {
+          // Show loading state
+          const originalSrc = src;
+          img.setAttribute('src', __loadingPlaceholder());
+          
           try {
-            const src = img.getAttribute('src') || '';
-            if (src.startsWith('data:')) return;
-            const name = (src.split('/').pop() || 'image').split('?')[0];
+            const dataUrl = await __fetchImageAsDataUrl(originalSrc);
+            if (dataUrl) {
+              img.setAttribute('src', dataUrl);
+            } else {
+              const name = (originalSrc.split('/').pop() || 'image').split('?')[0];
+              img.setAttribute('src', __imgPlaceholder(name));
+            }
+          } catch (_) {
+            const name = (originalSrc.split('/').pop() || 'image').split('?')[0];
             img.setAttribute('src', __imgPlaceholder(name));
-          } catch (_) {}
-        }, { once: true });
+          }
+        } else {
+          // For relative URLs, add error handler for fallback
+          img.addEventListener('error', () => {
+            try {
+              if (img.getAttribute('src')?.startsWith('data:')) return;
+              const name = (src.split('/').pop() || 'image').split('?')[0];
+              img.setAttribute('src', __imgPlaceholder(name));
+            } catch (_) {}
+          }, { once: true });
+        }
       };
 
       const __scan = () => {
-        try { document.querySelectorAll('img').forEach(__patchImg); } catch (_) {}
+        try { 
+          document.querySelectorAll('img').forEach(img => __patchImg(img)); 
+        } catch (_) {}
       };
 
       if (document.readyState === 'loading') {
