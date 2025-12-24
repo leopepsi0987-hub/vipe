@@ -301,6 +301,92 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
       return out.join("\n");
     }
 
+
+    // class-variance-authority (used by shadcn variants)
+    if (spec === "class-variance-authority") {
+      const out: string[] = [];
+
+      if (bindings.startsWith("*")) {
+        const mm = bindings.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+        if (mm) out.push(`const ${mm[1]} = { cva: window.cva, cx: window.cx, default: window.cva };`);
+        return out.join("\n");
+      }
+
+      const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+      const first = parts[0];
+      if (first && !first.startsWith("{")) {
+        // default import maps to cva
+        out.push(`const ${first} = window.cva;`);
+      }
+
+      const namedMatch = bindings.match(/\{([^}]+)\}/);
+      if (namedMatch) {
+        const inside = namedMatch[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => {
+            const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+            if (!mm) return null;
+            const imported = mm[1];
+            const local = mm[2] ?? mm[1];
+            if (imported === "cva") return local === "cva" ? "cva" : `cva: ${local}`;
+            if (imported === "cx") return local === "cx" ? "cx" : `cx: ${local}`;
+            return null;
+          })
+          .filter(Boolean)
+          .join(", ");
+
+        if (inside) out.push(`const { ${inside} } = { cva: window.cva, cx: window.cx };`);
+      }
+
+      return out.join("\n");
+    }
+
+    // lucide-react (icons)
+    if (spec === "lucide-react") {
+      const out: string[] = [];
+
+      if (bindings.startsWith("*")) {
+        const mm = bindings.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+        if (mm) out.push(`const ${mm[1]} = window.lucideReact;`);
+        return out.join("\n");
+      }
+
+      const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+      const first = parts[0];
+      if (first && !first.startsWith("{")) {
+        // default import: expose the namespace
+        out.push(`const ${first} = window.lucideReact;`);
+      }
+
+      const namedMatch = bindings.match(/\{([^}]+)\}/);
+      if (namedMatch) {
+        const statements = namedMatch[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => {
+            const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+            if (!mm) return null;
+            const imported = mm[1];
+            const local = mm[2] ?? mm[1];
+            // common named exports
+            if (imported === "icons") return `const ${local} = window.lucideReact.icons;`;
+            if (imported === "Icon") return `const ${local} = window.lucideReact.Icon;`;
+            if (imported === "createLucideIcon") return `const ${local} = window.lucideReact.createLucideIcon;`;
+            if (imported === "dynamicIconImports") return `const ${local} = window.lucideReact.dynamicIconImports;`;
+            // treat everything else as an icon component
+            return `const ${local} = window.lucideReact[${JSON.stringify(imported)}];`;
+          })
+          .filter(Boolean);
+
+        out.push(...statements);
+      }
+
+      return out.join("\n");
+    }
+
     // Any other external dependency is not supported by the sandbox bundler.
     // We replace it with a runtime error that is shown in the preview overlay.
     return `throw new Error(${JSON.stringify(
@@ -480,10 +566,111 @@ export function generateBundledHTML(files: FileMap): string {
        };
      }
 
+     if (!window.cx) {
+       window.cx = function cx() {
+         // alias to clsx if available
+         return (window.clsx || function(){ return Array.prototype.join.call(arguments, ' '); }).apply(null, arguments);
+       };
+     }
+
+     if (!window.cva) {
+       window.cva = function cva(base, config) {
+         const cfg = config || {};
+         const variants = cfg.variants || {};
+         const defaultVariants = cfg.defaultVariants || {};
+         const compoundVariants = cfg.compoundVariants || [];
+
+         return function (props) {
+           const p = props || {};
+           const classes = [];
+           if (base) classes.push(base);
+
+           // variants
+           for (const key in variants) {
+             const map = variants[key] || {};
+             const value = p[key] !== undefined ? p[key] : defaultVariants[key];
+             if (value === undefined) continue;
+             const cls = map[value];
+             if (cls) classes.push(cls);
+           }
+
+           // compoundVariants
+           for (let i = 0; i < compoundVariants.length; i++) {
+             const cv = compoundVariants[i];
+             let match = true;
+             for (const k in cv) {
+               if (k === 'class' || k === 'className') continue;
+               const desired = cv[k];
+               const actual = p[k] !== undefined ? p[k] : defaultVariants[k];
+               if (actual !== desired) { match = false; break; }
+             }
+             if (match) {
+               if (cv.class) classes.push(cv.class);
+               if (cv.className) classes.push(cv.className);
+             }
+           }
+
+           if (p.class) classes.push(p.class);
+           if (p.className) classes.push(p.className);
+
+           return (window.twMerge || function(x){return x;})( (window.cx || window.clsx).apply(null, classes) );
+         };
+       };
+     }
+
+     if (!window.lucideReact) {
+       const makeIcon = (name) => {
+         return function LucideIcon(props) {
+           const p = props || {};
+           const size = p.size || 24;
+           const strokeWidth = p.strokeWidth || 2;
+           const color = p.color || 'currentColor';
+           const svgProps = {
+             width: size,
+             height: size,
+             viewBox: '0 0 24 24',
+             fill: 'none',
+             stroke: color,
+             strokeWidth,
+             strokeLinecap: 'round',
+             strokeLinejoin: 'round',
+             'aria-label': name,
+             ...p,
+           };
+           // simple placeholder glyph (circle + name initial)
+           return React.createElement(
+             'svg',
+             svgProps,
+             React.createElement('circle', { cx: 12, cy: 12, r: 9 }),
+             React.createElement('path', { d: 'M8 12h8' })
+           );
+         };
+       };
+
+       const iconProxy = new Proxy({}, {
+         get(_t, key) {
+           if (typeof key !== 'string') return undefined;
+           return makeIcon(key);
+         }
+       });
+
+       window.lucideReact = new Proxy({
+         icons: iconProxy,
+         Icon: makeIcon('Icon'),
+         createLucideIcon: (name) => makeIcon(name),
+         dynamicIconImports: {},
+       }, {
+         get(target, key) {
+           if (key in target) return target[key];
+           if (typeof key === 'string') return makeIcon(key);
+           return undefined;
+         }
+       });
+     }
+
      const payload = JSON.parse(document.getElementById('__sandbox_payload').textContent || '{}');
 
      // Provide common React hooks as globals so generated code that forgets
-     // to import them (e.g. useState) still runs in the sandbox.
      // to import them (e.g. useState) still runs in the sandbox.
      try {
        const hookNames = [
