@@ -112,6 +112,15 @@ function extractExports(original: string): ExportInfo {
   return { defaultName, named: Array.from(named) };
 }
 
+function stripExportsOnly(code: string) {
+  return code
+    .replace(/export\s+default\s+function\s+/g, "function ")
+    .replace(/export\s+default\s+/g, "")
+    .replace(/^export\s+(?=(const|let|var|function|class)\b)/gm, "")
+    .replace(/^export\s*\{[^}]+\}\s*;?\s*$/gm, "");
+}
+
+// Legacy function kept for compatibility but now only strips exports
 function stripExportsAndImports(code: string) {
   return code
     .replace(/^import\s+.*?['"].*?['"];?\s*$/gm, "")
@@ -274,8 +283,11 @@ function buildModuleMap(files: FileMap): ModuleMap {
   for (const path of moduleFiles) {
     const original = files[path] ?? "";
     const { defaultName, named } = extractExports(original);
-    const bodyNoImports = stripExportsAndImports(original);
-    const body = transformImports(files, path, bodyNoImports);
+    
+    // IMPORTANT: Transform imports FIRST (converts @/ imports to __require calls)
+    // THEN strip exports (but NOT imports - they've been transformed to const declarations)
+    const withTransformedImports = transformImports(files, path, original);
+    const body = stripExportsOnly(withTransformedImports);
 
     const exportLines: string[] = [];
     if (defaultName) exportLines.push(`default: (typeof ${defaultName} !== 'undefined' ? ${defaultName} : undefined)`);
