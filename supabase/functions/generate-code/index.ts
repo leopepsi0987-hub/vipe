@@ -216,6 +216,7 @@ src/App.tsx               - ONLY imports pages, no logic here
 - ALWAYS use @/ alias: import { Button } from "@/components/ui/button"
 - NEVER use relative imports like "./components"
 - Use existing shadcn components: Button, Card, Input, Badge, etc.
+- **CRITICAL: ALWAYS import React hooks explicitly!** If you use useState, useEffect, useMemo, useCallback, useRef, etc., you MUST add: import { useState, useEffect, ... } from "react";
 
 ## STYLING RULES:
 - Use Tailwind semantic tokens: bg-background, text-foreground, bg-primary, text-muted-foreground, border-border
@@ -327,29 +328,139 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
       });
     }
 
-    // Transform Gemini SSE format to OpenAI-compatible format for the frontend
+    // ==========================================
+    // Post-process: auto-inject missing React hook imports
+    // ==========================================
+    const REACT_HOOKS = [
+      "useState",
+      "useEffect",
+      "useMemo",
+      "useCallback",
+      "useRef",
+      "useReducer",
+      "useContext",
+      "useLayoutEffect",
+      "useId",
+      "useImperativeHandle",
+      "useDebugValue",
+      "useDeferredValue",
+      "useTransition",
+      "useSyncExternalStore",
+      "useInsertionEffect",
+    ];
+
+    function ensureReactHookImports(code: string): string {
+      // Detect which hooks are used in the code (but not already imported)
+      const usedHooks = REACT_HOOKS.filter((hook) => {
+        const usageRegex = new RegExp(`\\b${hook}\\s*\\(`, "g");
+        return usageRegex.test(code);
+      });
+
+      if (usedHooks.length === 0) return code;
+
+      // Check if there's already a React import
+      const existingReactImportMatch = code.match(
+        /^import\s+(?:React\s*,?\s*)?(\{[^}]*\})?\s*from\s+['"]react['"];?\s*$/m
+      );
+
+      if (existingReactImportMatch) {
+        // Parse existing named imports
+        const namedImportsMatch = existingReactImportMatch[1];
+        const existingNamed = namedImportsMatch
+          ? namedImportsMatch
+              .replace(/[{}]/g, "")
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+
+        // Find missing hooks
+        const missingHooks = usedHooks.filter((h) => !existingNamed.includes(h));
+        if (missingHooks.length === 0) return code;
+
+        // Add missing hooks to the existing import
+        const allNamed = [...existingNamed, ...missingHooks];
+        const hasDefaultReact = /^import\s+React/.test(existingReactImportMatch[0]);
+        const newImport = hasDefaultReact
+          ? `import React, { ${allNamed.join(", ")} } from "react";`
+          : `import { ${allNamed.join(", ")} } from "react";`;
+
+        return code.replace(existingReactImportMatch[0], newImport);
+      }
+
+      // No React import at all - add one at the top
+      const importLine = `import { ${usedHooks.join(", ")} } from "react";\n`;
+      return importLine + code;
+    }
+
+    // Transform Gemini SSE format and post-process the final JSON
+    let accumulatedJson = "";
+
     const transformStream = new TransformStream({
       transform(chunk, controller) {
         const text = new TextDecoder().decode(chunk);
-        const lines = text.split('\n');
-        
+        const lines = text.split("\n");
+
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6));
               if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
                 const content = data.candidates[0].content.parts[0].text;
-                const openAIFormat = {
-                  choices: [{ delta: { content } }]
-                };
-                controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+                accumulatedJson += content;
               }
             } catch (e) {
               // Skip malformed JSON
             }
           }
         }
-      }
+      },
+      flush(controller) {
+        // Process the complete JSON and fix React imports
+        try {
+          // Clean up markdown code fences if present
+          let cleanJson = accumulatedJson.trim();
+          if (cleanJson.startsWith("```json")) {
+            cleanJson = cleanJson.slice(7);
+          } else if (cleanJson.startsWith("```")) {
+            cleanJson = cleanJson.slice(3);
+          }
+          if (cleanJson.endsWith("```")) {
+            cleanJson = cleanJson.slice(0, -3);
+          }
+          cleanJson = cleanJson.trim();
+
+          const parsed = JSON.parse(cleanJson);
+
+          if (parsed.files && Array.isArray(parsed.files)) {
+            for (const file of parsed.files) {
+              if (
+                file.content &&
+                typeof file.content === "string" &&
+                (file.path?.endsWith(".tsx") || file.path?.endsWith(".jsx") || file.path?.endsWith(".ts") || file.path?.endsWith(".js"))
+              ) {
+                file.content = ensureReactHookImports(file.content);
+              }
+            }
+          }
+
+          // Stream out the fixed JSON in OpenAI-compatible format
+          const fixedJson = JSON.stringify(parsed);
+          const openAIFormat = {
+            choices: [{ delta: { content: fixedJson } }],
+          };
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+          controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+        } catch (e) {
+          // If JSON parsing fails, stream what we have
+          console.error("[generate-code] Failed to parse/fix JSON:", e);
+          const openAIFormat = {
+            choices: [{ delta: { content: accumulatedJson } }],
+          };
+          controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+          controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+        }
+      },
     });
 
     return new Response(response.body?.pipeThrough(transformStream), {
