@@ -7,13 +7,14 @@ export type FileMap = Record<string, string>;
 const ESM_SH = "https://esm.sh";
 
 // Importmap for all external packages pointing to esm.sh
+// Using ?dev for React to get better error messages
 const IMPORT_MAP: Record<string, string> = {
-  // React ecosystem
-  "react": `${ESM_SH}/react@18.3.1`,
-  "react/jsx-runtime": `${ESM_SH}/react@18.3.1/jsx-runtime`,
-  "react/jsx-dev-runtime": `${ESM_SH}/react@18.3.1/jsx-dev-runtime`,
-  "react-dom": `${ESM_SH}/react-dom@18.3.1`,
-  "react-dom/client": `${ESM_SH}/react-dom@18.3.1/client`,
+  // React ecosystem (dev mode for better errors)
+  "react": `${ESM_SH}/react@18.3.1?dev`,
+  "react/jsx-runtime": `${ESM_SH}/react@18.3.1/jsx-runtime?dev`,
+  "react/jsx-dev-runtime": `${ESM_SH}/react@18.3.1/jsx-dev-runtime?dev`,
+  "react-dom": `${ESM_SH}/react-dom@18.3.1?dev`,
+  "react-dom/client": `${ESM_SH}/react-dom@18.3.1/client?dev`,
   "react-router-dom": `${ESM_SH}/react-router-dom@6.30.1`,
   
   // Styling
@@ -809,12 +810,12 @@ export function generateESMSandbox(
         const React = await import('react');
         const ReactDOM = await import('react-dom/client');
         
-        // Make React available globally
+        // Make React available globally BEFORE loading any modules
         window.React = React;
         window.ReactDOM = ReactDOM;
         
         // Provide common hooks globally
-        ['useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'useReducer', 'useContext', 'useLayoutEffect', 'useId', 'Fragment', 'createElement', 'forwardRef', 'memo', 'lazy', 'Suspense', 'createContext'].forEach(name => {
+        ['useState', 'useEffect', 'useMemo', 'useCallback', 'useRef', 'useReducer', 'useContext', 'useLayoutEffect', 'useId', 'Fragment', 'createElement', 'forwardRef', 'memo', 'lazy', 'Suspense', 'createContext', 'Children', 'cloneElement', 'isValidElement'].forEach(name => {
           if (React[name]) window[name] = React[name];
         });
         
@@ -828,12 +829,35 @@ export function generateESMSandbox(
         }
         
         const AppModule = await import(entryUrl);
-        const App = AppModule.default || AppModule.App || (() => React.createElement('div', null, 'No App export found'));
+        let App = AppModule.default || AppModule.App;
+        
+        // Debug: log what we got
+        console.log('AppModule:', AppModule);
+        console.log('App:', App);
+        console.log('typeof App:', typeof App);
+        
+        // Handle case where App is already a React element (JSX) instead of a component function
+        if (App && typeof App === 'object' && App.$$typeof) {
+          // It's already a React element, render it directly
+          console.log('App is already a React element, rendering directly');
+          const root = ReactDOM.createRoot(document.getElementById('root'));
+          root.render(React.createElement(React.StrictMode, null, App));
+          return;
+        }
+        
+        // Ensure App is a valid component
+        if (!App || (typeof App !== 'function' && typeof App !== 'object')) {
+          console.warn('No valid App component found, creating placeholder');
+          App = () => React.createElement('div', { 
+            style: { padding: '20px', textAlign: 'center' }
+          }, 'No App component found');
+        }
         
         // Render
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(React.createElement(React.StrictMode, null, React.createElement(App)));
       } catch (err) {
+        console.error('Bootstrap error:', err);
         __showError('Bootstrap Error', err);
       }
     }
