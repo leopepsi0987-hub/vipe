@@ -750,6 +750,43 @@ export function generateESMSandbox(
     window.onunhandledrejection = (e) => {
       __showError('Unhandled Promise Rejection', e.reason);
     };
+
+    // Image fallback: in srcdoc sandbox, relative/public URLs often fail.
+    // Replace broken images with a consistent placeholder.
+    (function(){
+      const __imgPlaceholder = (fileName) => {
+        const safe = encodeURIComponent(fileName || 'image');
+        return 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'400\' height=\'300\' viewBox=\'0 0 400 300\'%3E%3Crect fill=\'%23374151\' width=\'400\' height=\'300\' rx=\'8\'/%3E%3Crect x=\'140\' y=\'80\' width=\'120\' height=\'100\' rx=\'8\' fill=\'%234B5563\' stroke=\'%236B7280\' stroke-width=\'2\'/%3E%3Ccircle cx=\'170\' cy=\'115\' r=\'12\' fill=\'%239CA3AF\'/%3E%3Cpath d=\'M150 165 L175 135 L200 155 L225 125 L250 165 Z\' fill=\'%239CA3AF\'/%3E%3Ctext x=\'200\' y=\'220\' text-anchor=\'middle\' fill=\'%239CA3AF\' font-family=\'system-ui, sans-serif\' font-size=\'14\'%3E' + safe + '%3C/text%3E%3C/svg%3E';
+      };
+
+      const __patchImg = (img) => {
+        if (!img || img.__sandboxPatched) return;
+        img.__sandboxPatched = true;
+        img.addEventListener('error', () => {
+          try {
+            const src = img.getAttribute('src') || '';
+            if (src.startsWith('data:')) return;
+            const name = (src.split('/').pop() || 'image').split('?')[0];
+            img.setAttribute('src', __imgPlaceholder(name));
+          } catch (_) {}
+        }, { once: true });
+      };
+
+      const __scan = () => {
+        try { document.querySelectorAll('img').forEach(__patchImg); } catch (_) {}
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', __scan);
+      } else {
+        __scan();
+      }
+
+      try {
+        const mo = new MutationObserver(() => __scan());
+        mo.observe(document.documentElement, { childList: true, subtree: true });
+      } catch (_) {}
+    })();
     
     // Create Blob URLs for all local modules
     function __createBlobUrls() {
