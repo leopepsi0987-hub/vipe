@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
+import { generateESMSandbox } from "@/lib/esmSandbox";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, Copy, Check, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -7,6 +8,7 @@ import { toast } from "sonner";
 interface SandboxPreviewProps {
   files: Record<string, string>;
   className?: string;
+  useESM?: boolean; // Use the new ESM-based sandbox
 }
 
 type ImportCheck = {
@@ -57,7 +59,7 @@ function findMissingImports(files: Record<string, string>): ImportCheck[] {
     .filter((x) => !x.exists);
 }
 
-export function SandboxPreview({ files, className }: SandboxPreviewProps) {
+export function SandboxPreview({ files, className, useESM = false }: SandboxPreviewProps) {
   const [lastError, setLastError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -69,8 +71,12 @@ export function SandboxPreview({ files, className }: SandboxPreviewProps) {
     if (!files || Object.keys(files).length === 0) {
       return generateBundledHTML({});
     }
+    // Use ESM sandbox if enabled
+    if (useESM) {
+      return generateESMSandbox(files).html;
+    }
     return generateBundledHTML(files);
-  }, [files, refreshKey]);
+  }, [files, refreshKey, useESM]);
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
