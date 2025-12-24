@@ -355,7 +355,28 @@ export function generateBundledHTML(files: FileMap): string {
 
     __reloadBtn.addEventListener('click', () => location.reload());
 
-    const payload = JSON.parse(document.getElementById('__sandbox_payload').textContent || '{}');
+     const payload = JSON.parse(document.getElementById('__sandbox_payload').textContent || '{}');
+
+     // Provide common React hooks as globals so generated code that forgets
+     // to import them (e.g. useState) still runs in the sandbox.
+     try {
+       const hookNames = [
+         'useState',
+         'useEffect',
+         'useMemo',
+         'useCallback',
+         'useRef',
+         'useReducer',
+         'useContext',
+         'useLayoutEffect',
+         'useId',
+       ];
+       hookNames.forEach((name) => {
+         if (window.React && window.React[name] && !window[name]) {
+           window[name] = window.React[name];
+         }
+       });
+     } catch (_) {}
 
     const __compile = (code, filename) => {
       try {
