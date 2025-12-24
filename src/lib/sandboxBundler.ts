@@ -1046,9 +1046,19 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
 }
 
 function transformImports(files: FileMap, fromPath: string, code: string) {
-  return code.replace(/^import\s+.*?from\s+['"][^'"]+['"];?\s*$/gm, (line) =>
-    transformImportLine(files, fromPath, line),
-  );
+  // Handles single-line and multi-line imports (including side-effect imports).
+  // We normalize whitespace before sending to transformImportLine.
+  const IMPORT_STMT_REGEX = /(^|\n)\s*(import\s+(?:type\s+)?(?:[\s\S]*?\s+from\s+['"][^'"]+['"]|['"][^'"]+['"])\s*;?)/g;
+
+  return code.replace(IMPORT_STMT_REGEX, (_full, leadingNewline, importStmt) => {
+    const normalized = String(importStmt)
+      .replace(/\s+/g, " ")
+      .replace(/;\s*$/, ";")
+      .trim();
+
+    const rewritten = transformImportLine(files, fromPath, normalized);
+    return `${leadingNewline}${rewritten}`;
+  });
 }
 
 function buildModuleMap(files: FileMap): ModuleMap {
