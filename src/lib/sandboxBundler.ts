@@ -133,7 +133,17 @@ function extractExports(original: string): ExportInfo {
 }
 
 function stripExportsOnly(code: string) {
+  // NOTE: Modules are wrapped in an IIFE before Babel runs.
+  // TypeScript-only top-level declarations (type/interface) are invalid inside a function body,
+  // so we strip them out here to prevent Babel parse errors.
   return code
+    // Remove exported TS-only declarations
+    .replace(/(^|\n)\s*export\s+type\s+[\s\S]*?;\s*(?=\n|$)/g, "$1")
+    .replace(/(^|\n)\s*export\s+interface\s+[A-Za-z_$][\w$]*\s*\{[\s\S]*?\}\s*;?\s*(?=\n|$)/g, "$1")
+    // Remove non-exported TS-only declarations that may exist in some files
+    .replace(/(^|\n)\s*type\s+[A-Za-z_$][\w$]*\s*=\s*[\s\S]*?;\s*(?=\n|$)/g, "$1")
+    .replace(/(^|\n)\s*interface\s+[A-Za-z_$][\w$]*\s*\{[\s\S]*?\}\s*;?\s*(?=\n|$)/g, "$1")
+    // Strip runtime exports
     .replace(/export\s+default\s+function\s+/g, "function ")
     .replace(/export\s+default\s+/g, "")
     .replace(/^export\s+(?=(const|let|var|function|class)\b)/gm, "")
@@ -144,6 +154,12 @@ function stripExportsOnly(code: string) {
 function stripExportsAndImports(code: string) {
   return code
     .replace(/^import\s+.*?['"].*?['"];?\s*$/gm, "")
+    // Remove TS-only declarations
+    .replace(/(^|\n)\s*export\s+type\s+[\s\S]*?;\s*(?=\n|$)/g, "$1")
+    .replace(/(^|\n)\s*export\s+interface\s+[A-Za-z_$][\w$]*\s*\{[\s\S]*?\}\s*;?\s*(?=\n|$)/g, "$1")
+    .replace(/(^|\n)\s*type\s+[A-Za-z_$][\w$]*\s*=\s*[\s\S]*?;\s*(?=\n|$)/g, "$1")
+    .replace(/(^|\n)\s*interface\s+[A-Za-z_$][\w$]*\s*\{[\s\S]*?\}\s*;?\s*(?=\n|$)/g, "$1")
+    // Strip runtime exports
     .replace(/export\s+default\s+function\s+/g, "function ")
     .replace(/export\s+default\s+/g, "")
     .replace(/^export\s+(?=(const|let|var|function|class)\b)/gm, "")
