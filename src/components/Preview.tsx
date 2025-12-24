@@ -187,7 +187,9 @@ export function Preview({
 
   const copyLink = () => {
     if (!slug) return;
-    const url = `https://vipe.lovable.app/app/${slug}`;
+    // Use current host for the published app URL
+    const baseUrl = window.location.origin;
+    const url = `${baseUrl}/app/${slug}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("Link copied!");

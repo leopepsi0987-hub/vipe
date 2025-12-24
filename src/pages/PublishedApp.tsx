@@ -72,12 +72,29 @@ export default function PublishedApp() {
   }
 
   // Clean published app - full screen iframe, no branding
+  // Inject minimal styling if HTML doesn't have proper structure
+  const preparedHtml = html ? (
+    html.includes('<html') ? html : `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { min-height: 100vh; font-family: system-ui, -apple-system, sans-serif; }
+  </style>
+</head>
+<body>${html}</body>
+</html>`
+  ) : "";
+
   return (
     <iframe
-      srcDoc={html || ""}
+      srcDoc={preparedHtml}
       className="w-full h-screen border-0"
       title="Published App"
-      sandbox="allow-scripts allow-forms allow-modals allow-popups"
+      sandbox="allow-scripts allow-same-origin allow-forms allow-modals allow-popups"
+      style={{ display: 'block' }}
     />
   );
 }
