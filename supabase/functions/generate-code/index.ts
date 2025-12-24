@@ -109,28 +109,38 @@ serve(async (req) => {
       }
     }
 
-    // Check for matching template
-    const matchingTemplate = findMatchingTemplate(prompt);
-    const templateContext = generateTemplateContext();
+    // Template matching for common app types
+    const templateKeywords: Record<string, { name: string; pattern: string; features: string }> = {
+      "food|delivery|restaurant|uber|doordash": { name: "Food Delivery App", pattern: "E-COMMERCE + REAL-TIME", features: "Restaurant listings, Menu browsing, Shopping cart, Order tracking, Delivery address management" },
+      "social|twitter|instagram|facebook|feed|follow": { name: "Social Media App", pattern: "SOCIAL NETWORK", features: "User profiles, Create posts with images, Like/comment, Follow users, Personalized feed" },
+      "shop|store|ecommerce|product|cart|checkout": { name: "E-Commerce Store", pattern: "E-COMMERCE", features: "Product catalog, Shopping cart, Wishlist, Checkout flow, Order tracking" },
+      "todo|task|productivity|notes|reminder": { name: "Task Management App", pattern: "CRUD + ORGANIZATION", features: "Create/edit/delete tasks, Priority levels, Due dates, Categories, Progress tracking" },
+      "chat|messaging|inbox|conversation|whatsapp": { name: "Chat / Messaging App", pattern: "REAL-TIME CHAT", features: "Conversation list, Real-time messaging, Typing indicators, File sharing, Online status" },
+      "fitness|workout|gym|exercise|health": { name: "Fitness Tracker", pattern: "TRACKING + ANALYTICS", features: "Workout logging, Exercise library, Progress charts, Goal setting, Personal records" },
+      "blog|cms|article|writing|medium": { name: "Blog / CMS", pattern: "CONTENT MANAGEMENT", features: "Article creation with rich text, Categories/tags, Draft/publish workflow, Author profiles, Comments" },
+      "booking|appointment|schedule|calendar|reservation": { name: "Booking / Appointment", pattern: "SCHEDULING", features: "Calendar view, Available time slots, Booking form, Confirmations, Reschedule/cancel" },
+      "dashboard|analytics|admin|statistics|charts": { name: "Dashboard / Analytics", pattern: "ANALYTICS", features: "KPI cards, Charts/graphs, Data tables, Filters, Export functionality" },
+      "portfolio|landing|personal|resume|showcase": { name: "Portfolio / Landing Page", pattern: "MARKETING", features: "Hero section, Projects showcase, Skills/services, Testimonials, Contact form" }
+    };
+
+    let matchedTemplate: { name: string; pattern: string; features: string } | null = null;
+    const lowerPrompt = prompt.toLowerCase();
+    for (const [keywords, template] of Object.entries(templateKeywords)) {
+      if (keywords.split("|").some(kw => lowerPrompt.includes(kw))) {
+        matchedTemplate = template;
+        break;
+      }
+    }
+
+    const templateContext = matchedTemplate 
+      ? `\n## 🎯 TEMPLATE DETECTED: ${matchedTemplate.name}\n**Pattern:** ${matchedTemplate.pattern}\n**Build these features:** ${matchedTemplate.features}\n\nGenerate a COMPLETE implementation with ALL these features. Use proper TypeScript types, React hooks, and Tailwind styling.`
+      : `\n## 🎯 AVAILABLE APP TEMPLATES\nBuild complete apps: Food Delivery, Social Media, E-Commerce, Task Management, Chat/Messaging, Fitness Tracker, Blog/CMS, Booking/Appointments, Dashboard/Analytics, Portfolio/Landing.`;
     
     // ==========================================
     // SYSTEM PROMPT - STRICT JSON OUTPUT ONLY
     // ==========================================
     const systemPrompt = `You are an expert React/TypeScript developer. You generate COMPLETE, PRODUCTION-READY code.
-
-${matchingTemplate ? `
-## 🎯 TEMPLATE DETECTED: ${matchingTemplate.name}
-Pattern: ${matchingTemplate.pattern}
-Use the pre-built template files below as your starting point. Customize based on user requirements.
-
-### Template Files to Use:
-${JSON.stringify(matchingTemplate.files, null, 2)}
-
-### Database Schema (if needed):
-${matchingTemplate.dbSchema || 'No database required'}
-
-IMPORTANT: Use this template as a base but customize names, colors, and content based on user's specific request.
-` : templateContext}
+${templateContext}
 
 ## ⚠️ CRITICAL RULES - VIOLATION = FAILURE:
 

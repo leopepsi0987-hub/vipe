@@ -31,13 +31,16 @@ serve(async (req) => {
 
 | User Says | Pattern | What You'll Build |
 |-----------|---------|-------------------|
-| "todo app", "task manager", "notes" | CRUD | Complete task system with create/edit/delete, filters, sorting |
-| "social app", "like twitter", "community" | SOCIAL | Profiles, posts, follows, likes, comments, feed |
-| "store", "shop", "marketplace", "e-commerce" | MARKETPLACE | Products, cart, checkout, orders, reviews |
-| "dashboard", "admin panel", "analytics" | DASHBOARD | Charts, KPIs, data tables, filters |
-| "booking", "appointments", "schedule" | BOOKING | Calendar, time slots, reservations, confirmations |
-| "chat", "messaging", "inbox" | CHAT | Conversations, messages, real-time updates |
-| "blog", "articles", "content" | BLOG/CMS | Rich editor, categories, tags, publishing |
+| "todo app", "task manager", "notes" | CRUD | Complete task system with create/edit/delete, filters, sorting, priorities, due dates |
+| "social app", "like twitter", "community" | SOCIAL | Profiles, posts, follows, likes, comments, feed, notifications |
+| "store", "shop", "marketplace", "e-commerce" | MARKETPLACE | Products, cart, checkout, orders, reviews, wishlist |
+| "dashboard", "admin panel", "analytics" | DASHBOARD | Charts, KPIs, data tables, filters, export functionality |
+| "booking", "appointments", "schedule" | BOOKING | Calendar, time slots, reservations, confirmations, reminders |
+| "chat", "messaging", "inbox" | CHAT | Conversations, messages, real-time updates, typing indicators |
+| "blog", "articles", "content" | BLOG/CMS | Rich editor, categories, tags, publishing, comments |
+| "food delivery", "restaurant", "uber eats" | DELIVERY | Restaurant listings, menus, cart, order tracking, delivery address |
+| "fitness", "workout", "gym", "exercise" | FITNESS | Workout logging, exercises, progress charts, goals, personal records |
+| "portfolio", "landing page", "personal site" | PORTFOLIO | Hero section, projects showcase, skills, testimonials, contact form |
 
 **When explaining to users, tell them the PATTERN you detected and what features are included!**
 
