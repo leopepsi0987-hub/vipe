@@ -2443,11 +2443,11 @@ export function generateBundledHTML(files: FileMap): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Preview</title>
 
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"><\/script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"><\/script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"><\/script>
+  <script crossorigin src="/vendor/react18.umd.js"><\/script>
+  <script crossorigin src="/vendor/react-dom18.umd.js"><\/script>
+  <script src="/vendor/babel-standalone.min.js"><\/script>
 
-  <script src="https://cdn.tailwindcss.com"><\/script>
+  <script src="/vendor/tailwindcdn.js"><\/script>
   <script>
     tailwind.config = {
       darkMode: 'class',
