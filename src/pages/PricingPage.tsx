@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Check, Sparkles, Zap, Crown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import logo from "@/assets/logo.png";
 
 const plans = [
   {
@@ -64,8 +65,9 @@ export default function PricingPage() {
       {/* Header */}
       <header className="border-b border-border/40 backdrop-blur-sm bg-background/80 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={() => navigate("/")} className="text-xl font-bold text-primary">
-            BuilderAI
+          <button onClick={() => navigate("/")} className="flex items-center gap-2">
+            <img src={logo} alt="VipeAI" className="w-8 h-8" />
+            <span className="text-xl font-bold text-primary">VipeAI</span>
           </button>
           <Button variant="outline" onClick={() => navigate("/auth")}>
             Sign In
@@ -144,7 +146,7 @@ export default function PricingPage() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 BuilderAI. All rights reserved.
+              © 2024 VipeAI. All rights reserved.
             </p>
             <div className="flex gap-6">
               <button onClick={() => navigate("/terms")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">

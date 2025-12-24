@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import logo from "@/assets/logo.png";
 
 export default function RefundPage() {
   const navigate = useNavigate();
@@ -13,8 +14,9 @@ export default function RefundPage() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <button onClick={() => navigate("/")} className="text-xl font-bold text-primary">
-            BuilderAI
+          <button onClick={() => navigate("/")} className="flex items-center gap-2">
+            <img src={logo} alt="VipeAI" className="w-8 h-8" />
+            <span className="text-xl font-bold text-primary">VipeAI</span>
           </button>
         </div>
       </header>
@@ -63,7 +65,11 @@ export default function RefundPage() {
           <section>
             <h2 className="text-2xl font-semibold mb-4">4. How to Request a Refund</h2>
             <p className="text-muted-foreground leading-relaxed">
-              To request a refund, please contact our support team at support@builderai.com with:
+              To request a refund, please contact our support team at{" "}
+              <a href="mailto:vipedz@hotmail.com" className="text-primary hover:underline">
+                vipedz@hotmail.com
+              </a>{" "}
+              with:
             </p>
             <ul className="list-disc list-inside text-muted-foreground mt-2 space-y-2">
               <li>Your account email address</li>
@@ -99,7 +105,10 @@ export default function RefundPage() {
           <section>
             <h2 className="text-2xl font-semibold mb-4">7. Contact Us</h2>
             <p className="text-muted-foreground leading-relaxed">
-              If you have any questions about our Refund Policy, please contact us at support@builderai.com. 
+              If you have any questions about our Refund Policy, please contact us at{" "}
+              <a href="mailto:vipedz@hotmail.com" className="text-primary hover:underline">
+                vipedz@hotmail.com
+              </a>. 
               We're here to help and will do our best to resolve any issues you may have.
             </p>
           </section>
@@ -111,7 +120,7 @@ export default function RefundPage() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-sm text-muted-foreground">
-              © 2024 BuilderAI. All rights reserved.
+              © 2024 VipeAI. All rights reserved.
             </p>
             <div className="flex gap-6">
               <button onClick={() => navigate("/pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
