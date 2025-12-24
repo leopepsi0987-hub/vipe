@@ -72,9 +72,18 @@ export default function PublishedApp() {
   }
 
   // Clean published app - full screen iframe, no branding
+  // Convert relative /vendor/ paths to absolute URLs so they work in srcDoc iframe
+  const baseUrl = window.location.origin;
+  const fixedHtml = html ? html
+    .replace(/src="\/vendor\//g, `src="${baseUrl}/vendor/`)
+    .replace(/src='\/vendor\//g, `src='${baseUrl}/vendor/`)
+    .replace(/href="\/vendor\//g, `href="${baseUrl}/vendor/`)
+    .replace(/href='\/vendor\//g, `href='${baseUrl}/vendor/`)
+    : "";
+
   // Inject minimal styling if HTML doesn't have proper structure
-  const preparedHtml = html ? (
-    html.includes('<html') ? html : `<!DOCTYPE html>
+  const preparedHtml = fixedHtml ? (
+    fixedHtml.includes('<html') ? fixedHtml : `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -84,7 +93,7 @@ export default function PublishedApp() {
     body { min-height: 100vh; font-family: system-ui, -apple-system, sans-serif; }
   </style>
 </head>
-<body>${html}</body>
+<body>${fixedHtml}</body>
 </html>`
   ) : "";
 
