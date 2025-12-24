@@ -133,9 +133,89 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
   const spec = m[2].trim();
   const resolved = resolveModulePath(files, spec, fromPath);
 
-  // node_modules imports are not supported; leave them in place so React etc can be globals.
-  // But in our sandbox code we expect React/ReactDOM as globals anyway, so we can drop them.
-  if (!resolved) return "";
+  // For non-local imports we cannot resolve in the sandbox.
+  // However, React/ReactDOM are provided as globals via UMD scripts.
+  if (!resolved) {
+    // React
+    if (spec === "react") {
+      const out: string[] = [];
+
+      // import * as React from 'react'
+      if (bindings.startsWith("*")) {
+        const mm = bindings.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+        if (mm) out.push(`const ${mm[1]} = window.React;`);
+        return out.join("\n");
+      }
+
+      // import React, { useState } from 'react'
+      const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+      const first = parts[0];
+      if (first && !first.startsWith("{")) {
+        out.push(`const ${first} = window.React;`);
+      }
+
+      const namedMatch = bindings.match(/\{([^}]+)\}/);
+      if (namedMatch) {
+        const inside = namedMatch[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => {
+            const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+            if (!mm) return null;
+            return mm[2] ? `${mm[1]}: ${mm[2]}` : mm[1];
+          })
+          .filter(Boolean)
+          .join(", ");
+
+        if (inside) out.push(`const { ${inside} } = window.React;`);
+      }
+
+      return out.join("\n");
+    }
+
+    // ReactDOM
+    if (spec === "react-dom" || spec === "react-dom/client") {
+      const out: string[] = [];
+
+      if (bindings.startsWith("*")) {
+        const mm = bindings.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+        if (mm) out.push(`const ${mm[1]} = window.ReactDOM;`);
+        return out.join("\n");
+      }
+
+      const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+      const first = parts[0];
+      if (first && !first.startsWith("{")) {
+        out.push(`const ${first} = window.ReactDOM;`);
+      }
+
+      const namedMatch = bindings.match(/\{([^}]+)\}/);
+      if (namedMatch) {
+        const inside = namedMatch[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => {
+            const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+            if (!mm) return null;
+            return mm[2] ? `${mm[1]}: ${mm[2]}` : mm[1];
+          })
+          .filter(Boolean)
+          .join(", ");
+
+        if (inside) out.push(`const { ${inside} } = window.ReactDOM;`);
+      }
+
+      return out.join("\n");
+    }
+
+    // Any other external dependency is not supported by the sandbox bundler.
+    // We replace it with a runtime error that is shown in the preview overlay.
+    return `throw new Error(${JSON.stringify(
+      `Sandbox cannot import external module '${spec}'. Use local files (src/*, @/...) or remove this dependency.`,
+    )});`;
+  }
 
   const moduleRef = `__require(${JSON.stringify(resolved)})`;
   const out: string[] = [];
