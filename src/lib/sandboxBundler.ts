@@ -36,6 +36,25 @@ function resolveModulePath(files: FileMap, rawSpecifier: string, fromPath?: stri
       `${stem}.tsx`,
       `${stem}.js`,
       `${stem}.jsx`,
+      `${stem}.json`,
+      `${stem}/index.ts`,
+      `${stem}/index.tsx`,
+      `${stem}/index.js`,
+      `${stem}/index.jsx`,
+    ];
+    return candidates.find((c) => files[c] != null) ?? null;
+  }
+
+  // Alias ~/ -> src/ (alternative path alias)
+  if (spec.startsWith("~/")) {
+    const stem = `src/${spec.slice(2)}`;
+    const candidates = [
+      stem,
+      `${stem}.ts`,
+      `${stem}.tsx`,
+      `${stem}.js`,
+      `${stem}.jsx`,
+      `${stem}.json`,
       `${stem}/index.ts`,
       `${stem}/index.tsx`,
       `${stem}/index.js`,
@@ -63,6 +82,7 @@ function resolveModulePath(files: FileMap, rawSpecifier: string, fromPath?: stri
       `${stem}.tsx`,
       `${stem}.js`,
       `${stem}.jsx`,
+      `${stem}.json`,
       `${stem}/index.ts`,
       `${stem}/index.tsx`,
       `${stem}/index.js`,
@@ -722,6 +742,18 @@ const EXTERNAL_MODULE_MAP: Record<string, { global: string; namedExports?: strin
 };
 
 function transformImportLine(files: FileMap, fromPath: string, line: string): string {
+  // Handle side-effect imports: import 'pkg' or import 'file.css'
+  const sideEffectMatch = line.match(/^import\s+['"]([^'"]+)['"];?\s*$/);
+  if (sideEffectMatch) {
+    const spec = sideEffectMatch[1].trim();
+    // CSS/SCSS side-effect imports - skip
+    if (/\.(css|scss|sass|less)$/.test(spec)) {
+      return "// CSS import skipped in sandbox";
+    }
+    // Other side-effect imports (like polyfills) - skip but log
+    return `// Side-effect import '${spec}' skipped in sandbox`;
+  }
+
   // import X from '...'
   // import { A, B as C } from '...'
   // import X, { A } from '...'
@@ -740,8 +772,29 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
     const moduleInfo = EXTERNAL_MODULE_MAP[spec];
     
     // Handle CSS/SCSS module imports (just skip them)
-    if (spec.endsWith('.css') || spec.endsWith('.scss') || spec.endsWith('.module.css') || spec.endsWith('.module.scss') || spec.endsWith('.sass')) {
+    if (/\.(css|scss|sass|less|module\.css|module\.scss)$/.test(spec)) {
       return "// CSS import skipped in sandbox";
+    }
+
+    // Handle asset imports (images, fonts, etc.) - return placeholder URL
+    if (/\.(png|jpg|jpeg|gif|svg|webp|ico|bmp|tiff)$/i.test(spec)) {
+      const varName = bindings.trim();
+      return `const ${varName} = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Crect fill='%23ddd' width='100' height='100'/%3E%3C/svg%3E"; // Image placeholder`;
+    }
+
+    if (/\.(mp4|webm|ogg|mp3|wav|flac|aac)$/i.test(spec)) {
+      const varName = bindings.trim();
+      return `const ${varName} = ""; // Media placeholder`;
+    }
+
+    if (/\.(woff|woff2|ttf|eot|otf)$/i.test(spec)) {
+      const varName = bindings.trim();
+      return `const ${varName} = ""; // Font placeholder`;
+    }
+
+    if (/\.json$/i.test(spec)) {
+      const varName = bindings.trim();
+      return `const ${varName} = {}; // JSON placeholder`;
     }
     
     if (moduleInfo) {
