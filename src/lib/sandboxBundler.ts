@@ -613,6 +613,112 @@ const EXTERNAL_MODULE_MAP: Record<string, { global: string; namedExports?: strin
   "pusher-js": { global: "Pusher", hasDefault: true },
   "ably": { global: "Ably", hasDefault: true },
   "@ably-labs/react-hooks": { global: "ablyReactHooks", namedExports: ["useChannel", "usePresence", "useAbly", "AblyProvider"] },
+
+  // Additional missing libraries
+  "@hookform/error-message": { global: "hookformErrorMessage", namedExports: ["ErrorMessage"] },
+  "@supabase/ssr": { global: "supabaseSsr", namedExports: ["createBrowserClient", "createServerClient"] },
+  "firebase/storage": { global: "firebaseStorage", namedExports: ["getStorage", "ref", "uploadBytes", "uploadBytesResumable", "uploadString", "getDownloadURL", "getMetadata", "updateMetadata", "deleteObject", "list", "listAll", "getBlob", "getBytes", "getStream", "connectStorageEmulator"] },
+  
+  // FullCalendar
+  "@fullcalendar/react": { global: "FullCalendar", hasDefault: true },
+  "@fullcalendar/core": { global: "FullCalendarCore", namedExports: ["Calendar", "createPlugin", "sliceEvents", "createDuration", "formatDate", "formatRange"] },
+  "@fullcalendar/daygrid": { global: "fullcalendarDayGrid", hasDefault: true },
+  "@fullcalendar/timegrid": { global: "fullcalendarTimeGrid", hasDefault: true },
+  "@fullcalendar/list": { global: "fullcalendarList", hasDefault: true },
+  "@fullcalendar/interaction": { global: "fullcalendarInteraction", hasDefault: true },
+
+  // Lexical
+  "lexical": { global: "Lexical", namedExports: ["createEditor", "$getRoot", "$getSelection", "$createParagraphNode", "$createTextNode", "TextNode", "ElementNode", "DecoratorNode", "LexicalEditor", "RootNode", "LineBreakNode", "ParagraphNode", "COMMAND_PRIORITY_LOW", "COMMAND_PRIORITY_NORMAL", "COMMAND_PRIORITY_HIGH", "COMMAND_PRIORITY_CRITICAL", "COMMAND_PRIORITY_EDITOR", "KEY_ENTER_COMMAND", "KEY_BACKSPACE_COMMAND", "KEY_DELETE_COMMAND", "KEY_TAB_COMMAND", "KEY_ESCAPE_COMMAND", "KEY_ARROW_UP_COMMAND", "KEY_ARROW_DOWN_COMMAND", "KEY_ARROW_LEFT_COMMAND", "KEY_ARROW_RIGHT_COMMAND", "FORMAT_TEXT_COMMAND", "FORMAT_ELEMENT_COMMAND", "INSERT_LINE_BREAK_COMMAND", "INSERT_PARAGRAPH_COMMAND", "UNDO_COMMAND", "REDO_COMMAND", "CAN_UNDO_COMMAND", "CAN_REDO_COMMAND", "CLEAR_EDITOR_COMMAND", "CLEAR_HISTORY_COMMAND", "FOCUS_COMMAND", "BLUR_COMMAND", "SELECTION_CHANGE_COMMAND", "CLICK_COMMAND", "PASTE_COMMAND", "COPY_COMMAND", "CUT_COMMAND", "DROP_COMMAND", "DRAGSTART_COMMAND", "DRAGEND_COMMAND", "DRAGOVER_COMMAND"] },
+  "@lexical/react": { global: "LexicalReact", namedExports: ["LexicalComposer", "LexicalComposerContext", "useLexicalComposerContext", "ContentEditable", "LexicalContentEditable", "PlainTextPlugin", "RichTextPlugin", "HistoryPlugin", "OnChangePlugin", "AutoFocusPlugin", "LinkPlugin", "ListPlugin", "CheckListPlugin", "TablePlugin", "HorizontalRulePlugin", "MarkdownShortcutPlugin", "CodeHighlightPlugin", "AutoLinkPlugin", "LexicalClickableLinkPlugin", "LexicalErrorBoundary", "TreeView", "useLexicalIsTextContentEmpty", "useLexicalTextEntity", "LexicalNestedComposer", "LexicalHorizontalRuleNode", "LexicalDecoratorBlockNode", "CharacterLimitPlugin", "ClearEditorPlugin", "CollaborationPlugin", "HashtagPlugin", "MaxLengthPlugin", "TabIndentationPlugin", "TableOfContentsPlugin", "EditorRefPlugin"] },
+
+  // Virtuoso
+  "react-virtuoso": { global: "ReactVirtuoso", namedExports: ["Virtuoso", "GroupedVirtuoso", "VirtuosoGrid", "TableVirtuoso", "VirtuosoHandle", "GroupedVirtuosoHandle", "VirtuosoGridHandle", "TableVirtuosoHandle"] },
+
+  // PDF
+  "pdf-lib": { global: "PDFLib", namedExports: ["PDFDocument", "PDFPage", "PDFFont", "PDFImage", "StandardFonts", "rgb", "cmyk", "grayscale", "degrees", "radians", "PageSizes", "BlendMode", "LineCapStyle", "LineJoinStyle", "TextAlignment", "RotationTypes", "drawRectangle", "drawEllipse", "drawCircle", "drawLine", "drawSvgPath"] },
+
+  // Plyr
+  "plyr-react": { global: "PlyrReact", hasDefault: true, namedExports: ["usePlyr"] },
+  "plyr": { global: "Plyr", hasDefault: true },
+
+  // Wavesurfer
+  "wavesurfer.js": { global: "WaveSurfer", hasDefault: true },
+
+  // Google Generative AI
+  "@google/generative-ai": { global: "GoogleGenerativeAI", namedExports: ["GoogleGenerativeAI", "HarmCategory", "HarmBlockThreshold", "TaskType", "ChatSession", "GenerativeModel"] },
+
+  // Textarea autosize
+  "react-textarea-autosize": { global: "TextareaAutosize", hasDefault: true },
+
+  // Input mask
+  "react-input-mask": { global: "InputMask", hasDefault: true },
+  "react-imask": { global: "IMaskInput", namedExports: ["IMaskInput", "useIMask", "IMask"] },
+
+  // Workbox
+  "workbox-window": { global: "workbox", namedExports: ["Workbox", "messageSW"] },
+
+  // Helmet
+  "react-helmet": { global: "ReactHelmet", namedExports: ["Helmet"] },
+  "react-helmet-async": { global: "ReactHelmetAsync", namedExports: ["Helmet", "HelmetProvider"] },
+
+  // React Aria
+  "@react-aria/focus": { global: "reactAriaFocus", namedExports: ["useFocusRing", "useFocusVisible", "useFocus", "useFocusWithin", "FocusRing", "FocusScope"] },
+  "@react-aria/utils": { global: "reactAriaUtils", namedExports: ["useId", "mergeProps", "mergeRefs", "chain", "useObjectRef", "useLayoutEffect", "useResizeObserver", "useViewportSize", "useDescription", "useSyncRef", "runAfterTransition", "useEvent", "useGlobalListeners", "useLabels", "useDrag1D", "isAndroid", "isIOS", "isMac", "isAppleDevice", "isWebKit", "isIPad", "isIPhone", "getScrollParent", "isScrollable", "getOffset", "clamp", "snapValueToStep", "toDataAttributes", "useEffectEvent"] },
+  "@react-aria/interactions": { global: "reactAriaInteractions", namedExports: ["usePress", "useHover", "useFocus", "useFocusVisible", "useFocusWithin", "useKeyboard", "useMove", "useLongPress", "PressResponder", "Pressable"] },
+  
+  // React Focus Lock
+  "react-focus-lock": { global: "FocusLock", hasDefault: true },
+
+  // Grid Layout
+  "react-grid-layout": { global: "ReactGridLayout", hasDefault: true, namedExports: ["WidthProvider", "Responsive", "GridLayout"] },
+
+  // Image Gallery
+  "react-image-gallery": { global: "ImageGallery", hasDefault: true },
+  "lightgallery": { global: "lightGallery", hasDefault: true },
+  "lightgallery/react": { global: "LightGallery", hasDefault: true },
+
+  // Slick Carousel
+  "slick-carousel": { global: "slick" },
+
+  // Motion One
+  "motion": { global: "Motion", namedExports: ["animate", "timeline", "stagger", "spring", "glide", "createMotionState", "createStyles", "style", "inView", "scroll", "scrollInfo", "resize", "withControls"] },
+  "@motionone/solid": { global: "motionOneSolid" },
+
+  // Nivo (all packages)
+  "@nivo/core": { global: "nivoCore", namedExports: ["ResponsiveWrapper", "Container", "SvgWrapper", "useDimensions", "useTheme", "useMotionConfig", "usePartialTheme", "ThemeProvider", "useTooltip", "Tooltip", "TooltipWrapper", "Crosshair", "Chip", "TableTooltip", "BasicTooltip"] },
+  "@nivo/bar": { global: "nivoBar", namedExports: ["Bar", "ResponsiveBar", "BarCanvas", "ResponsiveBarCanvas"] },
+  "@nivo/line": { global: "nivoLine", namedExports: ["Line", "ResponsiveLine", "LineCanvas", "ResponsiveLineCanvas"] },
+  "@nivo/pie": { global: "nivoPie", namedExports: ["Pie", "ResponsivePie", "PieCanvas", "ResponsivePieCanvas"] },
+  "@nivo/heatmap": { global: "nivoHeatmap", namedExports: ["HeatMap", "ResponsiveHeatMap", "HeatMapCanvas", "ResponsiveHeatMapCanvas"] },
+  "@nivo/treemap": { global: "nivoTreemap", namedExports: ["TreeMap", "ResponsiveTreeMap", "TreeMapHtml", "ResponsiveTreeMapHtml", "TreeMapCanvas", "ResponsiveTreeMapCanvas"] },
+  "@nivo/sankey": { global: "nivoSankey", namedExports: ["Sankey", "ResponsiveSankey"] },
+  "@nivo/network": { global: "nivoNetwork", namedExports: ["Network", "ResponsiveNetwork", "NetworkCanvas", "ResponsiveNetworkCanvas"] },
+  "@nivo/radar": { global: "nivoRadar", namedExports: ["Radar", "ResponsiveRadar"] },
+  "@nivo/funnel": { global: "nivoFunnel", namedExports: ["Funnel", "ResponsiveFunnel"] },
+
+  // AG Grid
+  "ag-grid-community": { global: "agGrid", namedExports: ["Grid", "createGrid", "ModuleRegistry", "ColDef", "GridApi", "ColumnApi", "GridOptions", "ICellRendererParams", "ICellEditorParams", "IFilterParams", "ValueFormatterParams", "ValueGetterParams", "ValueSetterParams"] },
+
+  // TipTap PM
+  "@tiptap/pm": { global: "tiptapPm" },
+  "@tiptap/pm/state": { global: "tiptapPmState", namedExports: ["EditorState", "Plugin", "PluginKey", "Selection", "TextSelection", "NodeSelection", "AllSelection", "Transaction"] },
+  "@tiptap/pm/view": { global: "tiptapPmView", namedExports: ["EditorView", "Decoration", "DecorationSet", "NodeView"] },
+  "@tiptap/pm/model": { global: "tiptapPmModel", namedExports: ["Node", "Mark", "Schema", "Fragment", "Slice", "ResolvedPos", "NodeRange", "NodeType", "MarkType", "ContentMatch", "DOMParser", "DOMSerializer"] },
+  "@tiptap/pm/transform": { global: "tiptapPmTransform", namedExports: ["Transform", "Step", "StepResult", "Mapping", "MapResult", "AddMarkStep", "RemoveMarkStep", "ReplaceStep", "ReplaceAroundStep", "canSplit", "liftTarget", "findWrapping", "canJoin", "joinPoint", "insertPoint", "dropPoint"] },
+  "@tiptap/pm/commands": { global: "tiptapPmCommands", namedExports: ["baseKeymap", "toggleMark", "setBlockType", "wrapIn", "lift", "joinUp", "joinDown", "selectParentNode", "selectAll", "deleteSelection", "joinBackward", "joinForward", "selectNodeBackward", "selectNodeForward", "selectTextblockStart", "selectTextblockEnd", "createParagraphNear", "liftEmptyBlock", "splitBlock", "splitBlockKeepMarks", "newlineInCode", "exitCode", "chainCommands", "pcBaseKeymap", "macBaseKeymap"] },
+  "@tiptap/pm/history": { global: "tiptapPmHistory", namedExports: ["history", "undo", "redo", "undoDepth", "redoDepth", "closeHistory"] },
+
+  // CodeMirror language support
+  "@codemirror/lang-javascript": { global: "codemirrorLangJs", namedExports: ["javascript", "javascriptLanguage", "typescriptLanguage", "jsxLanguage", "tsxLanguage", "localCompletionSource", "completionPath", "scopeCompletionSource", "snippets", "esLint"] },
+  "@codemirror/lang-html": { global: "codemirrorLangHtml", namedExports: ["html", "htmlLanguage", "htmlCompletionSource", "htmlCompletionSourceWith"] },
+  "@codemirror/lang-css": { global: "codemirrorLangCss", namedExports: ["css", "cssLanguage", "cssCompletionSource", "defineCSSCompletionSource"] },
+  "@codemirror/lang-json": { global: "codemirrorLangJson", namedExports: ["json", "jsonLanguage", "jsonParseLinter", "jsonCompletionSource"] },
+  "@codemirror/lang-markdown": { global: "codemirrorLangMarkdown", namedExports: ["markdown", "markdownLanguage", "commonmarkLanguage", "markdownKeymap", "insertNewlineContinueMarkup", "deleteMarkupBackward"] },
+  "@codemirror/lang-python": { global: "codemirrorLangPython", namedExports: ["python", "pythonLanguage", "localCompletionSource", "globalCompletion"] },
+  "@codemirror/lang-sql": { global: "codemirrorLangSql", namedExports: ["sql", "MySQL", "PostgreSQL", "SQLite", "Cassandra", "MSSQL", "MariaSQL", "PLSQL", "StandardSQL", "schemaCompletionSource", "keywordCompletionSource", "SQLDialect", "SQLConfig"] },
+
+  // Lib utils
+  "@/lib/utils": { global: "libUtils", namedExports: ["cn"] },
 };
 
 function transformImportLine(files: FileMap, fromPath: string, line: string): string {
