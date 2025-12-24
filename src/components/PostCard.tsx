@@ -129,6 +129,10 @@ export function PostCard({ post, onRemix }: PostCardProps) {
               src={post.media_url}
               alt="Post media"
               className="rounded-lg max-h-96 w-full object-cover"
+              onError={(e) => {
+                // Hide broken images
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
             />
           ) : post.media_type === "video" ? (
             <video
