@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/MainLayout";
 import { usePosts } from "@/hooks/usePosts";
 import { CreatePost } from "@/components/CreatePost";
 import { PostCard } from "@/components/PostCard";
-import { Newspaper, Loader2 } from "lucide-react";
+import { LayoutGrid, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -83,8 +83,8 @@ export default function NewsPage() {
     <MainLayout>
       <div className="container mx-auto px-4 py-8 max-w-2xl">
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2 mb-6">
-          <Newspaper className="w-6 h-6 text-primary" />
-          News Feed
+          <LayoutGrid className="w-6 h-6 text-primary" />
+          Posts
         </h1>
 
         {/* Create Post */}
@@ -99,7 +99,7 @@ export default function NewsPage() {
           </div>
         ) : (
           <div className="glass-card rounded-xl p-12 text-center">
-            <Newspaper className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <LayoutGrid className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-lg font-medium text-foreground mb-2">No posts yet</h2>
             <p className="text-muted-foreground">Be the first to share something!</p>
           </div>

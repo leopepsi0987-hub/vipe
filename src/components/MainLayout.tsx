@@ -16,13 +16,13 @@ import {
   User,
   Hammer,
   MessageSquare,
-  Newspaper,
+  LayoutGrid,
   LogOut,
   Settings,
-  Zap,
   Menu,
   X,
 } from "lucide-react";
+import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
 interface MainLayoutProps {
@@ -33,7 +33,7 @@ const navItems = [
   { path: "/profile", label: "Profile", icon: User },
   { path: "/builder", label: "Builder", icon: Hammer },
   { path: "/messages", label: "Messages", icon: MessageSquare },
-  { path: "/news", label: "News", icon: Newspaper },
+  { path: "/posts", label: "Posts", icon: LayoutGrid },
 ];
 
 export function MainLayout({ children }: MainLayoutProps) {
@@ -54,10 +54,10 @@ export function MainLayout({ children }: MainLayoutProps) {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           {/* Logo */}
           <NavLink to="/" className="flex items-center gap-2 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-primary flex items-center justify-center shadow-glow group-hover:scale-105 transition-transform">
-              <Zap className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 rounded-xl overflow-hidden flex items-center justify-center group-hover:scale-105 transition-transform">
+              <img src={logo} alt="VipeAI" className="w-full h-full object-contain" />
             </div>
-            <span className="font-bold text-lg text-foreground hidden sm:block">Vipe DZ</span>
+            <span className="font-bold text-lg text-foreground hidden sm:block">VipeAI</span>
           </NavLink>
 
           {/* Desktop Navigation */}
