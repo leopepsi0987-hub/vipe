@@ -144,6 +144,7 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
 
   // For non-local imports we cannot resolve in the sandbox.
   // However, React/ReactDOM are provided as globals via UMD scripts.
+  // We also polyfill a few common tiny deps (clsx, tailwind-merge) as globals.
   if (!resolved) {
     // React
     if (spec === "react") {
@@ -214,6 +215,87 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
           .join(", ");
 
         if (inside) out.push(`const { ${inside} } = window.ReactDOM;`);
+      }
+
+      return out.join("\n");
+    }
+
+    // clsx (used by cn helper)
+    if (spec === "clsx") {
+      const out: string[] = [];
+
+      if (bindings.startsWith("*")) {
+        const mm = bindings.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+        if (mm) out.push(`const ${mm[1]} = { clsx: window.clsx, default: window.clsx };`);
+        return out.join("\n");
+      }
+
+      // default import
+      const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+      const first = parts[0];
+      if (first && !first.startsWith("{")) {
+        out.push(`const ${first} = window.clsx;`);
+      }
+
+      // named imports: { clsx }
+      const namedMatch = bindings.match(/\{([^}]+)\}/);
+      if (namedMatch) {
+        const inside = namedMatch[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => {
+            const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+            if (!mm) return null;
+            const imported = mm[1];
+            const local = mm[2] ?? mm[1];
+            if (imported === "clsx") return local === "clsx" ? "clsx" : `clsx: ${local}`;
+            // type-only imports are stripped before this step
+            return null;
+          })
+          .filter(Boolean)
+          .join(", ");
+
+        if (inside) out.push(`const { ${inside} } = { clsx: window.clsx };`);
+      }
+
+      return out.join("\n");
+    }
+
+    // tailwind-merge (used by cn helper)
+    if (spec === "tailwind-merge") {
+      const out: string[] = [];
+
+      if (bindings.startsWith("*")) {
+        const mm = bindings.match(/^\*\s+as\s+([A-Za-z_$][\w$]*)$/);
+        if (mm) out.push(`const ${mm[1]} = { twMerge: window.twMerge, default: window.twMerge };`);
+        return out.join("\n");
+      }
+
+      const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+      const first = parts[0];
+      if (first && !first.startsWith("{")) {
+        out.push(`const ${first} = window.twMerge;`);
+      }
+
+      const namedMatch = bindings.match(/\{([^}]+)\}/);
+      if (namedMatch) {
+        const inside = namedMatch[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => {
+            const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+            if (!mm) return null;
+            const imported = mm[1];
+            const local = mm[2] ?? mm[1];
+            if (imported === "twMerge") return local === "twMerge" ? "twMerge" : `twMerge: ${local}`;
+            return null;
+          })
+          .filter(Boolean)
+          .join(", ");
+
+        if (inside) out.push(`const { ${inside} } = { twMerge: window.twMerge };`);
       }
 
       return out.join("\n");
@@ -367,9 +449,41 @@ export function generateBundledHTML(files: FileMap): string {
 
     __reloadBtn.addEventListener('click', () => location.reload());
 
+     // Tiny polyfills for common deps used in generated apps.
+     // (The sandbox does not have node_modules.)
+     if (!window.clsx) {
+       window.clsx = function clsx() {
+         const out = [];
+         for (let i = 0; i < arguments.length; i++) {
+           const v = arguments[i];
+           if (!v) continue;
+           if (typeof v === 'string') out.push(v);
+           else if (Array.isArray(v)) out.push(window.clsx.apply(null, v));
+           else if (typeof v === 'object') {
+             for (const k in v) {
+               if (Object.prototype.hasOwnProperty.call(v, k) && v[k]) out.push(k);
+             }
+           }
+         }
+         return out.join(' ');
+       };
+     }
+     if (!window.twMerge) {
+       // Minimal fallback: just joins class strings. (Not a full Tailwind conflict resolver.)
+       window.twMerge = function twMerge() {
+         const parts = [];
+         for (let i = 0; i < arguments.length; i++) {
+           const v = arguments[i];
+           if (typeof v === 'string' && v.trim()) parts.push(v.trim());
+         }
+         return parts.join(' ');
+       };
+     }
+
      const payload = JSON.parse(document.getElementById('__sandbox_payload').textContent || '{}');
 
      // Provide common React hooks as globals so generated code that forgets
+     // to import them (e.g. useState) still runs in the sandbox.
      // to import them (e.g. useState) still runs in the sandbox.
      try {
        const hookNames = [
