@@ -151,7 +151,7 @@ export default function BuilderPage() {
                     <iframe
                       srcDoc={project.html_code}
                       className="w-full h-full pointer-events-none"
-                      sandbox=""
+                      sandbox="allow-scripts allow-same-origin"
                     />
                   )}
                 </div>
