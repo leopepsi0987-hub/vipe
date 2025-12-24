@@ -742,8 +742,23 @@ const EXTERNAL_MODULE_MAP: Record<string, { global: string; namedExports?: strin
 };
 
 function transformImportLine(files: FileMap, fromPath: string, line: string): string {
+  // Handle TypeScript "import type" statements - strip them entirely as they don't exist at runtime
+  if (/^import\s+type\s+/.test(line)) {
+    return "// Type-only import removed";
+  }
+
+  // Handle inline type imports like: import { type Foo, Bar } from '...'
+  // We need to remove the "type" keyword from these
+  let cleanedLine = line.replace(/\{\s*type\s+([^,}]+)/g, (match, p1) => {
+    // If this is the only import, we'll handle it below
+    return `{ ${p1}`;
+  }).replace(/,\s*type\s+([^,}]+)/g, (match, p1) => {
+    // Remove additional type imports
+    return `, ${p1}`;
+  });
+
   // Handle side-effect imports: import 'pkg' or import 'file.css'
-  const sideEffectMatch = line.match(/^import\s+['"]([^'"]+)['"];?\s*$/);
+  const sideEffectMatch = cleanedLine.match(/^import\s+['"]([^'"]+)['"];?\s*$/);
   if (sideEffectMatch) {
     const spec = sideEffectMatch[1].trim();
     // CSS/SCSS side-effect imports - skip
@@ -758,7 +773,7 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
   // import { A, B as C } from '...'
   // import X, { A } from '...'
   // import * as X from '...'
-  const m = line.match(/^import\s+(.+?)\s+from\s+['"]([^'"]+)['"];?\s*$/);
+  const m = cleanedLine.match(/^import\s+(.+?)\s+from\s+['"]([^'"]+)['"];?\s*$/);
   if (!m) return "";
 
   const bindings = m[1].trim();
@@ -795,6 +810,92 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
     if (/\.json$/i.test(spec)) {
       const varName = bindings.trim();
       return `const ${varName} = {}; // JSON placeholder`;
+    }
+
+    // Handle @/ imports that couldn't be resolved - provide stub components
+    if (spec.startsWith("@/") || spec.startsWith("~/")) {
+      const out: string[] = [];
+      
+      // Check for shadcn UI components
+      if (spec.includes("/components/ui/") || spec.includes("/lib/utils") || spec.includes("/hooks/")) {
+        // Extract the named imports and provide stub implementations
+        const namedMatch = bindings.match(/\{([^}]+)\}/);
+        if (namedMatch) {
+          const imports = namedMatch[1]
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((s) => {
+              const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+              if (!mm) return null;
+              const imported = mm[1];
+              const local = mm[2] ?? mm[1];
+              
+              // cn utility function
+              if (imported === "cn") {
+                return `const ${local} = (...args) => args.filter(Boolean).join(' ');`;
+              }
+              
+              // toast hook
+              if (imported === "useToast" || imported === "toast") {
+                if (imported === "useToast") {
+                  return `const ${local} = () => ({ toast: (opts) => console.log('Toast:', opts), toasts: [], dismiss: () => {} });`;
+                }
+                return `const ${local} = (opts) => console.log('Toast:', opts);`;
+              }
+              
+              // use-mobile hook
+              if (imported === "useIsMobile" || imported === "useMobile") {
+                return `const ${local} = () => false;`;
+              }
+              
+              // All other UI components - create passthrough React components
+              return `const ${local} = window.React.forwardRef(({ className, children, ...props }, ref) => window.React.createElement('div', { ref, className, ...props }, children));`;
+            })
+            .filter(Boolean);
+          
+          out.push(...imports);
+        }
+        
+        // Handle default imports
+        const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+        const first = parts[0];
+        if (first && !first.startsWith("{") && !first.startsWith("*")) {
+          out.push(`const ${first} = window.React.forwardRef(({ className, children, ...props }, ref) => window.React.createElement('div', { ref, className, ...props }, children));`);
+        }
+        
+        if (out.length > 0) {
+          return out.join("\n");
+        }
+      }
+      
+      // For other @/ imports that couldn't be resolved, provide empty stubs
+      const namedMatch = bindings.match(/\{([^}]+)\}/);
+      if (namedMatch) {
+        const imports = namedMatch[1]
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .map((s) => {
+            const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+            if (!mm) return null;
+            const local = mm[2] ?? mm[1];
+            return `const ${local} = undefined; // Stub for unresolved import from '${spec}'`;
+          })
+          .filter(Boolean);
+        
+        out.push(...imports);
+      }
+      
+      const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+      const first = parts[0];
+      if (first && !first.startsWith("{") && !first.startsWith("*")) {
+        out.push(`const ${first} = undefined; // Stub for unresolved import from '${spec}'`);
+      }
+      
+      if (out.length > 0) {
+        return `// Warning: Could not resolve '${spec}' - using stubs\n${out.join("\n")}`;
+      }
     }
     
     if (moduleInfo) {
@@ -868,11 +969,40 @@ function transformImportLine(files: FileMap, fromPath: string, line: string): st
       return out.join("\n");
     }
 
-    // Any other external dependency is not supported by the sandbox bundler.
-    // We replace it with a runtime error that is shown in the preview overlay.
-    return `throw new Error(${JSON.stringify(
-      `Sandbox cannot import external module '${spec}'. Use local files (src/*, @/...) or remove this dependency.`,
-    )});`;
+    // Any other external dependency - provide a warning stub instead of crashing
+    console.warn(`Sandbox: Could not resolve import '${spec}'`);
+    
+    const out: string[] = [];
+    const namedMatch = bindings.match(/\{([^}]+)\}/);
+    if (namedMatch) {
+      const imports = namedMatch[1]
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => {
+          const mm = s.match(/^([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?$/);
+          if (!mm) return null;
+          const local = mm[2] ?? mm[1];
+          return local;
+        })
+        .filter(Boolean);
+      
+      if (imports.length > 0) {
+        out.push(`const { ${imports.join(", ")} } = {}; // Stub for unresolved external '${spec}'`);
+      }
+    }
+    
+    const parts = bindings.split(",").map((s) => s.trim()).filter(Boolean);
+    const first = parts[0];
+    if (first && !first.startsWith("{") && !first.startsWith("*")) {
+      out.push(`const ${first} = undefined; // Stub for unresolved external '${spec}'`);
+    }
+    
+    if (out.length > 0) {
+      return `// Warning: External module '${spec}' not available in sandbox\n${out.join("\n")}`;
+    }
+    
+    return `// Warning: Could not process import from '${spec}'`;
   }
 
   const moduleRef = `__require(${JSON.stringify(resolved)})`;
