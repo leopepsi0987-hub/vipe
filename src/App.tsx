@@ -11,6 +11,10 @@ import ProfilePage from "./pages/ProfilePage";
 import BuilderPage from "./pages/BuilderPage";
 import MessagesPage from "./pages/MessagesPage";
 import NewsPage from "./pages/NewsPage";
+import PricingPage from "./pages/PricingPage";
+import TermsPage from "./pages/TermsPage";
+import PrivacyPage from "./pages/PrivacyPage";
+import RefundPage from "./pages/RefundPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +31,10 @@ const App = () => (
           <Route path="/builder" element={<BuilderPage />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/news" element={<NewsPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/refund" element={<RefundPage />} />
           <Route path="/project/:projectId" element={<Project />} />
           <Route path="/oauth/callback" element={<OAuthCallback />} />
           <Route path="/app/:slug" element={<PublishedApp />} />
