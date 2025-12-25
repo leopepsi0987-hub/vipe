@@ -2225,8 +2225,10 @@ export function generateBundledHTML(files: FileMap, baseUrl: string = ""): strin
 
     const __compile = (code, filename) => {
       try {
+        // Force .tsx extension for Babel so JSX is always enabled (users may put JSX in .ts files)
+        const babelFilename = (filename || 'unknown').replace(/\\.ts$/, '.tsx').replace(/\\.js$/, '.jsx');
         return Babel.transform(code, {
-          filename: filename || 'unknown.tsx',
+          filename: babelFilename.endsWith('.tsx') || babelFilename.endsWith('.jsx') ? babelFilename : babelFilename + '.tsx',
           presets: ['typescript', 'react'],
         }).code;
       } catch (e) {
