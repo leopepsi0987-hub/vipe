@@ -7,6 +7,7 @@ import { Editor } from "@/components/Editor";
 import { EditorHeader } from "@/components/EditorHeader";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const Project = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -72,21 +73,23 @@ const Project = () => {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background overflow-hidden">
-      <EditorHeader
-        projectName={currentProject.name}
-        projectId={currentProject.id}
-        onBack={handleBackToProjects}
-      />
-      <div className="flex-1 overflow-hidden">
-        <Editor
-          project={currentProject}
-          onUpdateCode={handleUpdateCode}
-          onPublish={handlePublish}
-          onUpdatePublished={handleUpdatePublished}
+    <ErrorBoundary name="ProjectRoute">
+      <div className="h-screen flex flex-col bg-background overflow-hidden">
+        <EditorHeader
+          projectName={currentProject.name}
+          projectId={currentProject.id}
+          onBack={handleBackToProjects}
         />
+        <div className="flex-1 overflow-hidden">
+          <Editor
+            project={currentProject}
+            onUpdateCode={handleUpdateCode}
+            onPublish={handlePublish}
+            onUpdatePublished={handleUpdatePublished}
+          />
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 };
 
