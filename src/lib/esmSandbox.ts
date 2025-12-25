@@ -550,7 +550,8 @@ export interface ESMSandboxResult {
 
 export function generateESMSandbox(
   files: FileMap,
-  entryFile: string = "src/App.tsx"
+  entryFile: string = "src/App.tsx",
+  baseUrl: string = ""
 ): ESMSandboxResult {
   const blobUrls: string[] = [];
   const fileToUrlMap = new Map<string, string>();
@@ -1025,8 +1026,8 @@ export function generateESMSandbox(
 ${JSON.stringify(importMap, null, 2)}
   </script>
   
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="${baseUrl}/vendor/babel-standalone.min.js"></script>
+  <script src="${baseUrl}/vendor/tailwindcdn.js"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',

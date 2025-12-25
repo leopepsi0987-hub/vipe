@@ -68,14 +68,15 @@ export function SandboxPreview({ files, className, useESM = false }: SandboxPrev
 
   const bundledHTML = useMemo(() => {
     setLastError(null);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
     if (!files || Object.keys(files).length === 0) {
-      return generateBundledHTML({});
+      return generateBundledHTML({}, baseUrl);
     }
     // Use ESM sandbox if enabled
     if (useESM) {
-      return generateESMSandbox(files).html;
+      return generateESMSandbox(files, "src/App.tsx", baseUrl).html;
     }
-    return generateBundledHTML(files);
+    return generateBundledHTML(files, baseUrl);
   }, [files, refreshKey, useESM]);
 
   useEffect(() => {

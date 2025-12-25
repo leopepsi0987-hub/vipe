@@ -1135,7 +1135,7 @@ function safeJsonStringify(value: unknown) {
   return JSON.stringify(value).replace(/<\//g, "<\\/");
 }
 
-export function generateBundledHTML(files: FileMap): string {
+export function generateBundledHTML(files: FileMap, baseUrl: string = ""): string {
   const cssContent = files["src/index.css"] || files["src/App.css"] || "";
 
   const moduleMap = buildModuleMap(files);
@@ -2443,11 +2443,11 @@ export function generateBundledHTML(files: FileMap): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Preview</title>
 
-  <script crossorigin src="/vendor/react18.umd.js"><\/script>
-  <script crossorigin src="/vendor/react-dom18.umd.js"><\/script>
-  <script src="/vendor/babel-standalone.min.js"><\/script>
+  <script crossorigin src="${baseUrl}/vendor/react18.umd.js"><\/script>
+  <script crossorigin src="${baseUrl}/vendor/react-dom18.umd.js"><\/script>
+  <script src="${baseUrl}/vendor/babel-standalone.min.js"><\/script>
 
-  <script src="/vendor/tailwindcdn.js"><\/script>
+  <script src="${baseUrl}/vendor/tailwindcdn.js"><\/script>
   <script>
     tailwind.config = {
       darkMode: 'class',
