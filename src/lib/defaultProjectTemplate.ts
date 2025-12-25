@@ -330,9 +330,9 @@ export function LandingPage({ onGetStarted, onSignIn }: LandingPageProps) {
   ];
 
   const testimonials = [
-    { name: 'Sarah M.', role: 'Designer', text: 'This app completely transformed how I work. Absolutely love it!' },
-    { name: 'John D.', role: 'Developer', text: 'The best experience I\'ve had with any platform. Highly recommend!' },
-    { name: 'Emily K.', role: 'Product Manager', text: 'Simple, intuitive, and powerful. Everything I needed.' },
+    { name: "Sarah M.", role: "Designer", text: "This app completely transformed how I work. Absolutely love it!" },
+    { name: "John D.", role: "Developer", text: "The best experience I have had with any platform. Highly recommend!" },
+    { name: "Emily K.", role: "Product Manager", text: "Simple, intuitive, and powerful. Everything I needed." },
   ];
 
   return (
