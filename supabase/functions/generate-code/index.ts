@@ -1,10 +1,52 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { 
+  foodDeliveryTemplate, 
+  socialMediaTemplate, 
+  ecommerceTemplate, 
+  todoTemplate, 
+  chatTemplate,
+  fitnessTemplate,
+  blogTemplate,
+  bookingTemplate,
+  dashboardTemplate,
+  portfolioTemplate,
+  type AppTemplate 
+} from "./templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// All available templates
+const APP_TEMPLATES: AppTemplate[] = [
+  foodDeliveryTemplate,
+  socialMediaTemplate,
+  ecommerceTemplate,
+  todoTemplate,
+  chatTemplate,
+  fitnessTemplate,
+  blogTemplate,
+  bookingTemplate,
+  dashboardTemplate,
+  portfolioTemplate,
+];
+
+// Find matching template based on user prompt
+function findMatchingTemplate(prompt: string): AppTemplate | null {
+  const lowerPrompt = prompt.toLowerCase();
+  
+  for (const template of APP_TEMPLATES) {
+    const matchScore = template.keywords.filter(kw => lowerPrompt.includes(kw)).length;
+    if (matchScore >= 1) {
+      console.log(`[generate-code] Matched template: ${template.name} (score: ${matchScore})`);
+      return template;
+    }
+  }
+  
+  return null;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -19,6 +61,39 @@ serve(async (req) => {
 
     if (!GEMINI_API_KEY) {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
+    }
+
+    // Check for matching template FIRST
+    const matchedTemplate = findMatchingTemplate(prompt);
+    
+    // If we have a perfect template match, return it immediately without AI
+    if (matchedTemplate) {
+      console.log(`[generate-code] Using pre-built template: ${matchedTemplate.name}`);
+      
+      const result = {
+        files: matchedTemplate.files,
+        message: `Created ${matchedTemplate.name} with ${matchedTemplate.files.length} files - ${matchedTemplate.features.slice(0, 3).join(", ")} and more!`,
+        template: matchedTemplate.name,
+        dbSchema: matchedTemplate.dbSchema || null,
+      };
+      
+      // Return in SSE format for consistency
+      const openAIFormat = {
+        choices: [{ delta: { content: JSON.stringify(result) } }],
+      };
+      
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+        },
+      });
+      
+      return new Response(stream, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
     }
 
     const getGeminiModelCandidates = async (): Promise<Array<{ apiVersion: "v1beta" | "v1"; model: string }>> => {
@@ -50,19 +125,15 @@ serve(async (req) => {
         return parseModels(json);
       };
 
-      // Try v1beta first, then v1.
       const beta = await listOnce("v1beta");
       const v1 = beta.length ? [] : await listOnce("v1");
-
       const available = beta.length ? beta : v1;
       const apiVersion: "v1beta" | "v1" = beta.length ? "v1beta" : "v1";
 
       const preferred = [
-        // Prefer current Gemini 2.5 line first (most keys support these in v1beta).
         "gemini-2.5-flash",
         "gemini-2.5-pro",
         "gemini-2.5-flash-lite",
-        // Older fallbacks (some keys/regions still expose these)
         "gemini-2.0-flash",
         "gemini-2.0-flash-lite",
         "gemini-1.5-pro",
@@ -71,8 +142,6 @@ serve(async (req) => {
       ];
 
       const ordered = [...preferred.filter((m) => available.includes(m)), ...available.filter((m) => !preferred.includes(m))];
-
-      // If listing fails entirely, fall back to common names (we'll still retry on 404).
       const fallback = preferred;
       const modelsToTry = ordered.length ? ordered : fallback;
 
@@ -109,127 +178,171 @@ serve(async (req) => {
       }
     }
 
-    // Template matching for common app types
-    const templateKeywords: Record<string, { name: string; pattern: string; features: string }> = {
-      "food|delivery|restaurant|uber|doordash": { name: "Food Delivery App", pattern: "E-COMMERCE + REAL-TIME", features: "Restaurant listings, Menu browsing, Shopping cart, Order tracking, Delivery address management" },
-      "social|twitter|instagram|facebook|feed|follow": { name: "Social Media App", pattern: "SOCIAL NETWORK", features: "User profiles, Create posts with images, Like/comment, Follow users, Personalized feed" },
-      "shop|store|ecommerce|product|cart|checkout": { name: "E-Commerce Store", pattern: "E-COMMERCE", features: "Product catalog, Shopping cart, Wishlist, Checkout flow, Order tracking" },
-      "todo|task|productivity|notes|reminder": { name: "Task Management App", pattern: "CRUD + ORGANIZATION", features: "Create/edit/delete tasks, Priority levels, Due dates, Categories, Progress tracking" },
-      "chat|messaging|inbox|conversation|whatsapp": { name: "Chat / Messaging App", pattern: "REAL-TIME CHAT", features: "Conversation list, Real-time messaging, Typing indicators, File sharing, Online status" },
-      "fitness|workout|gym|exercise|health": { name: "Fitness Tracker", pattern: "TRACKING + ANALYTICS", features: "Workout logging, Exercise library, Progress charts, Goal setting, Personal records" },
-      "blog|cms|article|writing|medium": { name: "Blog / CMS", pattern: "CONTENT MANAGEMENT", features: "Article creation with rich text, Categories/tags, Draft/publish workflow, Author profiles, Comments" },
-      "booking|appointment|schedule|calendar|reservation": { name: "Booking / Appointment", pattern: "SCHEDULING", features: "Calendar view, Available time slots, Booking form, Confirmations, Reschedule/cancel" },
-      "dashboard|analytics|admin|statistics|charts": { name: "Dashboard / Analytics", pattern: "ANALYTICS", features: "KPI cards, Charts/graphs, Data tables, Filters, Export functionality" },
-      "portfolio|landing|personal|resume|showcase": { name: "Portfolio / Landing Page", pattern: "MARKETING", features: "Hero section, Projects showcase, Skills/services, Testimonials, Contact form" }
-    };
-
-    let matchedTemplate: { name: string; pattern: string; features: string } | null = null;
-    const lowerPrompt = prompt.toLowerCase();
-    for (const [keywords, template] of Object.entries(templateKeywords)) {
-      if (keywords.split("|").some(kw => lowerPrompt.includes(kw))) {
-        matchedTemplate = template;
-        break;
-      }
-    }
-
-    const templateContext = matchedTemplate 
-      ? `\n## 🎯 TEMPLATE DETECTED: ${matchedTemplate.name}\n**Pattern:** ${matchedTemplate.pattern}\n**Build these features:** ${matchedTemplate.features}\n\nGenerate a COMPLETE implementation with ALL these features. Use proper TypeScript types, React hooks, and Tailwind styling.`
-      : `\n## 🎯 AVAILABLE APP TEMPLATES\nBuild complete apps: Food Delivery, Social Media, E-Commerce, Task Management, Chat/Messaging, Fitness Tracker, Blog/CMS, Booking/Appointments, Dashboard/Analytics, Portfolio/Landing.`;
-    
     // ==========================================
-    // SYSTEM PROMPT - STRICT JSON OUTPUT ONLY
+    // ENHANCED SYSTEM PROMPT FOR CLEANER OUTPUT
     // ==========================================
-    const systemPrompt = `You are an expert React/TypeScript developer. You generate COMPLETE, PRODUCTION-READY code.
-${templateContext}
+    const systemPrompt = `You are an expert React/TypeScript developer who creates CLEAN, WELL-ORGANIZED, PRODUCTION-READY code.
 
-## ⚠️ CRITICAL RULES - VIOLATION = FAILURE:
+## 🎯 ARCHITECTURE REQUIREMENTS (MUST FOLLOW):
 
-1. MINIMUM 200+ LINES OF CODE TOTAL across all files
-2. MINIMUM 6 FILES - Always create separate files for types, hooks, utils, components, pages
-3. NEVER put everything in App.tsx - App.tsx should ONLY import and render pages
-4. Each component file should have 30-100+ lines of real code
-5. Create BEAUTIFUL, DETAILED UI with proper styling
+### File Organization - NEVER put everything in one file:
+1. **src/types/*.ts** - TypeScript interfaces and types (one file per domain)
+2. **src/lib/utils.ts** - Utility functions (cn helper, formatters, validators)
+3. **src/hooks/use*.ts** - Custom React hooks (one hook per file)
+4. **src/components/*.tsx** - UI components (ONE component per file, 30-100 lines each)
+5. **src/pages/*.tsx** - Page components that compose other components
+6. **src/App.tsx** - ONLY routing/layout, no business logic
 
-## MANDATORY FILE STRUCTURE:
+### Component Guidelines:
+- Each component should do ONE thing well
+- Components should be 30-100 lines (extract if longer)
+- Use props interfaces defined in types files
+- Separate presentation from logic (use hooks)
 
-src/types/index.ts        - All TypeScript interfaces
-src/lib/utils.ts          - Utility functions (cn helper, formatters)
-src/hooks/use*.ts         - Custom hooks for state/data
-src/components/*.tsx      - ONE component per file (create 3-8 files)
-src/pages/Index.tsx       - Main page (this has the main layout)
-src/App.tsx               - ONLY imports pages, no logic here
+### Code Quality:
+- Use meaningful variable/function names
+- Add JSDoc comments for complex functions
+- Extract magic numbers to constants
+- Use early returns for cleaner control flow
 
-## LANDING PAGE EXAMPLE (what you MUST generate for "build a landing page"):
+## 📁 MINIMUM FILE STRUCTURE FOR ANY APP:
 
+\`\`\`
+src/
+├── types/
+│   └── index.ts           // All TypeScript interfaces
+├── lib/
+│   └── utils.ts           // cn() and utility functions
+├── hooks/
+│   └── use[Feature].ts    // Custom hooks for state/data
+├── components/
+│   ├── layout/
+│   │   ├── Header.tsx     // App header/navbar
+│   │   └── Footer.tsx     // App footer (if needed)
+│   └── [feature]/
+│       ├── [Component1].tsx
+│       ├── [Component2].tsx
+│       └── [Component3].tsx
+├── pages/
+│   └── Index.tsx          // Main page
+└── App.tsx                // Just routing
+\`\`\`
+
+## 🎨 STYLING RULES:
+
+### Use Tailwind Semantic Tokens (NEVER hardcoded colors):
+- bg-background, bg-card, bg-muted, bg-primary, bg-secondary, bg-accent
+- text-foreground, text-muted-foreground, text-primary-foreground
+- border-border, border-input
+- ring-ring
+
+### Layout Best Practices:
+- Use consistent spacing (p-4, gap-4, etc.)
+- Responsive design: sm:, md:, lg: breakpoints
+- Use grid for layouts, flex for alignment
+- Add hover/focus states for interactive elements
+
+## 📦 IMPORTS:
+
+### ALWAYS use @/ alias:
+\`\`\`typescript
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import type { User } from "@/types";
+import { useAuth } from "@/hooks/useAuth";
+\`\`\`
+
+### NEVER use relative imports for deep nesting:
+\`\`\`typescript
+// ❌ BAD
+import { Button } from "../../../components/ui/button";
+
+// ✅ GOOD  
+import { Button } from "@/components/ui/button";
+\`\`\`
+
+### ALWAYS import React hooks explicitly:
+\`\`\`typescript
+import { useState, useEffect, useMemo, useCallback } from "react";
+\`\`\`
+
+## 🧩 AVAILABLE UI COMPONENTS (from @/components/ui/):
+
+button, card (Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter),
+input, textarea, checkbox, label, badge, dialog, tabs, select, 
+switch, progress, skeleton, scroll-area, separator, avatar,
+dropdown-menu, tooltip, table, accordion, alert, sheet, popover
+
+## 📊 DEMO DATA GUIDELINES:
+
+When creating demo/sample data:
+- Use realistic, diverse data (3-6 items minimum)
+- Use placeholder images: "/placeholder.svg"
+- Include proper TypeScript typing
+- Place data constants near the top of the file
+- Comment that it's demo data to be replaced
+
+## 🔧 UTILITY FUNCTION (always include in src/lib/utils.ts):
+
+\`\`\`typescript
+import { type ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+// Add other utilities as needed:
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+  }).format(amount);
+}
+
+export function formatDate(date: Date | string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(date));
+}
+\`\`\`
+
+${userSupabaseConnection ? `
+## 🗄️ DATABASE CONNECTION:
+User has Supabase connected at ${userSupabaseConnection.url}
+Use @supabase/supabase-js for data operations.
+` : `
+## 💾 DATA PERSISTENCE:
+No database connected. Use localStorage or React state for data persistence.
+Create mock data that looks realistic.
+`}
+
+${fileContext}
+
+## 📝 OUTPUT FORMAT:
+
+Return ONLY valid JSON with this structure:
+\`\`\`json
 {
   "files": [
     {
       "path": "src/types/index.ts",
       "action": "create",
-      "content": "export interface NavItem {\\n  label: string;\\n  href: string;\\n}\\n\\nexport interface Feature {\\n  icon: string;\\n  title: string;\\n  description: string;\\n}\\n\\nexport interface Testimonial {\\n  name: string;\\n  role: string;\\n  content: string;\\n  avatar: string;\\n}\\n\\nexport interface PricingPlan {\\n  name: string;\\n  price: string;\\n  features: string[];\\n  popular?: boolean;\\n}"
-    },
-    {
-      "path": "src/lib/utils.ts",
-      "action": "create",
-      "content": "import { type ClassValue, clsx } from 'clsx';\\nimport { twMerge } from 'tailwind-merge';\\n\\nexport function cn(...inputs: ClassValue[]) {\\n  return twMerge(clsx(inputs));\\n}"
-    },
-    {
-      "path": "src/components/Navbar.tsx",
-      "action": "create",
-      "content": "import { Button } from '@/components/ui/button';\\nimport type { NavItem } from '@/types';\\n\\nconst navItems: NavItem[] = [\\n  { label: 'Features', href: '#features' },\\n  { label: 'Pricing', href: '#pricing' },\\n  { label: 'Testimonials', href: '#testimonials' },\\n  { label: 'Contact', href: '#contact' },\\n];\\n\\nexport function Navbar() {\\n  return (\\n    <nav className=\\"fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border\\">\\n      <div className=\\"max-w-7xl mx-auto px-4 sm:px-6 lg:px-8\\">\\n        <div className=\\"flex items-center justify-between h-16\\">\\n          <div className=\\"flex items-center gap-2\\">\\n            <div className=\\"w-8 h-8 bg-primary rounded-lg\\" />\\n            <span className=\\"text-xl font-bold text-foreground\\">Brand</span>\\n          </div>\\n          <div className=\\"hidden md:flex items-center gap-8\\">\\n            {navItems.map((item) => (\\n              <a\\n                key={item.label}\\n                href={item.href}\\n                className=\\"text-muted-foreground hover:text-foreground transition-colors\\"\\n              >\\n                {item.label}\\n              </a>\\n            ))}\\n          </div>\\n          <div className=\\"flex items-center gap-4\\">\\n            <Button variant=\\"ghost\\">Sign In</Button>\\n            <Button>Get Started</Button>\\n          </div>\\n        </div>\\n      </div>\\n    </nav>\\n  );\\n}"
-    },
-    {
-      "path": "src/components/Hero.tsx",
-      "action": "create",
-      "content": "import { Button } from '@/components/ui/button';\\nimport { ArrowRight, Play } from 'lucide-react';\\n\\nexport function Hero() {\\n  return (\\n    <section className=\\"pt-32 pb-20 px-4\\">\\n      <div className=\\"max-w-7xl mx-auto text-center\\">\\n        <div className=\\"inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary mb-8\\">\\n          <span className=\\"text-sm font-medium\\">🚀 New Feature Released</span>\\n        </div>\\n        <h1 className=\\"text-4xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight\\">\\n          Build Something\\n          <span className=\\"text-primary\\"> Amazing</span>\\n          <br />Together\\n        </h1>\\n        <p className=\\"text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10\\">\\n          The all-in-one platform that helps teams collaborate, build, and ship products faster than ever before.\\n        </p>\\n        <div className=\\"flex flex-col sm:flex-row items-center justify-center gap-4\\">\\n          <Button size=\\"lg\\" className=\\"gap-2\\">\\n            Start Free Trial <ArrowRight className=\\"w-4 h-4\\" />\\n          </Button>\\n          <Button size=\\"lg\\" variant=\\"outline\\" className=\\"gap-2\\">\\n            <Play className=\\"w-4 h-4\\" /> Watch Demo\\n          </Button>\\n        </div>\\n        <div className=\\"mt-16 relative\\">\\n          <div className=\\"absolute inset-0 bg-gradient-to-t from-background to-transparent z-10\\" />\\n          <div className=\\"bg-card border border-border rounded-xl shadow-2xl p-4 max-w-4xl mx-auto\\">\\n            <div className=\\"aspect-video bg-muted rounded-lg flex items-center justify-center\\">\\n              <span className=\\"text-muted-foreground\\">Product Screenshot</span>\\n            </div>\\n          </div>\\n        </div>\\n      </div>\\n    </section>\\n  );\\n}"
-    },
-    {
-      "path": "src/components/Features.tsx",
-      "action": "create",
-      "content": "import { Card, CardContent } from '@/components/ui/card';\\nimport { Zap, Shield, Globe, Layers, Users, BarChart } from 'lucide-react';\\nimport type { Feature } from '@/types';\\n\\nconst features: Feature[] = [\\n  { icon: 'Zap', title: 'Lightning Fast', description: 'Built for speed with optimized performance at every level.' },\\n  { icon: 'Shield', title: 'Secure by Default', description: 'Enterprise-grade security with end-to-end encryption.' },\\n  { icon: 'Globe', title: 'Global Scale', description: 'Deploy worldwide with our distributed infrastructure.' },\\n  { icon: 'Layers', title: 'Modular Design', description: 'Flexible architecture that grows with your needs.' },\\n  { icon: 'Users', title: 'Team Collaboration', description: 'Real-time collaboration tools for modern teams.' },\\n  { icon: 'BarChart', title: 'Analytics', description: 'Deep insights with comprehensive analytics dashboard.' },\\n];\\n\\nconst iconMap: Record<string, any> = { Zap, Shield, Globe, Layers, Users, BarChart };\\n\\nexport function Features() {\\n  return (\\n    <section id=\\"features\\" className=\\"py-20 px-4 bg-muted/30\\">\\n      <div className=\\"max-w-7xl mx-auto\\">\\n        <div className=\\"text-center mb-16\\">\\n          <h2 className=\\"text-3xl md:text-4xl font-bold text-foreground mb-4\\">\\n            Everything You Need\\n          </h2>\\n          <p className=\\"text-lg text-muted-foreground max-w-2xl mx-auto\\">\\n            Powerful features to help you build, deploy, and scale your applications.\\n          </p>\\n        </div>\\n        <div className=\\"grid md:grid-cols-2 lg:grid-cols-3 gap-6\\">\\n          {features.map((feature) => {\\n            const Icon = iconMap[feature.icon];\\n            return (\\n              <Card key={feature.title} className=\\"bg-card hover:shadow-lg transition-shadow\\">\\n                <CardContent className=\\"p-6\\">\\n                  <div className=\\"w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4\\">\\n                    <Icon className=\\"w-6 h-6 text-primary\\" />\\n                  </div>\\n                  <h3 className=\\"text-xl font-semibold text-foreground mb-2\\">{feature.title}</h3>\\n                  <p className=\\"text-muted-foreground\\">{feature.description}</p>\\n                </CardContent>\\n              </Card>\\n            );\\n          })}\\n        </div>\\n      </div>\\n    </section>\\n  );\\n}"
-    },
-    {
-      "path": "src/components/Pricing.tsx",
-      "action": "create",
-      "content": "import { Button } from '@/components/ui/button';\\nimport { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';\\nimport { Check } from 'lucide-react';\\nimport { cn } from '@/lib/utils';\\nimport type { PricingPlan } from '@/types';\\n\\nconst plans: PricingPlan[] = [\\n  { name: 'Starter', price: '$9', features: ['5 Projects', '10GB Storage', 'Basic Analytics', 'Email Support'] },\\n  { name: 'Pro', price: '$29', features: ['Unlimited Projects', '100GB Storage', 'Advanced Analytics', 'Priority Support', 'API Access'], popular: true },\\n  { name: 'Enterprise', price: '$99', features: ['Everything in Pro', 'Unlimited Storage', 'Custom Integrations', 'Dedicated Support', 'SLA Guarantee'] },\\n];\\n\\nexport function Pricing() {\\n  return (\\n    <section id=\\"pricing\\" className=\\"py-20 px-4\\">\\n      <div className=\\"max-w-7xl mx-auto\\">\\n        <div className=\\"text-center mb-16\\">\\n          <h2 className=\\"text-3xl md:text-4xl font-bold text-foreground mb-4\\">Simple, Transparent Pricing</h2>\\n          <p className=\\"text-lg text-muted-foreground\\">Choose the plan that works best for you</p>\\n        </div>\\n        <div className=\\"grid md:grid-cols-3 gap-8 max-w-5xl mx-auto\\">\\n          {plans.map((plan) => (\\n            <Card key={plan.name} className={cn('relative', plan.popular && 'border-primary shadow-lg scale-105')}>\\n              {plan.popular && (\\n                <div className=\\"absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-sm rounded-full\\">\\n                  Most Popular\\n                </div>\\n              )}\\n              <CardHeader className=\\"text-center pb-4\\">\\n                <CardTitle className=\\"text-xl\\">{plan.name}</CardTitle>\\n                <div className=\\"mt-4\\">\\n                  <span className=\\"text-4xl font-bold text-foreground\\">{plan.price}</span>\\n                  <span className=\\"text-muted-foreground\\">/month</span>\\n                </div>\\n              </CardHeader>\\n              <CardContent>\\n                <ul className=\\"space-y-3 mb-6\\">\\n                  {plan.features.map((feature) => (\\n                    <li key={feature} className=\\"flex items-center gap-2\\">\\n                      <Check className=\\"w-5 h-5 text-primary\\" />\\n                      <span className=\\"text-muted-foreground\\">{feature}</span>\\n                    </li>\\n                  ))}\\n                </ul>\\n                <Button className=\\"w-full\\" variant={plan.popular ? 'default' : 'outline'}>\\n                  Get Started\\n                </Button>\\n              </CardContent>\\n            </Card>\\n          ))}\\n        </div>\\n      </div>\\n    </section>\\n  );\\n}"
-    },
-    {
-      "path": "src/components/Footer.tsx",
-      "action": "create",
-      "content": "export function Footer() {\\n  return (\\n    <footer className=\\"py-12 px-4 border-t border-border\\">\\n      <div className=\\"max-w-7xl mx-auto\\">\\n        <div className=\\"grid md:grid-cols-4 gap-8\\">\\n          <div>\\n            <div className=\\"flex items-center gap-2 mb-4\\">\\n              <div className=\\"w-8 h-8 bg-primary rounded-lg\\" />\\n              <span className=\\"text-xl font-bold text-foreground\\">Brand</span>\\n            </div>\\n            <p className=\\"text-muted-foreground\\">Building the future of web development.</p>\\n          </div>\\n          <div>\\n            <h4 className=\\"font-semibold text-foreground mb-4\\">Product</h4>\\n            <ul className=\\"space-y-2 text-muted-foreground\\">\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Features</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Pricing</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Docs</a></li>\\n            </ul>\\n          </div>\\n          <div>\\n            <h4 className=\\"font-semibold text-foreground mb-4\\">Company</h4>\\n            <ul className=\\"space-y-2 text-muted-foreground\\">\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">About</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Blog</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Careers</a></li>\\n            </ul>\\n          </div>\\n          <div>\\n            <h4 className=\\"font-semibold text-foreground mb-4\\">Legal</h4>\\n            <ul className=\\"space-y-2 text-muted-foreground\\">\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Privacy</a></li>\\n              <li><a href=\\"#\\" className=\\"hover:text-foreground transition-colors\\">Terms</a></li>\\n            </ul>\\n          </div>\\n        </div>\\n        <div className=\\"mt-12 pt-8 border-t border-border text-center text-muted-foreground\\">\\n          <p>&copy; 2024 Brand. All rights reserved.</p>\\n        </div>\\n      </div>\\n    </footer>\\n  );\\n}"
-    },
-    {
-      "path": "src/pages/Index.tsx",
-      "action": "create",
-      "content": "import { Navbar } from '@/components/Navbar';\\nimport { Hero } from '@/components/Hero';\\nimport { Features } from '@/components/Features';\\nimport { Pricing } from '@/components/Pricing';\\nimport { Footer } from '@/components/Footer';\\n\\nexport default function Index() {\\n  return (\\n    <div className=\\"min-h-screen bg-background\\">\\n      <Navbar />\\n      <main>\\n        <Hero />\\n        <Features />\\n        <Pricing />\\n      </main>\\n      <Footer />\\n    </div>\\n  );\\n}"
-    },
-    {
-      "path": "src/App.tsx",
-      "action": "create",
-      "content": "import Index from '@/pages/Index';\\n\\nfunction App() {\\n  return <Index />;\\n}\\n\\nexport default App;"
+      "content": "// TypeScript content here"
     }
   ],
-  "message": "Created landing page with Navbar, Hero, Features, Pricing, Footer - 9 files total"
+  "message": "Brief description of what was created"
 }
+\`\`\`
 
-## IMPORT RULES:
-- ALWAYS use @/ alias: import { Button } from "@/components/ui/button"
-- NEVER use relative imports like "./components"
-- Use existing shadcn components: Button, Card, Input, Badge, etc.
-- **CRITICAL: ALWAYS import React hooks explicitly!** If you use useState, useEffect, useMemo, useCallback, useRef, etc., you MUST add: import { useState, useEffect, ... } from "react";
-
-## STYLING RULES:
-- Use Tailwind semantic tokens: bg-background, text-foreground, bg-primary, text-muted-foreground, border-border
-- NEVER use hardcoded colors like bg-blue-500 or text-white
-
-## EXISTING UI COMPONENTS (import from @/components/ui/):
-button, card, input, checkbox, label, badge, dialog, tabs, select, textarea, switch, progress, skeleton, scroll-area, separator, avatar, dropdown-menu, tooltip, table, accordion
-
-${userSupabaseConnection ? `User has Supabase connected at ${userSupabaseConnection.url}. Use @supabase/supabase-js for data.` : "No database. Use localStorage for persistence."}
-
-${fileContext}
-
-OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
+CRITICAL:
+- Output ONLY JSON, no markdown, no explanations before or after
+- Start with { and end with }
+- Escape newlines in content as \\n
+- Create AT LEAST 6 files with proper separation of concerns
+- Each component file should have 30-100+ lines of real code`;
 
     const candidates = await getGeminiModelCandidates();
 
@@ -252,10 +365,10 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
               role: "user",
               parts: [
                 {
-                  text:
-                    "BUILD REQUEST: " +
-                    prompt +
-                    "\n\nRespond with ONLY JSON. No markdown. No explanations. Start with { end with }." ,
+                  text: `BUILD REQUEST: ${prompt}
+
+Create a complete, production-ready implementation following the architecture guidelines.
+Respond with ONLY JSON. No markdown. No explanations. Start with { end with }.`,
                 },
               ],
             },
@@ -279,10 +392,8 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
       lastErrorText = await r.text().catch(() => "");
       console.warn(`[generate-code] Model ${c.model} failed:`, r.status, lastErrorText);
 
-      // Try next model on 404/400 model-not-supported.
       if (r.status === 404 || r.status === 400) continue;
 
-      // Surface rate limits immediately.
       if (r.status === 429) {
         return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
           status: 429,
@@ -290,7 +401,6 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
         });
       }
 
-      // Other errors: stop early.
       return new Response(JSON.stringify({ error: "AI service error: " + lastErrorText }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -300,9 +410,7 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
     if (!response) {
       return new Response(
         JSON.stringify({
-          error:
-            "AI service error: No available Gemini model supports streamGenerateContent for this API key. Last error: " +
-            lastErrorText,
+          error: "AI service error: No available Gemini model. Last error: " + lastErrorText,
         }),
         {
           status: 500,
@@ -311,46 +419,15 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
       );
     }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", response.status, errorText);
-      
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited. Please try again in a moment." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      
-      return new Response(JSON.stringify({ error: "AI service error: " + errorText }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ==========================================
     // Post-process: auto-inject missing React hook imports
-    // ==========================================
     const REACT_HOOKS = [
-      "useState",
-      "useEffect",
-      "useMemo",
-      "useCallback",
-      "useRef",
-      "useReducer",
-      "useContext",
-      "useLayoutEffect",
-      "useId",
-      "useImperativeHandle",
-      "useDebugValue",
-      "useDeferredValue",
-      "useTransition",
-      "useSyncExternalStore",
-      "useInsertionEffect",
+      "useState", "useEffect", "useMemo", "useCallback", "useRef",
+      "useReducer", "useContext", "useLayoutEffect", "useId",
+      "useImperativeHandle", "useDebugValue", "useDeferredValue",
+      "useTransition", "useSyncExternalStore", "useInsertionEffect",
     ];
 
     function ensureReactHookImports(code: string): string {
-      // Detect which hooks are used in the code (but not already imported)
       const usedHooks = REACT_HOOKS.filter((hook) => {
         const usageRegex = new RegExp(`\\b${hook}\\s*\\(`, "g");
         return usageRegex.test(code);
@@ -358,13 +435,11 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
 
       if (usedHooks.length === 0) return code;
 
-      // Check if there's already a React import
       const existingReactImportMatch = code.match(
         /^import\s+(?:React\s*,?\s*)?(\{[^}]*\})?\s*from\s+['"]react['"];?\s*$/m
       );
 
       if (existingReactImportMatch) {
-        // Parse existing named imports
         const namedImportsMatch = existingReactImportMatch[1];
         const existingNamed = namedImportsMatch
           ? namedImportsMatch
@@ -374,11 +449,9 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
               .filter(Boolean)
           : [];
 
-        // Find missing hooks
         const missingHooks = usedHooks.filter((h) => !existingNamed.includes(h));
         if (missingHooks.length === 0) return code;
 
-        // Add missing hooks to the existing import
         const allNamed = [...existingNamed, ...missingHooks];
         const hasDefaultReact = /^import\s+React/.test(existingReactImportMatch[0]);
         const newImport = hasDefaultReact
@@ -388,7 +461,6 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
         return code.replace(existingReactImportMatch[0], newImport);
       }
 
-      // No React import at all - add one at the top
       const importLine = `import { ${usedHooks.join(", ")} } from "react";\n`;
       return importLine + code;
     }
@@ -416,9 +488,7 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
         }
       },
       flush(controller) {
-        // Process the complete JSON and fix React imports
         try {
-          // Clean up markdown code fences if present
           let cleanJson = accumulatedJson.trim();
           if (cleanJson.startsWith("```json")) {
             cleanJson = cleanJson.slice(7);
@@ -444,7 +514,6 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
             }
           }
 
-          // Stream out the fixed JSON in OpenAI-compatible format
           const fixedJson = JSON.stringify(parsed);
           const openAIFormat = {
             choices: [{ delta: { content: fixedJson } }],
@@ -452,7 +521,6 @@ OUTPUT ONLY VALID JSON. Start with { end with }. NO markdown, NO explanations.`;
           controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAIFormat)}\n\n`));
           controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
         } catch (e) {
-          // If JSON parsing fails, stream what we have
           console.error("[generate-code] Failed to parse/fix JSON:", e);
           const openAIFormat = {
             choices: [{ delta: { content: accumulatedJson } }],
