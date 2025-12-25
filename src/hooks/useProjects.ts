@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { DEFAULT_PROJECT_FILES } from "@/lib/defaultProjectTemplate";
 
 export interface Project {
   id: string;
@@ -107,6 +108,15 @@ export function useProjects() {
       console.error("Error creating project:", error);
       return null;
     }
+
+    // Insert default template files
+    const fileInserts = DEFAULT_PROJECT_FILES.map((file) => ({
+      project_id: data.id,
+      file_path: file.path,
+      content: file.content,
+    }));
+
+    await supabase.from("project_files").insert(fileInserts);
 
     setProjects((prev) => [data, ...prev]);
     setCurrentProject(data);

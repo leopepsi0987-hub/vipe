@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Paperclip, X, Globe, StopCircle } from "lucide-react";
+import { ArrowUp, Paperclip, X, Globe, StopCircle, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
 
@@ -149,6 +149,19 @@ export function ChatInput({
             >
               <Paperclip className="w-5 h-5" />
             </button>
+
+            {/* Visual Edit button */}
+            {onVisualEdit && (
+              <button
+                type="button"
+                onClick={onVisualEdit}
+                disabled={disabled}
+                className="p-2 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                title="Visual Edit"
+              >
+                <Edit3 className="w-5 h-5" />
+              </button>
+            )}
 
             {/* Web search indicator */}
             <button
