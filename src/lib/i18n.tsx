@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode, forwardRef } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
 export type Language = "en" | "dz";
 
@@ -197,32 +197,30 @@ interface I18nContextType {
 
 const I18nContext = createContext<I18nContextType | null>(null);
 
-export const I18nProvider = forwardRef<HTMLDivElement, { children: ReactNode }>(
-  function I18nProvider({ children }, ref) {
-    const [language, setLanguage] = useState<Language>(() => {
-      const saved = localStorage.getItem("vipe-language");
-      return (saved as Language) || "en";
-    });
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguage] = useState<Language>(() => {
+    const saved = localStorage.getItem("vipe-language");
+    return (saved as Language) || "en";
+  });
 
-    useEffect(() => {
-      localStorage.setItem("vipe-language", language);
-      document.documentElement.dir = language === "dz" ? "rtl" : "ltr";
-      document.documentElement.lang = language === "dz" ? "ar-DZ" : "en";
-    }, [language]);
+  useEffect(() => {
+    localStorage.setItem("vipe-language", language);
+    document.documentElement.dir = language === "dz" ? "rtl" : "ltr";
+    document.documentElement.lang = language === "dz" ? "ar-DZ" : "en";
+  }, [language]);
 
-    const t = (key: TranslationKey): string => {
-      return translations[language][key] || translations.en[key] || key;
-    };
+  const t = (key: TranslationKey): string => {
+    return translations[language][key] || translations.en[key] || key;
+  };
 
-    const isRTL = language === "dz";
+  const isRTL = language === "dz";
 
-    return (
-      <I18nContext.Provider value={{ language, setLanguage, t, isRTL }}>
-        <div ref={ref}>{children}</div>
-      </I18nContext.Provider>
-    );
-  }
-);
+  return (
+    <I18nContext.Provider value={{ language, setLanguage, t, isRTL }}>
+      {children}
+    </I18nContext.Provider>
+  );
+}
 
 export function useI18n() {
   const context = useContext(I18nContext);

@@ -1,11 +1,11 @@
-import { useState, useEffect, forwardRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Cookie, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const COOKIE_CONSENT_KEY = "vipedz_cookie_consent";
 
-export const CookieConsent = forwardRef<HTMLDivElement>(function CookieConsent(_, ref) {
+export const CookieConsent = () => {
   const [show, setShow] = useState(false);
   const navigate = useNavigate();
 
@@ -31,7 +31,7 @@ export const CookieConsent = forwardRef<HTMLDivElement>(function CookieConsent(_
   if (!show) return null;
 
   return (
-    <div ref={ref} className="fixed bottom-0 left-0 right-0 z-50 p-4 animate-slide-up">
+    <div className="fixed bottom-0 left-0 right-0 z-50 p-4 animate-slide-up">
       <div className="max-w-4xl mx-auto">
         <div className="bg-card/95 backdrop-blur-xl border border-border rounded-2xl p-6 shadow-2xl">
           <div className="flex items-start gap-4">
@@ -91,4 +91,4 @@ export const CookieConsent = forwardRef<HTMLDivElement>(function CookieConsent(_
       </div>
     </div>
   );
-});
+};

@@ -1,10 +1,10 @@
-import { useEffect, useState, forwardRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const PublishedApp = forwardRef<HTMLDivElement>(function PublishedApp(_, ref) {
+const PublishedApp = () => {
   const { slug } = useParams<{ slug: string }>();
   const [html, setHtml] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,7 +98,7 @@ const PublishedApp = forwardRef<HTMLDivElement>(function PublishedApp(_, ref) {
   ) : "";
 
   return (
-    <div ref={ref} className="w-full h-screen">
+    <div className="w-full h-screen">
       <iframe
         srcDoc={preparedHtml}
         className="w-full h-full border-0"
@@ -108,6 +108,6 @@ const PublishedApp = forwardRef<HTMLDivElement>(function PublishedApp(_, ref) {
       />
     </div>
   );
-});
+};
 
 export default PublishedApp;
