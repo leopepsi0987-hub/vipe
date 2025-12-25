@@ -176,9 +176,9 @@ const EXTERNAL_MODULE_MAP: Record<string, { global: string; namedExports?: strin
   "react/jsx-dev-runtime": { global: "React", namedExports: ["jsxDEV", "Fragment"] },
 
   // Styling utilities
-  "clsx": { global: "clsx", hasDefault: true, namedExports: ["clsx"] },
-  "tailwind-merge": { global: "twMerge", hasDefault: true, namedExports: ["twMerge", "twJoin"] },
-  "class-variance-authority": { global: "cva", hasDefault: true, namedExports: ["cva", "cx"] },
+  "clsx": { global: "__clsxModule", hasDefault: true, namedExports: ["clsx"] },
+  "tailwind-merge": { global: "__twMergeModule", hasDefault: true, namedExports: ["twMerge", "twJoin"] },
+  "class-variance-authority": { global: "__cvaModule", hasDefault: true, namedExports: ["cva", "cx"] },
   "tailwindcss-animate": { global: "{}"},
   "tailwindcss": { global: "{}" },
 
@@ -754,7 +754,7 @@ const EXTERNAL_MODULE_MAP: Record<string, { global: string; namedExports?: strin
   "@codemirror/lang-sql": { global: "codemirrorLangSql", namedExports: ["sql", "MySQL", "PostgreSQL", "SQLite", "Cassandra", "MSSQL", "MariaSQL", "PLSQL", "StandardSQL", "schemaCompletionSource", "keywordCompletionSource", "SQLDialect", "SQLConfig"] },
 
   // Lib utils
-  "@/lib/utils": { global: "libUtils", namedExports: ["cn"] },
+  "@/lib/utils": { global: "__libUtilsModule", namedExports: ["cn"] },
 };
 
 function transformImportLine(files: FileMap, fromPath: string, line: string): string {
@@ -1373,86 +1373,117 @@ export function generateBundledHTML(files: FileMap, baseUrl: string = ""): strin
 
      // Tiny polyfills for common deps used in generated apps.
      // (The sandbox does not have node_modules.)
-     if (!window.clsx) {
-       window.clsx = function clsx() {
-         const out = [];
-         for (let i = 0; i < arguments.length; i++) {
-           const v = arguments[i];
-           if (!v) continue;
-           if (typeof v === 'string') out.push(v);
-           else if (Array.isArray(v)) out.push(window.clsx.apply(null, v));
-           else if (typeof v === 'object') {
-             for (const k in v) {
-               if (Object.prototype.hasOwnProperty.call(v, k) && v[k]) out.push(k);
-             }
+     
+     // clsx function implementation
+     const __clsxFn = function clsx() {
+       const out = [];
+       for (let i = 0; i < arguments.length; i++) {
+         const v = arguments[i];
+         if (!v) continue;
+         if (typeof v === 'string') out.push(v);
+         else if (Array.isArray(v)) out.push(__clsxFn.apply(null, v));
+         else if (typeof v === 'object') {
+           for (const k in v) {
+             if (Object.prototype.hasOwnProperty.call(v, k) && v[k]) out.push(k);
            }
          }
-         return out.join(' ');
-       };
-     }
-     if (!window.twMerge) {
-       // Minimal fallback: just joins class strings. (Not a full Tailwind conflict resolver.)
-       window.twMerge = function twMerge() {
-         const parts = [];
-         for (let i = 0; i < arguments.length; i++) {
-           const v = arguments[i];
-           if (typeof v === 'string' && v.trim()) parts.push(v.trim());
+       }
+       return out.join(' ');
+     };
+     
+     // twMerge function implementation - minimal fallback
+     const __twMergeFn = function twMerge() {
+       const parts = [];
+       for (let i = 0; i < arguments.length; i++) {
+         const v = arguments[i];
+         if (typeof v === 'string' && v.trim()) parts.push(v.trim());
+       }
+       return parts.join(' ');
+     };
+     
+     // twJoin function implementation
+     const __twJoinFn = function twJoin() {
+       return __twMergeFn.apply(null, arguments);
+     };
+     
+     // cx function implementation
+     const __cxFn = function cx() {
+       return __clsxFn.apply(null, arguments);
+     };
+     
+     // cva function implementation
+     const __cvaFn = function cva(base, config) {
+       const cfg = config || {};
+       const variants = cfg.variants || {};
+       const defaultVariants = cfg.defaultVariants || {};
+       const compoundVariants = cfg.compoundVariants || [];
+
+       return function (props) {
+         const p = props || {};
+         const classes = [];
+         if (base) classes.push(base);
+
+         // variants
+         for (const key in variants) {
+           const map = variants[key] || {};
+           const value = p[key] !== undefined ? p[key] : defaultVariants[key];
+           if (value === undefined) continue;
+           const cls = map[value];
+           if (cls) classes.push(cls);
          }
-         return parts.join(' ');
-       };
-     }
 
-     if (!window.cx) {
-       window.cx = function cx() {
-         // alias to clsx if available
-         return (window.clsx || function(){ return Array.prototype.join.call(arguments, ' '); }).apply(null, arguments);
-       };
-     }
-
-     if (!window.cva) {
-       window.cva = function cva(base, config) {
-         const cfg = config || {};
-         const variants = cfg.variants || {};
-         const defaultVariants = cfg.defaultVariants || {};
-         const compoundVariants = cfg.compoundVariants || [];
-
-         return function (props) {
-           const p = props || {};
-           const classes = [];
-           if (base) classes.push(base);
-
-           // variants
-           for (const key in variants) {
-             const map = variants[key] || {};
-             const value = p[key] !== undefined ? p[key] : defaultVariants[key];
-             if (value === undefined) continue;
-             const cls = map[value];
-             if (cls) classes.push(cls);
+         // compoundVariants
+         for (let i = 0; i < compoundVariants.length; i++) {
+           const cv = compoundVariants[i];
+           let match = true;
+           for (const k in cv) {
+             if (k === 'class' || k === 'className') continue;
+             const desired = cv[k];
+             const actual = p[k] !== undefined ? p[k] : defaultVariants[k];
+             if (actual !== desired) { match = false; break; }
            }
-
-           // compoundVariants
-           for (let i = 0; i < compoundVariants.length; i++) {
-             const cv = compoundVariants[i];
-             let match = true;
-             for (const k in cv) {
-               if (k === 'class' || k === 'className') continue;
-               const desired = cv[k];
-               const actual = p[k] !== undefined ? p[k] : defaultVariants[k];
-               if (actual !== desired) { match = false; break; }
-             }
-             if (match) {
-               if (cv.class) classes.push(cv.class);
-               if (cv.className) classes.push(cv.className);
-             }
+           if (match) {
+             if (cv.class) classes.push(cv.class);
+             if (cv.className) classes.push(cv.className);
            }
+         }
 
-           if (p.class) classes.push(p.class);
-           if (p.className) classes.push(p.className);
+         if (p.class) classes.push(p.class);
+         if (p.className) classes.push(p.className);
 
-           return (window.twMerge || function(x){return x;})( (window.cx || window.clsx).apply(null, classes) );
-         };
+         return __twMergeFn(__clsxFn.apply(null, classes));
        };
-     }
+     };
+     
+     // Expose as module-like objects for proper destructuring
+     window.__clsxModule = __clsxFn;
+     window.__clsxModule.clsx = __clsxFn;
+     window.__clsxModule.default = __clsxFn;
+     
+     window.__twMergeModule = __twMergeFn;
+     window.__twMergeModule.twMerge = __twMergeFn;
+     window.__twMergeModule.twJoin = __twJoinFn;
+     window.__twMergeModule.default = __twMergeFn;
+     
+     window.__cvaModule = __cvaFn;
+     window.__cvaModule.cva = __cvaFn;
+     window.__cvaModule.cx = __cxFn;
+     window.__cvaModule.default = __cvaFn;
+     
+     // Also expose on window for direct access
+     window.clsx = __clsxFn;
+     window.twMerge = __twMergeFn;
+     window.twJoin = __twJoinFn;
+     window.cx = __cxFn;
+      window.cva = __cvaFn;
+     
+     // cn utility function (combines clsx + twMerge)
+     const __cnFn = function cn() {
+       return __twMergeFn(__clsxFn.apply(null, arguments));
+     };
+     
+     // Expose libUtils module
+     window.__libUtilsModule = { cn: __cnFn };
 
      if (!window.lucideReact) {
         // Common Lucide icon paths - provides recognizable SVG shapes
