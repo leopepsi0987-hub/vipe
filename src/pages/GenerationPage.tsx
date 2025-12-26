@@ -251,8 +251,11 @@ export default function GenerationPage() {
                 setStreamedCode(fullContent);
                 parseFilesFromCode(fullContent);
 
-                // Apply code to sandbox
-                await applyCodeToSandbox(sandbox, fullContent);
+                // Apply code to sandbox (may create new one if expired)
+                const activeSandbox = await applyCodeToSandbox(sandbox, fullContent);
+                if (activeSandbox !== sandbox) {
+                  sandbox = activeSandbox;
+                }
               } else if (data.type === "error") {
                 throw new Error(data.error || "Generation failed");
               }
@@ -272,7 +275,10 @@ export default function GenerationPage() {
               fullContent = data.generatedCode || fullContent;
               setStreamedCode(fullContent);
               parseFilesFromCode(fullContent);
-              await applyCodeToSandbox(sandbox, fullContent);
+              const activeSandbox = await applyCodeToSandbox(sandbox, fullContent);
+              if (activeSandbox !== sandbox) {
+                sandbox = activeSandbox;
+              }
             }
           } catch {
             // ignore
@@ -321,7 +327,7 @@ export default function GenerationPage() {
     }
   };
 
-  const applyCodeToSandbox = async (sandbox: SandboxData, code: string) => {
+  const applyCodeToSandbox = async (sandbox: SandboxData, code: string): Promise<SandboxData> => {
     try {
       const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
       const files: Array<{ path: string; content: string }> = [];
@@ -336,7 +342,7 @@ export default function GenerationPage() {
 
       if (files.length === 0) {
         console.warn("[generation] No files to apply");
-        return;
+        return sandbox;
       }
 
       const { data, error } = await supabase.functions.invoke("apply-code", {
@@ -346,10 +352,63 @@ export default function GenerationPage() {
         },
       });
 
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Failed to apply code");
+      if (error) {
+        // Check if it's a sandbox expired error (410 status)
+        if (error.message?.includes("SANDBOX_EXPIRED") || error.message?.includes("410")) {
+          console.log("[generation] Sandbox expired, creating new one...");
+          addMessage("Sandbox expired, creating a new one...", "system");
+          
+          const newSandbox = await createSandbox();
+          if (!newSandbox) {
+            throw new Error("Failed to create new sandbox");
+          }
+          
+          // Retry with new sandbox
+          const retryResult = await supabase.functions.invoke("apply-code", {
+            body: {
+              sandboxId: newSandbox.sandboxId,
+              files,
+            },
+          });
+          
+          if (retryResult.error) throw retryResult.error;
+          if (!retryResult.data?.success) throw new Error(retryResult.data?.error || "Failed to apply code");
+          
+          console.log("[generation] Code applied to new sandbox:", retryResult.data.results);
+          return newSandbox;
+        }
+        throw error;
+      }
+      
+      if (!data?.success) {
+        if (data?.error === "SANDBOX_EXPIRED") {
+          console.log("[generation] Sandbox expired, creating new one...");
+          addMessage("Sandbox expired, creating a new one...", "system");
+          
+          const newSandbox = await createSandbox();
+          if (!newSandbox) {
+            throw new Error("Failed to create new sandbox");
+          }
+          
+          // Retry with new sandbox
+          const retryResult = await supabase.functions.invoke("apply-code", {
+            body: {
+              sandboxId: newSandbox.sandboxId,
+              files,
+            },
+          });
+          
+          if (retryResult.error) throw retryResult.error;
+          if (!retryResult.data?.success) throw new Error(retryResult.data?.error || "Failed to apply code");
+          
+          console.log("[generation] Code applied to new sandbox:", retryResult.data.results);
+          return newSandbox;
+        }
+        throw new Error(data?.error || "Failed to apply code");
+      }
 
       console.log("[generation] Code applied:", data.results);
+      return sandbox;
     } catch (error) {
       console.error("[generation] Apply error:", error);
       throw error;

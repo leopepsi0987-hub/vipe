@@ -26,9 +26,28 @@ serve(async (req) => {
 
     console.log(`[apply-code] Connecting to sandbox ${sandboxId}`);
 
-    const sandbox = await Sandbox.connect(sandboxId, {
-      apiKey: E2B_API_KEY,
-    });
+    let sandbox;
+    try {
+      sandbox = await Sandbox.connect(sandboxId, {
+        apiKey: E2B_API_KEY,
+      });
+      // Extend sandbox timeout to 1 hour from now
+      await sandbox.setTimeout(3600000);
+      console.log(`[apply-code] Connected and extended timeout`);
+    } catch (connectError) {
+      console.error(`[apply-code] Failed to connect to sandbox:`, connectError);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "SANDBOX_EXPIRED",
+          message: "Sandbox has expired. Please create a new sandbox.",
+        }),
+        {
+          status: 410,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
     const results = {
       filesCreated: [] as string[],
