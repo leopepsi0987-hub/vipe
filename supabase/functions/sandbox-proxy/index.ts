@@ -109,21 +109,24 @@ serve(async (req) => {
       console.log(`[sandbox-proxy] Sandbox expired`);
       return new Response(
         generateErrorPage("Sandbox Expired", "The sandbox has timed out. Please regenerate your app."),
-        { 
+        {
           status: 200, // Return 200 so iframe displays it
-          headers: { ...corsHeaders, "Content-Type": "text/html" } 
-        }
+          headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+        },
       );
     }
-    
+
     if (isClosedPort) {
       console.log(`[sandbox-proxy] Port closed, Vite not ready`);
       return new Response(
-        generateErrorPage("Starting Server...", "The development server is starting. Please wait a moment and refresh."),
-        { 
+        generateErrorPage(
+          "Starting Server...",
+          "The development server is starting. Please wait a moment and press Refresh.",
+        ),
+        {
           status: 200, // Return 200 so iframe displays it
-          headers: { ...corsHeaders, "Content-Type": "text/html" } 
-        }
+          headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
+        },
       );
     }
 
