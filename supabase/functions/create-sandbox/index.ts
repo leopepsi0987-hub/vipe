@@ -1,4 +1,6 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Sandbox } from "npm:e2b";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,7 +8,7 @@ const corsHeaders = {
 };
 
 // Vite React template files
-const VITE_TEMPLATE = {
+const VITE_TEMPLATE: Record<string, string> = {
   "package.json": `{
   "name": "vipe-sandbox",
   "private": true,
@@ -33,7 +35,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 5173
+    port: 5173,
+    strictPort: true
   }
 })`,
   "index.html": `<!DOCTYPE html>
@@ -66,7 +69,7 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-white mb-4">
-          Welcome to Vipe 🚀
+          Welcome to Vipe \ud83d\ude80
         </h1>
         <p className="text-slate-300 text-lg">
           Start chatting to build your app!
@@ -89,7 +92,7 @@ export default App`,
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
-}`
+}`,
 };
 
 serve(async (req) => {
@@ -99,106 +102,39 @@ serve(async (req) => {
 
   try {
     const E2B_API_KEY = Deno.env.get("E2B_API_KEY");
-    
-    if (!E2B_API_KEY) {
-      throw new Error("E2B_API_KEY is not configured");
-    }
+    if (!E2B_API_KEY) throw new Error("E2B_API_KEY is not configured");
 
-    console.log("[create-sandbox] Creating new E2B sandbox...");
+    console.log("[create-sandbox] Creating new E2B sandbox via SDK...");
 
-    // Create a new sandbox using E2B API
-    const createResponse = await fetch("https://api.e2b.dev/sandboxes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": E2B_API_KEY,
-      },
-      body: JSON.stringify({
-        templateID: "base", // Use base template
-        timeout: 3600, // 1 hour timeout
-      }),
+    const sandbox = await Sandbox.create("base", {
+      apiKey: E2B_API_KEY,
+      timeoutMs: 60 * 60 * 1000,
     });
 
-    if (!createResponse.ok) {
-      const errorText = await createResponse.text();
-      console.error("[create-sandbox] E2B API error:", createResponse.status, errorText);
-      throw new Error(`Failed to create sandbox: ${errorText}`);
-    }
-
-    const sandboxData = await createResponse.json();
-    const sandboxId = sandboxData.sandboxID;
-    
+    const sandboxId = sandbox.sandboxId;
     console.log("[create-sandbox] Sandbox created:", sandboxId);
 
-    // Write template files to the sandbox
+    // Write template files
     for (const [filePath, content] of Object.entries(VITE_TEMPLATE)) {
-      const writeResponse = await fetch(
-        `https://api.e2b.dev/sandboxes/${sandboxId}/filesystem`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": E2B_API_KEY,
-          },
-          body: JSON.stringify({
-            path: `/home/user/app/${filePath}`,
-            content: content,
-          }),
-        }
-      );
-
-      if (!writeResponse.ok) {
-        console.warn(`[create-sandbox] Failed to write ${filePath}:`, await writeResponse.text());
-      }
+      const fullPath = `/home/user/app/${filePath}`;
+      await sandbox.files.write(fullPath, content);
     }
-
     console.log("[create-sandbox] Template files written");
 
-    // Install dependencies
-    const installResponse = await fetch(
-      `https://api.e2b.dev/sandboxes/${sandboxId}/process`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": E2B_API_KEY,
-        },
-        body: JSON.stringify({
-          cmd: "cd /home/user/app && npm install",
-        }),
-      }
-    );
-
-    if (!installResponse.ok) {
-      console.warn("[create-sandbox] npm install warning:", await installResponse.text());
-    }
-
+    // Install deps
+    await sandbox.commands.run("bash -lc 'cd /home/user/app && npm install'", {
+      timeoutMs: 0,
+    });
     console.log("[create-sandbox] Dependencies installed");
 
-    // Start Vite dev server
-    const devResponse = await fetch(
-      `https://api.e2b.dev/sandboxes/${sandboxId}/process`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": E2B_API_KEY,
-        },
-        body: JSON.stringify({
-          cmd: "cd /home/user/app && npm run dev",
-          background: true,
-        }),
-      }
+    // Start dev server (background)
+    await sandbox.commands.run(
+      "bash -lc 'cd /home/user/app && nohup npm run dev -- --host 0.0.0.0 --port 5173 >/tmp/vite.log 2>&1 &'",
+      { timeoutMs: 0 },
     );
-
-    if (!devResponse.ok) {
-      console.warn("[create-sandbox] npm run dev warning:", await devResponse.text());
-    }
-
     console.log("[create-sandbox] Vite dev server started");
 
-    // Get the sandbox URL
-    // E2B expects the PORT as the subdomain prefix: https://<port>-<sandboxId>.e2b.dev
+    // E2B expects: https://<port>-<sandboxId>.e2b.dev
     const previewUrl = `https://5173-${sandboxId}.e2b.dev`;
 
     return new Response(
@@ -208,9 +144,7 @@ serve(async (req) => {
         url: previewUrl,
         message: "Sandbox created successfully",
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("[create-sandbox] Error:", error);
@@ -222,7 +156,7 @@ serve(async (req) => {
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      },
     );
   }
 });
