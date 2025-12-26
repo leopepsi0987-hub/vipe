@@ -129,9 +129,14 @@ serve(async (req) => {
     await sandbox.commands.run("cd /home/user/app && npm install", { timeoutMs: 120000 });
     console.log("[create-sandbox] Dependencies installed");
 
-    // Start Vite dev server in background
-    console.log("[create-sandbox] Starting Vite dev server...");
-    await sandbox.commands.run("cd /home/user/app && npm run dev &", { timeoutMs: 10000 });
+    // Start Vite dev server in background (don't await - it's long-running)
+    console.log("[create-sandbox] Starting Vite dev server in background...");
+    sandbox.commands.run("cd /home/user/app && npm run dev", { 
+      background: true 
+    });
+    
+    // Wait a moment for server to start
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Get the host URL for port 5173
     const previewUrl = sandbox.getHost(5173);
