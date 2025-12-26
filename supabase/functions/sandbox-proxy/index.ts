@@ -37,6 +37,21 @@ serve(async (req) => {
     // Get the response body
     let body = await response.text();
 
+    // Check if sandbox has expired (E2B returns an error page)
+    if (body.includes("Sandbox Not Found") || body.includes("sandbox") && body.includes("wasn't found")) {
+      console.log(`[sandbox-proxy] Sandbox expired, returning error`);
+      return new Response(
+        JSON.stringify({ 
+          error: "SANDBOX_EXPIRED", 
+          message: "Sandbox has expired. Please create a new one." 
+        }),
+        { 
+          status: 410, 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        }
+      );
+    }
+
     // Rewrite asset URLs to go through proxy
     const baseUrl = new URL(targetUrl);
     const proxyBase = `${url.origin}${url.pathname}?url=`;
