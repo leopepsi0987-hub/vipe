@@ -13,7 +13,7 @@ const VITE_TEMPLATE = {
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 3000",
+    "dev": "vite --host 0.0.0.0 --port 5173",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -33,7 +33,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 3000
+    port: 5173
   }
 })`,
   "index.html": `<!DOCTYPE html>
@@ -198,7 +198,8 @@ serve(async (req) => {
     console.log("[create-sandbox] Vite dev server started");
 
     // Get the sandbox URL
-    const previewUrl = `https://${sandboxId}-3000.e2b.dev`;
+    // E2B expects the PORT as the subdomain prefix: https://<port>-<sandboxId>.e2b.dev
+    const previewUrl = `https://5173-${sandboxId}.e2b.dev`;
 
     return new Response(
       JSON.stringify({
