@@ -17,6 +17,12 @@ export function GenerationPreview({
 }: GenerationPreviewProps) {
   const [iframeError, setIframeError] = useState(false);
 
+  // Build proxied URL for iframe embedding
+  const getProxiedUrl = (url: string): string => {
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sandbox-proxy`;
+    return `${proxyUrl}?url=${encodeURIComponent(url)}`;
+  };
+
   // Reset error state when URL changes
   useEffect(() => {
     setIframeError(false);
@@ -25,7 +31,7 @@ export function GenerationPreview({
   const handleRefresh = () => {
     setIframeError(false);
     if (iframeRef.current && sandboxUrl) {
-      iframeRef.current.src = `${sandboxUrl}?t=${Date.now()}`;
+      iframeRef.current.src = getProxiedUrl(sandboxUrl) + `&t=${Date.now()}`;
     }
   };
 
@@ -33,10 +39,6 @@ export function GenerationPreview({
     if (sandboxUrl) {
       window.open(sandboxUrl, "_blank");
     }
-  };
-
-  const handleIframeError = () => {
-    setIframeError(true);
   };
 
   // Loading state with screenshot background
@@ -78,45 +80,41 @@ export function GenerationPreview({
     );
   }
 
-  // Sandbox loaded - show open externally message (iframe embedding is blocked by E2B)
+  // Sandbox loaded - show iframe with proxied URL
   if (sandboxUrl) {
+    const proxiedUrl = getProxiedUrl(sandboxUrl);
+
     return (
-      <div className="relative w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-center max-w-lg px-6">
-          {/* Success icon */}
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-500/30">
-            <Rocket className="w-10 h-10 text-white" />
-          </div>
+      <div className="relative w-full h-full">
+        <iframe
+          ref={iframeRef}
+          src={proxiedUrl}
+          className="w-full h-full border-none bg-white"
+          title="Sandbox Preview"
+          allow="clipboard-write"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        />
 
-          <h3 className="text-2xl font-bold text-white mb-3">
-            Your App is Ready! 🎉
-          </h3>
-
-          <p className="text-slate-300 mb-6">
-            Your generated app is running in a live sandbox environment.
-            Click the button below to view it in a new tab.
-          </p>
-
+        {/* Floating controls */}
+        <div className="absolute bottom-4 right-4 flex gap-2">
           <Button
-            size="lg"
-            onClick={handleOpenExternal}
-            className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-semibold px-8 py-6 text-lg shadow-lg shadow-orange-500/30"
+            size="sm"
+            variant="secondary"
+            className="shadow-lg"
+            onClick={handleRefresh}
           >
-            <ExternalLink className="w-5 h-5 mr-2" />
-            Open Your App
+            <RefreshCw className="w-4 h-4 mr-1" />
+            Refresh
           </Button>
-
-          <p className="text-slate-500 text-sm mt-6">
-            <AlertCircle className="w-4 h-4 inline mr-1" />
-            The sandbox preview opens in a new tab for security reasons
-          </p>
-
-          {/* Sandbox info */}
-          <div className="mt-8 p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-            <p className="text-slate-400 text-xs font-mono break-all">
-              {sandboxUrl}
-            </p>
-          </div>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shadow-lg"
+            onClick={handleOpenExternal}
+          >
+            <ExternalLink className="w-4 h-4 mr-1" />
+            Open
+          </Button>
         </div>
 
         {/* Loading overlay during regeneration */}
