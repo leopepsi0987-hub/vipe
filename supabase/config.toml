@@ -26,3 +26,21 @@ verify_jwt = false
 
 [functions.db-agent]
 verify_jwt = false
+
+[functions.create-sandbox]
+verify_jwt = false
+
+[functions.apply-code]
+verify_jwt = false
+
+[functions.get-sandbox-files]
+verify_jwt = false
+
+[functions.firecrawl-scrape]
+verify_jwt = false
+
+[functions.firecrawl-search]
+verify_jwt = false
+
+[functions.generate-ai-code]
+verify_jwt = false
