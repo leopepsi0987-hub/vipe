@@ -6,6 +6,70 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+function generateErrorPage(title: string, message: string): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      min-height: 100vh; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .card {
+      background: rgba(255,255,255,0.1);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 32px;
+      text-align: center;
+      max-width: 400px;
+      margin: 20px;
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #f97316 0%, #dc2626 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 28px;
+      font-weight: bold;
+      color: white;
+    }
+    h1 { color: white; font-size: 20px; margin-bottom: 12px; }
+    p { color: rgba(255,255,255,0.7); font-size: 14px; line-height: 1.5; }
+    .loader {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(255,255,255,0.2);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 20px auto 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">V</div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <div class="loader"></div>
+  </div>
+</body>
+</html>`;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -37,17 +101,28 @@ serve(async (req) => {
     // Get the response body
     let body = await response.text();
 
-    // Check if sandbox has expired (E2B returns an error page)
-    if (body.includes("Sandbox Not Found") || body.includes("sandbox") && body.includes("wasn't found")) {
-      console.log(`[sandbox-proxy] Sandbox expired, returning error`);
+    // Check for various E2B error conditions
+    const isClosedPort = body.includes("Closed Port") || body.includes("Connection refused") || body.includes("no service running");
+    const isSandboxExpired = body.includes("Sandbox Not Found") || (body.includes("sandbox") && body.includes("wasn't found"));
+    
+    if (isSandboxExpired) {
+      console.log(`[sandbox-proxy] Sandbox expired`);
       return new Response(
-        JSON.stringify({ 
-          error: "SANDBOX_EXPIRED", 
-          message: "Sandbox has expired. Please create a new one." 
-        }),
+        generateErrorPage("Sandbox Expired", "The sandbox has timed out. Please regenerate your app."),
         { 
-          status: 410, 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+          status: 200, // Return 200 so iframe displays it
+          headers: { ...corsHeaders, "Content-Type": "text/html" } 
+        }
+      );
+    }
+    
+    if (isClosedPort) {
+      console.log(`[sandbox-proxy] Port closed, Vite not ready`);
+      return new Response(
+        generateErrorPage("Starting Server...", "The development server is starting. Please wait a moment and refresh."),
+        { 
+          status: 200, // Return 200 so iframe displays it
+          headers: { ...corsHeaders, "Content-Type": "text/html" } 
         }
       );
     }
