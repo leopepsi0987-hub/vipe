@@ -99,12 +99,32 @@ serve(async (req) => {
       // Restart Vite dev server to ensure port 5173 is serving the latest code
       try {
         console.log("[apply-code] Restarting Vite dev server on port 5173...");
+
+        // Best-effort stop anything currently listening on 5173 / running Vite
         await sandbox.commands.run(
-          "bash -lc 'cd /home/user/app && (command -v fuser >/dev/null 2>&1 && fuser -k 5173/tcp || true) && (pkill -f \"vite\" || true) && (nohup npm run dev -- --host 0.0.0.0 --port 5173 --strictPort > /tmp/vite.log 2>&1 &)'",
-          { timeoutMs: 30000 },
+          "bash -lc 'cd /home/user/app && (command -v fuser >/dev/null 2>&1 && fuser -k 5173/tcp || true) && (pkill -f \"vite\" || true)'",
+          { timeoutMs: 15000 },
         );
-        // Give Vite a moment to boot
-        await new Promise((r) => setTimeout(r, 2000));
+
+        // Start Vite as a true background process via the SDK (avoids the process being terminated)
+        await sandbox.commands.run(
+          "bash -lc 'cd /home/user/app && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort'",
+          { background: true },
+        );
+
+        // Wait for the server to become reachable
+        for (let i = 0; i < 8; i++) {
+          try {
+            await sandbox.commands.run(
+              "bash -lc 'curl -sf http://127.0.0.1:5173/ >/dev/null'",
+              { timeoutMs: 4000 },
+            );
+            console.log("[apply-code] Vite is up on port 5173");
+            break;
+          } catch {
+            await new Promise((r) => setTimeout(r, 1000));
+          }
+        }
       } catch (e) {
         console.error("[apply-code] Failed to restart Vite:", e);
         // don't fail the whole request, files were still applied
@@ -112,6 +132,7 @@ serve(async (req) => {
     }
 
     console.log("[apply-code] Done", results);
+
 
     return new Response(
       JSON.stringify({
