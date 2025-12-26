@@ -1,4 +1,6 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Sandbox } from "npm:e2b";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,13 +22,8 @@ serve(async (req) => {
     const { sandboxId, files, packages } = await req.json();
     const E2B_API_KEY = Deno.env.get("E2B_API_KEY");
 
-    if (!E2B_API_KEY) {
-      throw new Error("E2B_API_KEY is not configured");
-    }
-
-    if (!sandboxId) {
-      throw new Error("sandboxId is required");
-    }
+    if (!E2B_API_KEY) throw new Error("E2B_API_KEY is not configured");
+    if (!sandboxId) throw new Error("sandboxId is required");
 
     const results = {
       filesCreated: [] as string[],
@@ -35,42 +32,24 @@ serve(async (req) => {
       errors: [] as string[],
     };
 
-    console.log(`[apply-code] Applying code to sandbox ${sandboxId}`);
+    console.log(`[apply-code] Connecting to sandbox ${sandboxId} via SDK`);
+    const sandbox = await Sandbox.connect(sandboxId, { apiKey: E2B_API_KEY });
 
     // Install packages if specified
-    if (packages && packages.length > 0) {
+    if (Array.isArray(packages) && packages.length > 0) {
       console.log(`[apply-code] Installing packages:`, packages);
-      
-      const installResponse = await fetch(
-        `https://api.e2b.dev/sandboxes/${sandboxId}/process`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": E2B_API_KEY,
-          },
-          body: JSON.stringify({
-            cmd: `cd /home/user/app && npm install ${packages.join(" ")}`,
-          }),
-        }
+      await sandbox.commands.run(
+        `bash -lc 'cd /home/user/app && npm install ${packages.join(" ")}'`,
+        { timeoutMs: 0 },
       );
-
-      if (installResponse.ok) {
-        results.packagesInstalled = packages;
-        console.log(`[apply-code] Packages installed successfully`);
-      } else {
-        const error = await installResponse.text();
-        console.error(`[apply-code] Package installation failed:`, error);
-        results.errors.push(`Failed to install packages: ${error}`);
-      }
+      results.packagesInstalled = packages;
     }
 
-    // Write files
-    if (files && Array.isArray(files)) {
+    // Apply file operations
+    if (Array.isArray(files)) {
       for (const file of files as FileOperation[]) {
         const action = file.action || "create";
-        
-        // Ensure path starts with src/ for app files
+
         let filePath = file.path;
         if (!filePath.startsWith("/")) {
           filePath = `/home/user/app/${filePath}`;
@@ -79,85 +58,27 @@ serve(async (req) => {
         }
 
         if (action === "delete") {
-          // Delete file
-          const deleteResponse = await fetch(
-            `https://api.e2b.dev/sandboxes/${sandboxId}/filesystem?path=${encodeURIComponent(filePath)}`,
-            {
-              method: "DELETE",
-              headers: {
-                "X-API-Key": E2B_API_KEY,
-              },
-            }
-          );
-
-          if (deleteResponse.ok) {
-            console.log(`[apply-code] Deleted: ${file.path}`);
-          } else {
-            results.errors.push(`Failed to delete ${file.path}`);
+          try {
+            await sandbox.files.remove(filePath);
+          } catch {
+            // ignore if missing
           }
-        } else {
-          // Create parent directories if needed
-          const dirPath = filePath.split("/").slice(0, -1).join("/");
-          await fetch(
-            `https://api.e2b.dev/sandboxes/${sandboxId}/process`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-API-Key": E2B_API_KEY,
-              },
-              body: JSON.stringify({
-                cmd: `mkdir -p ${dirPath}`,
-              }),
-            }
-          );
-
-          // Write file
-          const writeResponse = await fetch(
-            `https://api.e2b.dev/sandboxes/${sandboxId}/filesystem`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-API-Key": E2B_API_KEY,
-              },
-              body: JSON.stringify({
-                path: filePath,
-                content: file.content,
-              }),
-            }
-          );
-
-          if (writeResponse.ok) {
-            if (action === "update") {
-              results.filesUpdated.push(file.path);
-            } else {
-              results.filesCreated.push(file.path);
-            }
-            console.log(`[apply-code] Written: ${file.path}`);
-          } else {
-            const error = await writeResponse.text();
-            console.error(`[apply-code] Failed to write ${file.path}:`, error);
-            results.errors.push(`Failed to write ${file.path}: ${error}`);
-          }
+          continue;
         }
+
+        const dirPath = filePath.split("/").slice(0, -1).join("/");
+        await sandbox.commands.run(`bash -lc 'mkdir -p "${dirPath}"'`, { timeoutMs: 0 });
+        await sandbox.files.write(filePath, file.content);
+
+        if (action === "update") results.filesUpdated.push(file.path);
+        else results.filesCreated.push(file.path);
       }
     }
 
-    // Force Vite to reload by touching the config
-    await fetch(
-      `https://api.e2b.dev/sandboxes/${sandboxId}/process`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-API-Key": E2B_API_KEY,
-        },
-        body: JSON.stringify({
-          cmd: "touch /home/user/app/vite.config.js",
-        }),
-      }
-    );
+    // Nudge Vite
+    await sandbox.commands.run("bash -lc 'touch /home/user/app/vite.config.js'", {
+      timeoutMs: 0,
+    });
 
     console.log(`[apply-code] Code application complete`);
 
@@ -167,9 +88,7 @@ serve(async (req) => {
         results,
         message: `Applied ${results.filesCreated.length + results.filesUpdated.length} files`,
       }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (error) {
     console.error("[apply-code] Error:", error);
@@ -178,10 +97,7 @@ serve(async (req) => {
         success: false,
         error: error instanceof Error ? error.message : "Unknown error",
       }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
