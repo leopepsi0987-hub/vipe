@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Sandbox } from "https://esm.sh/e2b@1.2.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,18 +94,6 @@ body {
 }`
 };
 
-/**
- * Escape content for embedding in a Python string literal
- */
-function escapeForPython(str: string): string {
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/"""/g, '\\"\\"\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t");
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -114,100 +103,45 @@ serve(async (req) => {
     const E2B_API_KEY = Deno.env.get("E2B_API_KEY");
     if (!E2B_API_KEY) throw new Error("E2B_API_KEY is not configured");
 
-    console.log("[create-sandbox] Creating new E2B sandbox...");
+    console.log("[create-sandbox] Creating new E2B sandbox using SDK...");
 
-    // Create sandbox via API
-    const createResponse = await fetch("https://api.e2b.dev/sandboxes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": E2B_API_KEY,
-      },
-      body: JSON.stringify({
-        templateID: "base",
-        timeout: 3600,
-      }),
+    // Create sandbox using SDK - pass template as first arg, options as second
+    const sandbox = await Sandbox.create("base", {
+      apiKey: E2B_API_KEY,
+      timeoutMs: 3600000, // 1 hour in ms
     });
 
-    if (!createResponse.ok) {
-      const errorText = await createResponse.text();
-      console.error("[create-sandbox] E2B API error:", createResponse.status, errorText);
-      throw new Error(`Failed to create sandbox: ${errorText}`);
-    }
-
-    const sandboxData = await createResponse.json();
-    const sandboxId = sandboxData.sandboxID;
+    const sandboxId = sandbox.sandboxId;
     console.log("[create-sandbox] Sandbox created:", sandboxId);
 
-    // Build Python code to write all template files
-    const fileWriteStatements = Object.entries(VITE_TEMPLATE).map(([filePath, content]) => {
-      const fullPath = `/home/user/app/${filePath}`;
-      const escapedContent = escapeForPython(content);
-      return `
-# ${filePath}
-import os
-dir_path = os.path.dirname("${fullPath}")
-os.makedirs(dir_path, exist_ok=True)
-with open("${fullPath}", 'w') as f:
-    f.write("""${escapedContent}""")
-print("Written: ${fullPath}")
-`;
-    }).join("\n");
+    // Write all template files using SDK
+    const fileWrites = Object.entries(VITE_TEMPLATE).map(([filePath, content]) => ({
+      path: `/home/user/app/${filePath}`,
+      data: content,
+    }));
 
-    const bootstrapPython = `
-import subprocess
-import os
+    console.log("[create-sandbox] Writing template files...");
+    await sandbox.files.write(fileWrites);
+    console.log("[create-sandbox] Files written successfully");
 
-# Change to app directory (create if needed)
-os.makedirs("/home/user/app/src", exist_ok=True)
-os.chdir("/home/user/app")
+    // Install dependencies and start dev server
+    console.log("[create-sandbox] Installing dependencies...");
+    await sandbox.commands.run("cd /home/user/app && npm install", { timeoutMs: 120000 });
+    console.log("[create-sandbox] Dependencies installed");
 
-${fileWriteStatements}
-
-print("All files written!")
-
-# Install dependencies
-print("Installing dependencies...")
-subprocess.run(["npm", "install"], capture_output=True, text=True)
-print("Dependencies installed!")
-
-# Start Vite dev server in background
-print("Starting Vite dev server...")
-subprocess.Popen(["npm", "run", "dev"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-print("Vite server started on port 5173!")
-`;
-
-    // Execute via code interpreter endpoint
-    const execResponse = await fetch(`https://api.e2b.dev/sandboxes/${sandboxId}/code`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": E2B_API_KEY,
-      },
-      body: JSON.stringify({
-        code: bootstrapPython,
-        language: "python",
-      }),
-    });
-
-    if (!execResponse.ok) {
-      const errorText = await execResponse.text();
-      console.warn("[create-sandbox] Code execution warning:", errorText);
-      // Continue anyway - the sandbox may still work
-    } else {
-      const execResult = await execResponse.json();
-      console.log("[create-sandbox] Bootstrap result:", JSON.stringify(execResult).substring(0, 500));
-    }
-
-    // E2B URL format: https://<port>-<sandboxId>.e2b.dev
-    const previewUrl = `https://5173-${sandboxId}.e2b.dev`;
+    // Start Vite dev server in background
+    console.log("[create-sandbox] Starting Vite dev server...");
+    await sandbox.commands.run("cd /home/user/app && npm run dev &", { timeoutMs: 10000 });
+    
+    // Get the host URL for port 5173
+    const previewUrl = sandbox.getHost(5173);
     console.log("[create-sandbox] Preview URL:", previewUrl);
 
     return new Response(
       JSON.stringify({
         success: true,
         sandboxId,
-        url: previewUrl,
+        url: `https://${previewUrl}`,
         message: "Sandbox created successfully",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
