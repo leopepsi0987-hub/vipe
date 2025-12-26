@@ -16,6 +16,7 @@ import PricingPage from "./pages/PricingPage";
 import TermsPage from "./pages/TermsPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import RefundPage from "./pages/RefundPage";
+import GenerationPage from "./pages/GenerationPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => {
             <Route path="/project/:projectId" element={<Project />} />
             <Route path="/oauth/callback" element={<OAuthCallback />} />
             <Route path="/app/:slug" element={<PublishedApp />} />
+            <Route path="/generation" element={<GenerationPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

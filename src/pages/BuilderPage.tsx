@@ -71,13 +71,22 @@ export default function BuilderPage() {
             </p>
           </div>
           
-          <Button
-            onClick={handleCreateProject}
-            className="bg-gradient-primary shadow-glow"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            New Project
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => navigate("/generation")}
+              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Generate New App
+            </Button>
+            <Button
+              onClick={handleCreateProject}
+              className="bg-gradient-primary shadow-glow"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              New Project
+            </Button>
+          </div>
         </div>
 
         {/* Projects Grid */}
