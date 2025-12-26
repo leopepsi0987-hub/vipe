@@ -96,13 +96,18 @@ serve(async (req) => {
         await sandbox.files.write(writes);
       }
 
-      // Touch vite config to trigger HMR (safe no-op if it doesn't exist)
+      // Restart Vite dev server to ensure port 5173 is serving the latest code
       try {
-        await sandbox.commands.run("cd /home/user/app && node -e \"const fs=require('fs');try{fs.utimesSync('vite.config.js', new Date(), new Date())}catch(e){}\"", {
-          timeoutMs: 15000,
-        });
-      } catch {
-        // ignore
+        console.log("[apply-code] Restarting Vite dev server on port 5173...");
+        await sandbox.commands.run(
+          "bash -lc 'cd /home/user/app && (command -v fuser >/dev/null 2>&1 && fuser -k 5173/tcp || true) && (pkill -f \"vite\" || true) && (nohup npm run dev -- --host 0.0.0.0 --port 5173 --strictPort > /tmp/vite.log 2>&1 &)'",
+          { timeoutMs: 30000 },
+        );
+        // Give Vite a moment to boot
+        await new Promise((r) => setTimeout(r, 2000));
+      } catch (e) {
+        console.error("[apply-code] Failed to restart Vite:", e);
+        // don't fail the whole request, files were still applied
       }
     }
 
