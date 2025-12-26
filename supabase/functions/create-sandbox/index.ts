@@ -35,8 +35,10 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
-    strictPort: true
-  }
+    strictPort: true,
+    // Allow preview hostnames like 5173-<sandboxId>.e2b.app
+    allowedHosts: true,
+  },
 })`,
   "index.html": `<!DOCTYPE html>
 <html lang="en">
