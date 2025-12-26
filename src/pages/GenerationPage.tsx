@@ -218,35 +218,64 @@ export default function GenerationPage() {
       let fullContent = "";
 
       if (reader) {
+        let textBuffer = "";
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
+          textBuffer += decoder.decode(value, { stream: true });
 
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6));
-                
-                if (data.type === "stream" && data.text) {
-                  fullContent += data.text;
-                  setStreamedCode(fullContent);
-                  
-                  // Parse files from streamed content
-                  parseFilesFromCode(fullContent);
-                } else if (data.type === "complete") {
-                  fullContent = data.generatedCode || fullContent;
-                  parseFilesFromCode(fullContent);
-                  
-                  // Apply code to sandbox
-                  await applyCodeToSandbox(sandbox, fullContent);
-                }
-              } catch {
-                // Skip malformed JSON
+          let newlineIndex: number;
+          while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+            let line = textBuffer.slice(0, newlineIndex);
+            textBuffer = textBuffer.slice(newlineIndex + 1);
+
+            if (line.endsWith("\r")) line = line.slice(0, -1);
+            if (line.startsWith(":")) continue; // SSE keepalive/comment
+            if (line.trim() === "") continue;
+            if (!line.startsWith("data: ")) continue;
+
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === "[DONE]") continue;
+
+            try {
+              const data = JSON.parse(jsonStr);
+
+              if (data.type === "stream" && data.text) {
+                fullContent += data.text;
+                setStreamedCode(fullContent);
+                parseFilesFromCode(fullContent);
+              } else if (data.type === "complete") {
+                fullContent = data.generatedCode || fullContent;
+                setStreamedCode(fullContent);
+                parseFilesFromCode(fullContent);
+
+                // Apply code to sandbox
+                await applyCodeToSandbox(sandbox, fullContent);
+              } else if (data.type === "error") {
+                throw new Error(data.error || "Generation failed");
               }
+            } catch {
+              // Incomplete JSON split across chunks: put it back and wait for more data
+              textBuffer = line + "\n" + textBuffer;
+              break;
             }
+          }
+        }
+
+        // Final flush (in case last line didn't end with newline)
+        if (textBuffer.trim().startsWith("data: ")) {
+          try {
+            const data = JSON.parse(textBuffer.trim().slice(6));
+            if (data?.type === "complete") {
+              fullContent = data.generatedCode || fullContent;
+              setStreamedCode(fullContent);
+              parseFilesFromCode(fullContent);
+              await applyCodeToSandbox(sandbox, fullContent);
+            }
+          } catch {
+            // ignore
           }
         }
       }
