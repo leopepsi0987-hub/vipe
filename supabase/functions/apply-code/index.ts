@@ -106,11 +106,17 @@ serve(async (req) => {
           { timeoutMs: 15000 },
         );
 
-        // Start Vite as a true background process via the SDK (avoids the process being terminated)
-        await sandbox.commands.run(
-          "bash -lc 'cd /home/user/app && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort'",
-          { background: true },
-        );
+        // Start Vite as a true background process via the SDK.
+        // NOTE: Do NOT await; awaiting can terminate long-running commands in some runtimes.
+        try {
+          sandbox.commands.run(
+            "bash -lc 'cd /home/user/app && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort'",
+            { background: true },
+          );
+        } catch (startErr) {
+          console.error("[apply-code] Failed to start Vite background task:", startErr);
+        }
+
 
         // Wait for the server to become reachable
         for (let i = 0; i < 8; i++) {
