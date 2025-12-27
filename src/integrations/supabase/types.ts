@@ -73,6 +73,90 @@ export type Database = {
         }
         Relationships: []
       }
+      generation_files: {
+        Row: {
+          content: string
+          created_at: string
+          file_path: string
+          file_type: string | null
+          id: string
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          file_path: string
+          file_type?: string | null
+          id?: string
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          file_path?: string
+          file_type?: string | null
+          id?: string
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      generation_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          metadata: Json | null
+          session_id: string
+          type: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          session_id: string
+          type?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          session_id?: string
+          type?: string
+        }
+        Relationships: []
+      }
+      generation_sessions: {
+        Row: {
+          created_at: string
+          id: string
+          sandbox_id: string | null
+          sandbox_url: string | null
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          sandbox_id?: string | null
+          sandbox_url?: string | null
+          session_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          sandbox_id?: string | null
+          sandbox_url?: string | null
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       likes: {
         Row: {
           created_at: string
