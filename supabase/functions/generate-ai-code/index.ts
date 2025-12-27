@@ -263,6 +263,30 @@ ${supabaseIntegrationHint}
 3. **RETURN ONLY CHANGED FILES**: Only output files that actually need modifications.
 4. **MAINTAIN CONSISTENCY**: Keep the same coding style, naming conventions, and patterns as the existing code.
 
+## ⚠️ SYNTAX VALIDATION - CRITICAL!
+
+**YOUR CODE MUST BE VALID JAVASCRIPT/JSX! Follow these rules STRICTLY:**
+
+1. **COMPLETE ALL FUNCTIONS**: Every function must have proper opening AND closing braces {}
+2. **COMPLETE ALL OBJECTS**: Every object literal must have matching { and }
+3. **COMPLETE ALL ARRAYS**: Every array must have matching [ and ]
+4. **SEMICOLONS**: Add semicolons after statements (const, let, return outside JSX, etc.)
+5. **PARENTHESES**: Ensure all ( have matching )
+6. **JSX TAGS**: Every opening tag <div> needs a closing </div> or self-close <img />
+7. **ARROW FUNCTIONS**: const fn = () => { ... }; - don't forget the closing brace and semicolon
+
+**COMMON ERRORS TO AVOID:**
+- Cutting off code mid-function (always complete the entire function!)
+- Missing closing braces } at end of functions
+- Starting a new statement without finishing the previous one
+- Missing semicolons after object/function definitions
+- Incomplete return statements
+
+**Before outputting any file, mentally verify:**
+- Count opening { and closing } - they must match
+- Count opening ( and closing ) - they must match
+- Every const/let/function statement is complete
+
 ## OUTPUT FORMAT (CRITICAL):
 
 You MUST output code in this exact format with file tags:
@@ -283,7 +307,8 @@ Remember:
 - DO NOT change the overall design or structure unless asked
 - DO NOT add new features unless asked
 - PRESERVE all existing functionality
-- Only output the files that need to be modified`;
+- Only output the files that need to be modified
+- **ENSURE ALL CODE IS SYNTACTICALLY VALID**`;
     } else {
       // NEW PROJECT MODE - generate from scratch
       systemPrompt = `You are an expert React developer who creates beautiful, production-ready applications.
@@ -332,6 +357,30 @@ export default App;
 7. Create multiple components (Header, Footer, sections, etc.)
 8. Use STATE-BASED NAVIGATION (no react-router-dom!)
 
+## ⚠️ SYNTAX VALIDATION - CRITICAL!
+
+**YOUR CODE MUST BE VALID JAVASCRIPT/JSX! Follow these rules STRICTLY:**
+
+1. **COMPLETE ALL FUNCTIONS**: Every function must have proper opening AND closing braces {}
+2. **COMPLETE ALL OBJECTS**: Every object literal must have matching { and }
+3. **COMPLETE ALL ARRAYS**: Every array must have matching [ and ]
+4. **SEMICOLONS**: Add semicolons after statements (const, let, return outside JSX, etc.)
+5. **PARENTHESES**: Ensure all ( have matching )
+6. **JSX TAGS**: Every opening tag <div> needs a closing </div> or self-close <img />
+7. **ARROW FUNCTIONS**: const fn = () => { ... }; - don't forget the closing brace and semicolon
+
+**COMMON ERRORS TO AVOID:**
+- Cutting off code mid-function (always complete the entire function!)
+- Missing closing braces } at end of functions
+- Starting a new statement without finishing the previous one
+- Missing semicolons after object/function definitions
+- Incomplete return statements
+
+**Before outputting any file, mentally verify:**
+- Count opening { and closing } - they must match
+- Count opening ( and closing ) - they must match
+- Every const/let/function statement is complete
+
 ${websiteContext ? `## CLONING INSTRUCTIONS:
 You are cloning a website. Match the visual style, layout, and content structure.
 ${websiteContext}` : ""}
@@ -349,7 +398,7 @@ ${fileContext}
 - Create visually appealing color schemes
 - Include icons using emoji or inline SVG shapes
 
-Remember: Output ONLY the file tags with code. No explanations before or after.`;
+Remember: Output ONLY the file tags with code. No explanations before or after. **ENSURE ALL CODE IS SYNTACTICALLY VALID!**`;
     }
 
     console.log("[generate-ai-code] Generating code with Gemini... Edit mode:", editMode);
