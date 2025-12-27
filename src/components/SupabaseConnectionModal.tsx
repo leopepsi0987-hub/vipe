@@ -12,6 +12,7 @@ interface SupabaseConnectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string;
+  onConnected?: (connection: SupabaseConnection) => void;
 }
 
 interface SupabaseConnection {
@@ -30,7 +31,7 @@ interface SupabaseProject {
   apiUrl: string;
 }
 
-export function SupabaseConnectionModal({ open, onOpenChange, projectId }: SupabaseConnectionModalProps) {
+export function SupabaseConnectionModal({ open, onOpenChange, projectId, onConnected }: SupabaseConnectionModalProps) {
   const [url, setUrl] = useState("");
   const [serviceRoleKey, setServiceRoleKey] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
@@ -128,9 +129,16 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
       }
 
       if ((data as any)?.success) {
+        const connectionData: SupabaseConnection = {
+          url: supabaseProject.apiUrl,
+          connected: true,
+          connectedVia: "oauth",
+          supabaseProjectId: supabaseProject.id,
+        };
         toast.success(`Connected to ${supabaseProject.name}!`);
         setOauthProjects(null);
         loadConnection();
+        onConnected?.(connectionData);
       }
     } catch (error) {
       console.error("Project selection error:", error);
@@ -229,6 +237,7 @@ export function SupabaseConnectionModal({ open, onOpenChange, projectId }: Supab
       setConnection(connectionData);
       setShowManual(false);
       toast.success("Supabase connected! The AI can now create tables and schemas.");
+      onConnected?.(connectionData);
       onOpenChange(false);
     } catch (error) {
       console.error("Error saving connection:", error);

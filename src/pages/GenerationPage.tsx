@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GenerationSidebar } from "@/components/generation/GenerationSidebar";
 import { GenerationPreview } from "@/components/generation/GenerationPreview";
 import { GenerationCodePanel } from "@/components/generation/GenerationCodePanel";
+import { SupabaseConnectionModal } from "@/components/SupabaseConnectionModal";
 import { Loader2 } from "lucide-react";
 
 interface SandboxData {
@@ -20,6 +21,8 @@ interface ChatMessage {
   metadata?: {
     scrapedUrl?: string;
     appliedFiles?: string[];
+    isSupabaseInfo?: boolean;
+    supabaseConnection?: SupabaseConnection;
   };
 }
 
@@ -30,14 +33,41 @@ interface GenerationFile {
   completed: boolean;
 }
 
+interface SupabaseConnection {
+  url: string;
+  serviceRoleKey?: string;
+  anonKey?: string;
+  connected: boolean;
+  connectedVia?: "oauth" | "manual";
+  supabaseProjectId?: string;
+}
+
+// Generate a random session ID
+const generateSessionId = () => {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 10; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
 export default function GenerationPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { sessionId: urlSessionId } = useParams();
+  
+  // Session ID state
+  const [sessionId, setSessionId] = useState<string>(() => urlSessionId || generateSessionId());
   
   // Core state
   const [sandboxData, setSandboxData] = useState<SandboxData | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
+  
+  // Supabase connection state
+  const [showSupabaseModal, setShowSupabaseModal] = useState(false);
+  const [supabaseConnection, setSupabaseConnection] = useState<SupabaseConnection | null>(null);
   
   // Chat state
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -65,6 +95,38 @@ export default function GenerationPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // Redirect to unique URL if on /generation
+  useEffect(() => {
+    if (!urlSessionId) {
+      navigate(`/g/${sessionId}`, { replace: true });
+    }
+  }, [urlSessionId, sessionId, navigate]);
+
+  // Load existing supabase connection
+  useEffect(() => {
+    const loadSupabaseConnection = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("project_data")
+          .select("value")
+          .eq("project_id", sessionId)
+          .eq("key", "supabase_connection")
+          .maybeSingle();
+
+        if (data && !error) {
+          const conn = data.value as unknown as SupabaseConnection;
+          setSupabaseConnection(conn);
+        }
+      } catch (error) {
+        console.error("Error loading supabase connection:", error);
+      }
+    };
+
+    if (sessionId) {
+      loadSupabaseConnection();
+    }
+  }, [sessionId]);
+
   // Auto-scroll chat
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -82,7 +144,7 @@ export default function GenerationPage() {
     }
   }, []);
 
-  const addMessage = (content: string, type: ChatMessage["type"], metadata?: any) => {
+  const addMessage = (content: string, type: ChatMessage["type"], metadata?: ChatMessage["metadata"]) => {
     setChatMessages((prev) => [
       ...prev,
       {
@@ -93,6 +155,25 @@ export default function GenerationPage() {
         metadata,
       },
     ]);
+  };
+
+  // Handle Supabase connection callback
+  const handleSupabaseConnected = (connection: SupabaseConnection) => {
+    setSupabaseConnection(connection);
+    setShowSupabaseModal(false);
+    
+    // Add visible message to chat
+    addMessage("I've connected my Supabase database! 🎉", "user");
+    
+    // Add AI acknowledgment with hidden Supabase info in metadata
+    addMessage(
+      "Great! I can now create tables, schemas, and RLS policies for your app. What would you like me to build?",
+      "ai",
+      {
+        isSupabaseInfo: true,
+        supabaseConnection: connection,
+      }
+    );
   };
 
   const isUrl = (str: string): boolean => {
@@ -205,6 +286,9 @@ export default function GenerationPage() {
 
       addMessage(isEdit ? "Editing your code..." : "Generating code...", "system");
 
+      // Find if there's a supabase connection message in chat history
+      const supabaseInfoMessage = chatMessages.find(m => m.metadata?.isSupabaseInfo && m.metadata?.supabaseConnection);
+      
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-code`,
         {
@@ -218,8 +302,10 @@ export default function GenerationPage() {
             scrapedContent,
             isEdit,
             existingFiles: isEdit ? existingFilesMap : undefined,
+            supabaseConnection: supabaseInfoMessage?.metadata?.supabaseConnection || supabaseConnection,
             context: {
               sandboxId: sandbox.sandboxId,
+              sessionId,
             },
           }),
         }
@@ -488,6 +574,16 @@ export default function GenerationPage() {
         chatContainerRef={chatContainerRef}
         onBack={() => navigate("/builder")}
         urlScreenshot={urlScreenshot}
+        supabaseConnection={supabaseConnection}
+        onOpenSupabaseModal={() => setShowSupabaseModal(true)}
+      />
+
+      {/* Supabase Connection Modal */}
+      <SupabaseConnectionModal
+        open={showSupabaseModal}
+        onOpenChange={setShowSupabaseModal}
+        projectId={sessionId}
+        onConnected={handleSupabaseConnected}
       />
 
       {/* Main Content */}

@@ -2,7 +2,7 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Send, Loader2, Globe, MessageSquare } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Globe, MessageSquare, Database, CheckCircle } from "lucide-react";
 
 interface ChatMessage {
   id: string;
@@ -12,7 +12,14 @@ interface ChatMessage {
   metadata?: {
     scrapedUrl?: string;
     appliedFiles?: string[];
+    isSupabaseInfo?: boolean;
   };
+}
+
+interface SupabaseConnection {
+  url: string;
+  connected: boolean;
+  connectedVia?: "oauth" | "manual";
 }
 
 interface GenerationSidebarProps {
@@ -25,6 +32,8 @@ interface GenerationSidebarProps {
   chatContainerRef: React.RefObject<HTMLDivElement>;
   onBack: () => void;
   urlScreenshot?: string | null;
+  supabaseConnection?: SupabaseConnection | null;
+  onOpenSupabaseModal?: () => void;
 }
 
 export function GenerationSidebar({
@@ -37,6 +46,8 @@ export function GenerationSidebar({
   chatContainerRef,
   onBack,
   urlScreenshot,
+  supabaseConnection,
+  onOpenSupabaseModal,
 }: GenerationSidebarProps) {
   return (
     <div className="w-[380px] border-r border-border bg-card flex flex-col">
@@ -51,6 +62,26 @@ export function GenerationSidebar({
           </div>
           <span className="font-semibold text-foreground">Vipe</span>
         </div>
+        
+        {/* Supabase Connect Button */}
+        <Button
+          variant={supabaseConnection?.connected ? "outline" : "ghost"}
+          size="sm"
+          className="ml-auto gap-1.5"
+          onClick={onOpenSupabaseModal}
+        >
+          {supabaseConnection?.connected ? (
+            <>
+              <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+              <span className="text-xs">Connected</span>
+            </>
+          ) : (
+            <>
+              <Database className="w-3.5 h-3.5" />
+              <span className="text-xs">Connect DB</span>
+            </>
+          )}
+        </Button>
       </div>
 
       {/* Screenshot Preview */}
