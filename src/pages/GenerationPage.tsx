@@ -500,6 +500,7 @@ export default function GenerationPage() {
           {activeTab === "preview" ? (
             <GenerationPreview
               sandboxUrl={sandboxData?.url || null}
+              sandboxId={sandboxData?.sandboxId || null}
               iframeRef={iframeRef}
               isLoading={isGenerating || isScrapingUrl}
               screenshot={urlScreenshot}

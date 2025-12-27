@@ -1,9 +1,12 @@
 import { RefObject, useState, useEffect } from "react";
-import { Loader2, RefreshCw, ExternalLink, AlertCircle, Rocket } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface GenerationPreviewProps {
   sandboxUrl: string | null;
+  sandboxId: string | null;
   iframeRef: RefObject<HTMLIFrameElement>;
   isLoading: boolean;
   screenshot?: string | null;
@@ -11,11 +14,13 @@ interface GenerationPreviewProps {
 
 export function GenerationPreview({
   sandboxUrl,
+  sandboxId,
   iframeRef,
   isLoading,
   screenshot,
 }: GenerationPreviewProps) {
   const [iframeError, setIframeError] = useState(false);
+  const [isRestarting, setIsRestarting] = useState(false);
 
   // Build proxied URL for iframe embedding
   const getProxiedUrl = (url: string): string => {
@@ -38,6 +43,38 @@ export function GenerationPreview({
   const handleOpenExternal = () => {
     if (sandboxUrl) {
       window.open(sandboxUrl, "_blank");
+    }
+  };
+
+  const handleRestartServer = async () => {
+    if (!sandboxId) {
+      toast.error("No sandbox available");
+      return;
+    }
+
+    setIsRestarting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("apply-code", {
+        body: {
+          sandboxId,
+          files: [], // Empty files = just restart Vite
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Failed to restart server");
+
+      toast.success("Server restarted!");
+      
+      // Refresh iframe after a brief delay
+      setTimeout(() => {
+        handleRefresh();
+      }, 1500);
+    } catch (err) {
+      console.error("[GenerationPreview] Restart error:", err);
+      toast.error("Failed to restart server");
+    } finally {
+      setIsRestarting(false);
     }
   };
 
@@ -97,6 +134,20 @@ export function GenerationPreview({
 
         {/* Floating controls */}
         <div className="absolute bottom-4 right-4 flex gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            className="shadow-lg"
+            onClick={handleRestartServer}
+            disabled={isRestarting || !sandboxId}
+          >
+            {isRestarting ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4 mr-1" />
+            )}
+            Restart Server
+          </Button>
           <Button
             size="sm"
             variant="secondary"
