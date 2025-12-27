@@ -160,11 +160,21 @@ serve(async (req) => {
       body = body.replace('<head>', `<head><base href="${targetUrl}">`);
     }
 
+    // Determine proper content type - always use text/html for HTML content
+    const originalContentType = response.headers.get("Content-Type") || "";
+    let contentType = originalContentType;
+    
+    // If body looks like HTML, force text/html with charset
+    if (body.trim().startsWith("<!DOCTYPE") || body.trim().startsWith("<html") || body.includes("<head>")) {
+      contentType = "text/html; charset=utf-8";
+    } else if (!contentType) {
+      contentType = "text/html; charset=utf-8";
+    }
+
     // Create response headers without X-Frame-Options or restrictive CSP
     const responseHeaders: Record<string, string> = {
       ...corsHeaders,
-      "Content-Type": response.headers.get("Content-Type") || "text/html",
-      // Remove frame-blocking headers by not including them
+      "Content-Type": contentType,
     };
 
     // Copy some useful headers but skip security headers that block framing
@@ -175,6 +185,7 @@ serve(async (req) => {
       "cross-origin-opener-policy",
       "cross-origin-embedder-policy",
       "cross-origin-resource-policy",
+      "content-type", // Skip - we set this explicitly above
     ];
 
     response.headers.forEach((value, key) => {
@@ -182,6 +193,8 @@ serve(async (req) => {
         responseHeaders[key] = value;
       }
     });
+
+    console.log(`[sandbox-proxy] Returning with Content-Type: ${contentType}`);
 
     return new Response(body, {
       status: response.status,
