@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, model, context, scrapedContent, isEdit, existingFiles, supabaseConnection } = await req.json();
+    const { prompt, model, context, scrapedContent, isEdit, existingFiles, supabaseConnection, sessionId } = await req.json();
     const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
     if (!GEMINI_API_KEY) {
@@ -107,10 +107,12 @@ const [page, setPage] = useState('home');
 `;
 
     // Supabase instructions when connected
-    const getSupabaseInstructions = (conn: any) => {
+    const getSupabaseInstructions = (conn: any, sessId: string) => {
       if (!conn?.url) return '';
       
       const hasAnonKey = !!conn?.anonKey;
+      const hasServiceRole = !!conn?.serviceRoleKey;
+      const projectId = conn?.supabaseProjectId || '';
       
       return `
 ## 🔌 SUPABASE DATABASE CONNECTED - THE USER HAS CONNECTED THEIR DATABASE!
@@ -120,6 +122,7 @@ const [page, setPage] = useState('home');
 **Project URL**: ${conn.url}
 ${hasAnonKey ? `**Anon Key**: ${conn.anonKey}` : ''}
 **Connected via**: ${conn.connectedVia || 'manual'}
+${projectId ? `**Project ID**: ${projectId}` : ''}
 
 **CRITICAL: Do NOT import @supabase/supabase-js! Use the REST API with fetch() instead.**
 
@@ -182,17 +185,43 @@ You can still reference that the user has Supabase connected.
 Ask the user to provide table names and structure, then use the REST API pattern.
 `}
 
-**When the user asks for features needing a database:**
-1. Assume tables may not exist yet - handle 404 errors gracefully
-2. Tell the user what tables/columns you need and suggest they create them
-3. Use proper error handling for all database operations
-4. Always show loading states
+## 🗄️ DATABASE MIGRATIONS - YOU CAN CREATE TABLES!
 
-Remember: The user needs to create tables in their Supabase dashboard first!
+When the user needs database tables, you can create them! Output SQL in this special format:
+
+\`\`\`sql-migration
+CREATE TABLE todos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  completed BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
+
+-- Allow anyone to read/write (for demo - in production, add proper RLS)
+CREATE POLICY "Allow all" ON todos FOR ALL USING (true);
+\`\`\`
+
+When you output SQL in \`\`\`sql-migration blocks, our system will automatically execute it on the user's database.
+
+**Guidelines for creating tables:**
+1. Always use UUID for primary keys with gen_random_uuid()
+2. Include created_at TIMESTAMPTZ DEFAULT now() for tracking
+3. Enable RLS on all tables
+4. Add appropriate RLS policies
+5. Use proper data types (TEXT, BOOLEAN, INTEGER, TIMESTAMPTZ, etc.)
+
+**When the user asks for features needing a database:**
+1. First, create the required tables using sql-migration blocks
+2. Then write the React code to use those tables via REST API
+3. Handle errors gracefully (table might not exist yet on first render)
+4. Always show loading states
 `;
     };
     // Get Supabase instructions if connected
-    const supabaseInstructions = getSupabaseInstructions(supabaseConnection);
+    const supabaseInstructions = getSupabaseInstructions(supabaseConnection, sessionId || '');
 
     if (editMode) {
       // EDIT MODE - preserve existing code, only modify what's needed

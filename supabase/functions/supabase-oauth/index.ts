@@ -252,10 +252,9 @@ serve(async (req) => {
         console.log("[supabase-oauth] Could not store in project_data (expected for generation sessions):", upsertPdError.message);
       }
 
-      // Clean up OAuth session from the dedicated table
-      await supabase.from("oauth_sessions")
-        .delete()
-        .eq("session_id", projectId);
+      // Keep OAuth session for later SQL execution - update with fresh token
+      // Don't delete it! We need it for the Management API
+      console.log("[supabase-oauth] Keeping OAuth session for SQL execution:", projectId);
 
       console.log("[supabase-oauth] Connected project:", supabaseProjectId);
 

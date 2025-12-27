@@ -400,6 +400,7 @@ export default function GenerationPage() {
             isEdit,
             existingFiles: isEdit ? existingFilesMap : undefined,
             supabaseConnection: supabaseInfoMessage?.metadata?.supabaseConnection || supabaseConnection,
+            sessionId, // Pass session ID for SQL execution
             context: {
               sandboxId: sandbox.sandboxId,
               sessionId,
@@ -503,7 +504,8 @@ export default function GenerationPage() {
     }
   };
 
-  const parseFilesFromCode = (code: string, mergeWithExisting = false) => {
+  const parseFilesFromCode = async (code: string, mergeWithExisting = false) => {
+    // Parse regular file blocks
     const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
     const newFiles: GenerationFile[] = [];
     let match;
@@ -519,6 +521,16 @@ export default function GenerationPage() {
         type: ext === "jsx" || ext === "js" ? "javascript" : ext,
         completed: true,
       });
+    }
+
+    // Parse SQL migration blocks and execute them
+    const sqlMigrationRegex = /```sql-migration\n([\s\S]*?)```/g;
+    let sqlMatch;
+    while ((sqlMatch = sqlMigrationRegex.exec(code)) !== null) {
+      const sqlContent = sqlMatch[1].trim();
+      if (sqlContent && supabaseConnection?.connected) {
+        await executeSqlMigration(sqlContent);
+      }
     }
 
     if (newFiles.length > 0) {
@@ -554,6 +566,38 @@ export default function GenerationPage() {
         .then(({ error }) => {
           if (error) console.error("Error saving files:", error);
         });
+    }
+  };
+
+  // Execute SQL migration on user's connected Supabase database
+  const executeSqlMigration = async (sql: string) => {
+    if (!supabaseConnection?.connected || !supabaseConnection?.supabaseProjectId) {
+      console.log("[generation] No Supabase connection for SQL execution");
+      return;
+    }
+
+    try {
+      addMessage("Executing database migration...", "system");
+
+      const { data, error } = await supabase.functions.invoke("execute-user-sql", {
+        body: {
+          sessionId,
+          sql,
+          supabaseProjectId: supabaseConnection.supabaseProjectId,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        addMessage("Database migration executed successfully!", "system");
+        console.log("[generation] SQL migration result:", data);
+      } else {
+        throw new Error(data?.error || "Migration failed");
+      }
+    } catch (error) {
+      console.error("[generation] SQL migration error:", error);
+      addMessage(`Database migration failed: ${error instanceof Error ? error.message : "Unknown error"}. You may need to run this SQL manually in your Supabase dashboard.`, "system");
     }
   };
 
