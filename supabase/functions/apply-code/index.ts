@@ -97,43 +97,53 @@ serve(async (req) => {
       }
 
       // Restart Vite dev server to ensure port 5173 is serving the latest code
+      console.log("[apply-code] Restarting Vite dev server on port 5173...");
+
+      // Kill any existing Vite process (ignore errors)
       try {
-        console.log("[apply-code] Restarting Vite dev server on port 5173...");
-
-        // Best-effort stop anything currently listening on 5173 / running Vite
         await sandbox.commands.run(
-          "bash -lc 'cd /home/user/app && (command -v fuser >/dev/null 2>&1 && fuser -k 5173/tcp || true) && (pkill -f \"vite\" || true)'",
-          { timeoutMs: 15000 },
+          "bash -lc 'pkill -9 -f node || true; sleep 0.5'",
+          { timeoutMs: 10000 },
         );
+      } catch {
+        // Ignore kill errors
+      }
 
-        // Start Vite as a true background process via the SDK.
-        // NOTE: Do NOT await; awaiting can terminate long-running commands in some runtimes.
+      // Start Vite in background using nohup + disown so it survives
+      try {
+        await sandbox.commands.run(
+          "bash -lc 'cd /home/user/app && nohup npm run dev -- --host 0.0.0.0 --port 5173 --strictPort > /tmp/vite.log 2>&1 &'",
+          { timeoutMs: 5000 },
+        );
+        console.log("[apply-code] Vite start command issued");
+      } catch (startErr) {
+        console.error("[apply-code] Failed to start Vite:", startErr);
+      }
+
+      // Give Vite a moment to spin up
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // Poll for server readiness
+      let isUp = false;
+      for (let i = 0; i < 10; i++) {
         try {
-          sandbox.commands.run(
-            "bash -lc 'cd /home/user/app && npm run dev -- --host 0.0.0.0 --port 5173 --strictPort'",
-            { background: true },
+          const check = await sandbox.commands.run(
+            "bash -lc 'curl -sf http://127.0.0.1:5173/ >/dev/null 2>&1 && echo UP || echo DOWN'",
+            { timeoutMs: 3000 },
           );
-        } catch (startErr) {
-          console.error("[apply-code] Failed to start Vite background task:", startErr);
-        }
-
-
-        // Wait for the server to become reachable
-        for (let i = 0; i < 8; i++) {
-          try {
-            await sandbox.commands.run(
-              "bash -lc 'curl -sf http://127.0.0.1:5173/ >/dev/null'",
-              { timeoutMs: 4000 },
-            );
+          if (check.stdout.includes("UP")) {
             console.log("[apply-code] Vite is up on port 5173");
+            isUp = true;
             break;
-          } catch {
-            await new Promise((r) => setTimeout(r, 1000));
           }
+        } catch {
+          // ignore
         }
-      } catch (e) {
-        console.error("[apply-code] Failed to restart Vite:", e);
-        // don't fail the whole request, files were still applied
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+
+      if (!isUp) {
+        console.warn("[apply-code] Vite might not be ready yet, but files were applied");
       }
     }
 
