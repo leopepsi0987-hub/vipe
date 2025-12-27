@@ -63,10 +63,12 @@ const OAuthCallback = () => {
       console.error("OAuth callback error:", error);
       toast.error("Failed to complete OAuth flow");
       setStatus("error");
-      // Redirect back to project after a delay
+      // Redirect back after a delay
       setTimeout(() => {
         if (projectId) {
-          navigate(`/project/${projectId}`);
+          // Check if this is a generation session (short ID) or real project (UUID)
+          const isGenerationSession = projectId.length <= 12;
+          navigate(isGenerationSession ? `/g/${projectId}` : `/project/${projectId}`);
         } else {
           navigate("/");
         }
@@ -96,7 +98,9 @@ const OAuthCallback = () => {
 
       if ((data as any)?.success) {
         toast.success(`Connected to ${supabaseProject.name}!`);
-        navigate(`/project/${projectId}`);
+        // Check if this is a generation session (short ID) or real project (UUID)
+        const isGenerationSession = projectId.length <= 12;
+        navigate(isGenerationSession ? `/g/${projectId}` : `/project/${projectId}`);
       }
     } catch (error) {
       console.error("Project selection error:", error);
@@ -165,7 +169,14 @@ const OAuthCallback = () => {
         </div>
 
         <button
-          onClick={() => projectId ? navigate(`/project/${projectId}`) : navigate("/")}
+          onClick={() => {
+            if (projectId) {
+              const isGenerationSession = projectId.length <= 12;
+              navigate(isGenerationSession ? `/g/${projectId}` : `/project/${projectId}`);
+            } else {
+              navigate("/");
+            }
+          }}
           className="w-full mt-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           Cancel

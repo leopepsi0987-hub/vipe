@@ -141,20 +141,23 @@ serve(async (req) => {
 
       console.log("[supabase-oauth] Loaded projects:", allProjects.length);
 
-      // Store tokens temporarily (will be used when user selects a project)
+      // Store tokens in oauth_sessions table (no foreign key constraint)
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         
-        // Store OAuth session temporarily
-        await supabase.from("project_data").upsert({
-          project_id: projectId,
-          key: "supabase_oauth_session",
-          value: {
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            expires_at: Date.now() + (tokens.expires_in * 1000),
-          },
-        }, { onConflict: "project_id,key" });
+        // Store OAuth session in dedicated table
+        const { error: upsertError } = await supabase.from("oauth_sessions").upsert({
+          session_id: projectId,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expires_at: Date.now() + (tokens.expires_in * 1000),
+        }, { onConflict: "session_id" });
+        
+        if (upsertError) {
+          console.error("[supabase-oauth] Failed to store OAuth session:", upsertError);
+        } else {
+          console.log("[supabase-oauth] Stored OAuth session for:", projectId);
+        }
       }
 
       return new Response(JSON.stringify({ 
@@ -175,19 +178,23 @@ serve(async (req) => {
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-      // Get stored OAuth session
-      const { data: sessionData } = await supabase
-        .from("project_data")
-        .select("value")
-        .eq("project_id", projectId)
-        .eq("key", "supabase_oauth_session")
+      // Get stored OAuth session from dedicated table
+      const { data: sessionData, error: sessionError } = await supabase
+        .from("oauth_sessions")
+        .select("*")
+        .eq("session_id", projectId)
         .single();
 
-      if (!sessionData?.value) {
-        throw new Error("No OAuth session found");
+      if (sessionError) {
+        console.error("[supabase-oauth] Session lookup error:", sessionError);
       }
 
-      const session = sessionData.value as { access_token: string };
+      if (!sessionData?.access_token) {
+        console.error("[supabase-oauth] No OAuth session found for:", projectId);
+        throw new Error("No OAuth session found. Please try connecting again.");
+      }
+
+      const session = { access_token: sessionData.access_token };
 
       // Get API keys for the selected project
       const keysResponse = await fetch(`https://api.supabase.com/v1/projects/${supabaseProjectId}/api-keys`, {
@@ -220,17 +227,35 @@ serve(async (req) => {
         supabaseProjectId,
       };
 
-      await supabase.from("project_data").upsert({
+      // Store connection in generation_sessions for the generation page
+      const { error: upsertGenError } = await supabase
+        .from("generation_sessions")
+        .upsert({
+          session_id: projectId,
+          supabase_connection: connectionData,
+        }, { onConflict: "session_id" });
+
+      if (upsertGenError) {
+        console.log("[supabase-oauth] Could not store in generation_sessions:", upsertGenError.message);
+      } else {
+        console.log("[supabase-oauth] Stored connection in generation_sessions for:", projectId);
+      }
+
+      // Also try to store in project_data if it's a real project (may fail due to FK constraint)
+      const { error: upsertPdError } = await supabase.from("project_data").upsert({
         project_id: projectId,
         key: "supabase_connection",
         value: connectionData,
       }, { onConflict: "project_id,key" });
+      
+      if (upsertPdError) {
+        console.log("[supabase-oauth] Could not store in project_data (expected for generation sessions):", upsertPdError.message);
+      }
 
-      // Clean up OAuth session
-      await supabase.from("project_data")
+      // Clean up OAuth session from the dedicated table
+      await supabase.from("oauth_sessions")
         .delete()
-        .eq("project_id", projectId)
-        .eq("key", "supabase_oauth_session");
+        .eq("session_id", projectId);
 
       console.log("[supabase-oauth] Connected project:", supabaseProjectId);
 
