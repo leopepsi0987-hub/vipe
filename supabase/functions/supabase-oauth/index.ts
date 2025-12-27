@@ -263,7 +263,11 @@ serve(async (req) => {
         success: true, 
         connection: {
           url: connectionData.url,
+          anonKey: connectionData.anonKey,
+          serviceRoleKey: connectionData.serviceRoleKey,
           connected: true,
+          connectedVia: "oauth",
+          supabaseProjectId: connectionData.supabaseProjectId,
         }
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
