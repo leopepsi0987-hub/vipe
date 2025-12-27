@@ -63,6 +63,7 @@ export default function GenerationPage() {
   // Core state
   const [sandboxData, setSandboxData] = useState<SandboxData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"preview" | "code">("preview");
   
   // Supabase connection state
@@ -70,14 +71,7 @@ export default function GenerationPage() {
   const [supabaseConnection, setSupabaseConnection] = useState<SupabaseConnection | null>(null);
   
   // Chat state
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      content: "Welcome! Enter a URL to clone or describe what you want to build.",
-      type: "system",
-      timestamp: new Date(),
-    },
-  ]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   
   // Generation state
@@ -94,6 +88,7 @@ export default function GenerationPage() {
   // Refs
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const hasLoadedSession = useRef(false);
 
   // Redirect to unique URL if on /generation
   useEffect(() => {
@@ -102,29 +97,103 @@ export default function GenerationPage() {
     }
   }, [urlSessionId, sessionId, navigate]);
 
-  // Load existing supabase connection
+  // Load session data from database
   useEffect(() => {
-    const loadSupabaseConnection = async () => {
+    if (!sessionId || hasLoadedSession.current) return;
+    hasLoadedSession.current = true;
+
+    const loadSession = async () => {
       try {
-        const { data, error } = await supabase
+        setInitialLoading(true);
+
+        // Load session info (sandbox data)
+        const { data: sessionData } = await supabase
+          .from("generation_sessions")
+          .select("*")
+          .eq("session_id", sessionId)
+          .maybeSingle();
+
+        if (sessionData) {
+          if (sessionData.sandbox_id && sessionData.sandbox_url) {
+            setSandboxData({
+              sandboxId: sessionData.sandbox_id,
+              url: sessionData.sandbox_url,
+            });
+          }
+        }
+
+        // Load messages
+        const { data: messagesData } = await supabase
+          .from("generation_messages")
+          .select("*")
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: true });
+
+        if (messagesData && messagesData.length > 0) {
+          const loadedMessages: ChatMessage[] = messagesData.map((m: any) => ({
+            id: m.id,
+            content: m.content,
+            type: m.type as ChatMessage["type"],
+            timestamp: new Date(m.created_at),
+            metadata: m.metadata,
+          }));
+          setChatMessages(loadedMessages);
+          
+          // Check for supabase connection in messages
+          const supabaseMsg = loadedMessages.find(m => m.metadata?.isSupabaseInfo && m.metadata?.supabaseConnection);
+          if (supabaseMsg?.metadata?.supabaseConnection) {
+            setSupabaseConnection(supabaseMsg.metadata.supabaseConnection);
+          }
+        } else {
+          // No messages - add welcome message
+          setChatMessages([{
+            id: "welcome",
+            content: "Welcome! Enter a URL to clone or describe what you want to build.",
+            type: "system",
+            timestamp: new Date(),
+          }]);
+        }
+
+        // Load files
+        const { data: filesData } = await supabase
+          .from("generation_files")
+          .select("*")
+          .eq("session_id", sessionId);
+
+        if (filesData && filesData.length > 0) {
+          const loadedFiles: GenerationFile[] = filesData.map((f: any) => ({
+            path: f.file_path,
+            content: f.content,
+            type: f.file_type || "javascript",
+            completed: true,
+          }));
+          setGenerationFiles(loadedFiles);
+          
+          // Rebuild streamed code from files
+          const codeStr = loadedFiles.map(f => `<file path="${f.path}">\n${f.content}\n</file>`).join("\n\n");
+          setStreamedCode(codeStr);
+        }
+
+        // Also try to load supabase connection from project_data (legacy)
+        const { data: connData } = await supabase
           .from("project_data")
           .select("value")
           .eq("project_id", sessionId)
           .eq("key", "supabase_connection")
           .maybeSingle();
 
-        if (data && !error) {
-          const conn = data.value as unknown as SupabaseConnection;
+        if (connData && !supabaseConnection) {
+          const conn = connData.value as unknown as SupabaseConnection;
           setSupabaseConnection(conn);
         }
       } catch (error) {
-        console.error("Error loading supabase connection:", error);
+        console.error("Error loading session:", error);
+      } finally {
+        setInitialLoading(false);
       }
     };
 
-    if (sessionId) {
-      loadSupabaseConnection();
-    }
+    loadSession();
   }, [sessionId]);
 
   // Auto-scroll chat
@@ -144,17 +213,30 @@ export default function GenerationPage() {
     }
   }, []);
 
-  const addMessage = (content: string, type: ChatMessage["type"], metadata?: ChatMessage["metadata"]) => {
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        content,
-        type,
-        timestamp: new Date(),
-        metadata,
-      },
-    ]);
+  const addMessage = async (content: string, type: ChatMessage["type"], metadata?: ChatMessage["metadata"]) => {
+    const newMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      content,
+      type,
+      timestamp: new Date(),
+      metadata,
+    };
+    
+    setChatMessages((prev) => [...prev, newMessage]);
+
+    // Save to database (don't await to avoid blocking UI)
+    supabase
+      .from("generation_messages")
+      .insert({
+        id: newMessage.id,
+        session_id: sessionId,
+        content: newMessage.content,
+        type: newMessage.type,
+        metadata: newMessage.metadata as any,
+      })
+      .then(({ error }) => {
+        if (error) console.error("Error saving message:", error);
+      });
   };
 
   // Handle Supabase connection callback
@@ -199,6 +281,15 @@ export default function GenerationPage() {
       
       setSandboxData(sandbox);
       addMessage(`Sandbox ready! ID: ${data.sandboxId}`, "system");
+      
+      // Save session to database
+      await supabase
+        .from("generation_sessions")
+        .upsert({
+          session_id: sessionId,
+          sandbox_id: sandbox.sandboxId,
+          sandbox_url: sandbox.url,
+        }, { onConflict: "session_id" });
       
       return sandbox;
     } catch (error) {
@@ -425,6 +516,8 @@ export default function GenerationPage() {
     }
 
     if (newFiles.length > 0) {
+      let finalFiles: GenerationFile[];
+      
       if (mergeWithExisting) {
         // Merge new files with existing ones (new files take precedence)
         setGenerationFiles(prev => {
@@ -432,11 +525,29 @@ export default function GenerationPage() {
           for (const file of newFiles) {
             existingMap.set(file.path, file);
           }
-          return Array.from(existingMap.values());
+          finalFiles = Array.from(existingMap.values());
+          return finalFiles;
         });
       } else {
+        finalFiles = newFiles;
         setGenerationFiles(newFiles);
       }
+
+      // Save files to database (batch upsert)
+      const filesToSave = (finalFiles! || newFiles).map(f => ({
+        session_id: sessionId,
+        file_path: f.path,
+        content: f.content,
+        file_type: f.type,
+      }));
+
+      // Use upsert to handle both new and updated files
+      supabase
+        .from("generation_files")
+        .upsert(filesToSave, { onConflict: "session_id,file_path" })
+        .then(({ error }) => {
+          if (error) console.error("Error saving files:", error);
+        });
     }
   };
 
@@ -560,6 +671,18 @@ export default function GenerationPage() {
       handleSubmit();
     }
   };
+
+  // Show loading state while loading session
+  if (initialLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading your session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
