@@ -47,3 +47,6 @@ verify_jwt = false
 
 [functions.sandbox-proxy]
 verify_jwt = false
+
+[functions.execute-user-sql]
+verify_jwt = false

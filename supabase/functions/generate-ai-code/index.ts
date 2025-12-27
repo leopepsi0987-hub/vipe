@@ -108,70 +108,64 @@ const [page, setPage] = useState('home');
 
     // Supabase instructions when connected
     const getSupabaseInstructions = (conn: any) => {
-      if (!conn?.url || !conn?.anonKey) return '';
+      if (!conn?.url) return '';
+      
+      const hasAnonKey = !!conn?.anonKey;
       
       return `
-## 🔌 SUPABASE DATABASE CONNECTED
+## 🔌 SUPABASE DATABASE CONNECTED - THE USER HAS CONNECTED THEIR DATABASE!
 
-The user has connected their Supabase database. You can use it like this:
+**IMPORTANT: The user has connected their Supabase project. USE IT for any data persistence!**
 
-**IMPORTANT: Do NOT import @supabase/supabase-js! Use fetch() instead.**
+**Project URL**: ${conn.url}
+${hasAnonKey ? `**Anon Key**: ${conn.anonKey}` : ''}
+**Connected via**: ${conn.connectedVia || 'manual'}
 
-**For database operations, use the Supabase REST API with fetch():**
+**CRITICAL: Do NOT import @supabase/supabase-js! Use the REST API with fetch() instead.**
+
+${hasAnonKey ? `
+### Database Operations with fetch():
 
 \`\`\`jsx
-// Helper function for Supabase API calls
+// Supabase configuration
 const SUPABASE_URL = '${conn.url}';
 const SUPABASE_KEY = '${conn.anonKey}';
 
+// Helper function for Supabase API calls
 const supabaseFetch = async (table, options = {}) => {
   const { method = 'GET', body, filters = '' } = options;
   const url = SUPABASE_URL + '/rest/v1/' + table + filters;
   
+  const headers = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': 'Bearer ' + SUPABASE_KEY,
+    'Content-Type': 'application/json',
+  };
+  if (method === 'POST') headers['Prefer'] = 'return=representation';
+  
   const res = await fetch(url, {
     method,
-    headers: {
-      'apikey': SUPABASE_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': method === 'POST' ? 'return=representation' : undefined,
-    }.filter(Boolean),
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   
   return res.json();
 };
 
-// SELECT - Fetch all todos
-const todos = await supabaseFetch('todos', { filters: '?select=*' });
-
-// INSERT - Add new todo
-const newTodo = await supabaseFetch('todos', { 
-  method: 'POST', 
-  body: { title: 'New todo', done: false } 
-});
-
-// UPDATE - Mark todo as done
-await supabaseFetch('todos', { 
-  method: 'PATCH', 
-  body: { done: true },
-  filters: '?id=eq.1'
-});
-
-// DELETE - Remove todo
-await supabaseFetch('todos', { 
-  method: 'DELETE', 
-  filters: '?id=eq.1'
-});
+// Example usage:
+// SELECT: const todos = await supabaseFetch('todos', { filters: '?select=*' });
+// INSERT: await supabaseFetch('todos', { method: 'POST', body: { title: 'New', done: false } });
+// UPDATE: await supabaseFetch('todos', { method: 'PATCH', body: { done: true }, filters: '?id=eq.1' });
+// DELETE: await supabaseFetch('todos', { method: 'DELETE', filters: '?id=eq.1' });
 \`\`\`
 
-**React Pattern for Data Fetching:**
+### React Pattern:
 \`\`\`jsx
 const [items, setItems] = useState([]);
 const [loading, setLoading] = useState(true);
 
 useEffect(() => {
-  fetch('${conn.url}/rest/v1/items?select=*', {
+  fetch('${conn.url}/rest/v1/your_table?select=*', {
     headers: {
       'apikey': '${conn.anonKey}',
       'Authorization': 'Bearer ${conn.anonKey}'
@@ -182,11 +176,21 @@ useEffect(() => {
     .catch(err => { console.error(err); setLoading(false); });
 }, []);
 \`\`\`
+` : `
+### The database is connected but the anon key is not available.
+You can still reference that the user has Supabase connected. 
+Ask the user to provide table names and structure, then use the REST API pattern.
+`}
 
-Remember: Always handle loading and error states!
+**When the user asks for features needing a database:**
+1. Assume tables may not exist yet - handle 404 errors gracefully
+2. Tell the user what tables/columns you need and suggest they create them
+3. Use proper error handling for all database operations
+4. Always show loading states
+
+Remember: The user needs to create tables in their Supabase dashboard first!
 `;
     };
-
     // Get Supabase instructions if connected
     const supabaseInstructions = getSupabaseInstructions(supabaseConnection);
 
