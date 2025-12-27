@@ -1,4 +1,4 @@
-import { RefObject, useState, useEffect } from "react";
+import { RefObject, useState, useEffect, useRef, useCallback } from "react";
 import { Loader2, RefreshCw, ExternalLink, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,24 +21,105 @@ export function GenerationPreview({
 }: GenerationPreviewProps) {
   const [iframeError, setIframeError] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isAutoRetrying, setIsAutoRetrying] = useState(false);
+  const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const maxRetries = 8;
+  const retryDelay = 2000; // 2 seconds between retries
 
   // Build proxied URL for iframe embedding
-  const getProxiedUrl = (url: string): string => {
+  const getProxiedUrl = useCallback((url: string): string => {
     const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sandbox-proxy`;
     return `${proxyUrl}?url=${encodeURIComponent(url)}`;
-  };
+  }, []);
 
-  // Reset error state when URL changes
+  // Reset states when URL changes
   useEffect(() => {
     setIframeError(false);
+    setRetryCount(0);
+    setIsAutoRetrying(false);
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
   }, [sandboxUrl]);
 
-  const handleRefresh = () => {
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Auto-retry mechanism - check if iframe loaded properly
+  const checkAndRetry = useCallback(async () => {
+    if (!sandboxUrl || !iframeRef.current || isLoading) return;
+
+    try {
+      // Try to fetch the URL directly to check if it's ready
+      const proxyUrl = getProxiedUrl(sandboxUrl);
+      const response = await fetch(proxyUrl, { method: 'HEAD' });
+      
+      // Check iframe content for error messages
+      const iframe = iframeRef.current;
+      try {
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        const bodyText = iframeDoc?.body?.innerText || '';
+        
+        // If we see error indicators, retry
+        if (bodyText.includes('Starting Server') || bodyText.includes('Closed Port') || bodyText.includes('BLURRED')) {
+          if (retryCount < maxRetries) {
+            setIsAutoRetrying(true);
+            setRetryCount(prev => prev + 1);
+            retryTimerRef.current = setTimeout(() => {
+              handleRefresh();
+              // Schedule next check
+              setTimeout(checkAndRetry, retryDelay);
+            }, retryDelay);
+          } else {
+            setIsAutoRetrying(false);
+          }
+          return;
+        }
+      } catch {
+        // Cross-origin, can't check content - that's okay
+      }
+
+      // If response is OK, we're good
+      if (response.ok) {
+        setIsAutoRetrying(false);
+        setRetryCount(0);
+      }
+    } catch {
+      // Network error, try again
+      if (retryCount < maxRetries) {
+        setIsAutoRetrying(true);
+        setRetryCount(prev => prev + 1);
+        retryTimerRef.current = setTimeout(() => {
+          handleRefresh();
+          setTimeout(checkAndRetry, retryDelay);
+        }, retryDelay);
+      }
+    }
+  }, [sandboxUrl, iframeRef, isLoading, retryCount, getProxiedUrl]);
+
+  // Start auto-retry when sandbox URL changes and we're not loading
+  useEffect(() => {
+    if (sandboxUrl && !isLoading) {
+      // Give initial load a moment, then start checking
+      const timer = setTimeout(checkAndRetry, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [sandboxUrl, isLoading]);
+
+  const handleRefresh = useCallback(() => {
     setIframeError(false);
     if (iframeRef.current && sandboxUrl) {
       iframeRef.current.src = getProxiedUrl(sandboxUrl) + `&t=${Date.now()}`;
     }
-  };
+  }, [iframeRef, sandboxUrl, getProxiedUrl]);
 
   const handleOpenExternal = () => {
     if (sandboxUrl) {
@@ -53,6 +134,7 @@ export function GenerationPreview({
     }
 
     setIsRestarting(true);
+    setRetryCount(0);
     try {
       const { data, error } = await supabase.functions.invoke("apply-code", {
         body: {
@@ -66,9 +148,11 @@ export function GenerationPreview({
 
       toast.success("Server restarted!");
       
-      // Refresh iframe after a brief delay
+      // Start auto-retry after restart
+      setIsAutoRetrying(true);
       setTimeout(() => {
         handleRefresh();
+        setTimeout(checkAndRetry, retryDelay);
       }, 1500);
     } catch (err) {
       console.error("[GenerationPreview] Restart error:", err);
@@ -133,7 +217,12 @@ export function GenerationPreview({
         />
 
         {/* Floating controls */}
-        <div className="absolute bottom-4 right-4 flex gap-2">
+        <div className="absolute bottom-4 right-4 flex gap-2 items-center">
+          {isAutoRetrying && (
+            <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+              Waiting for server... ({retryCount}/{maxRetries})
+            </span>
+          )}
           <Button
             size="sm"
             variant="secondary"

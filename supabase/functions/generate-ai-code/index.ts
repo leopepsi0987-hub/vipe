@@ -11,12 +11,16 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, model, context, scrapedContent, isEdit } = await req.json();
+    const { prompt, model, context, scrapedContent, isEdit, existingFiles } = await req.json();
     const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
     if (!GEMINI_API_KEY) {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
+
+    // Determine if this is an edit request (has existing files or explicit isEdit flag)
+    const hasExistingFiles = existingFiles && Object.keys(existingFiles).length > 0;
+    const editMode = isEdit || hasExistingFiles;
 
     // Build context from scraped website if available
     let websiteContext = "";
@@ -34,16 +38,57 @@ ${scrapedContent.branding ? JSON.stringify(scrapedContent.branding, null, 2) : "
 `;
     }
 
-    // Build file context
+    // Build file context from existing files
     let fileContext = "";
-    if (context?.sandboxFiles && Object.keys(context.sandboxFiles).length > 0) {
+    if (hasExistingFiles) {
+      fileContext = "\n\n## CURRENT PROJECT FILES (YOU MUST PRESERVE THESE AND ONLY MODIFY WHAT'S NEEDED):\n";
+      for (const [path, content] of Object.entries(existingFiles)) {
+        fileContext += `\n### ${path}\n\`\`\`\n${content}\n\`\`\`\n`;
+      }
+    } else if (context?.sandboxFiles && Object.keys(context.sandboxFiles).length > 0) {
       fileContext = "\n\n## CURRENT PROJECT FILES:\n";
       for (const [path, content] of Object.entries(context.sandboxFiles)) {
         fileContext += `\n### ${path}\n\`\`\`\n${content}\n\`\`\`\n`;
       }
     }
 
-    const systemPrompt = `You are an expert React developer who creates beautiful, production-ready applications.
+    let systemPrompt: string;
+
+    if (editMode) {
+      // EDIT MODE - preserve existing code, only modify what's needed
+      systemPrompt = `You are an expert React developer who makes TARGETED EDITS to existing applications.
+
+## CRITICAL EDIT RULES:
+
+1. **PRESERVE EXISTING CODE**: You MUST keep all existing functionality, styling, and structure intact.
+2. **ONLY MODIFY WHAT'S REQUESTED**: Only change the specific parts the user asks for.
+3. **RETURN ONLY CHANGED FILES**: Only output files that actually need modifications.
+4. **MAINTAIN CONSISTENCY**: Keep the same coding style, naming conventions, and patterns as the existing code.
+
+## OUTPUT FORMAT (CRITICAL):
+
+You MUST output code in this exact format with file tags:
+
+<file path="src/components/Header.jsx">
+// Modified component - only if changes are needed
+</file>
+
+DO NOT output files that don't need changes!
+
+${fileContext}
+
+## USER'S EDIT REQUEST:
+The user wants to make specific changes to their existing app. Read their request carefully and ONLY modify what they ask for.
+
+Remember:
+- DO NOT regenerate the entire app
+- DO NOT change the overall design or structure unless asked
+- DO NOT add new features unless asked
+- PRESERVE all existing functionality
+- Only output the files that need to be modified`;
+    } else {
+      // NEW PROJECT MODE - generate from scratch
+      systemPrompt = `You are an expert React developer who creates beautiful, production-ready applications.
 
 ## OUTPUT FORMAT (CRITICAL):
 
@@ -88,15 +133,10 @@ ${fileContext}
 - Create visually appealing color schemes
 - Include icons using emoji or simple SVG shapes
 
-${isEdit ? `
-## EDIT MODE:
-You are editing an existing project. Only modify the files that need to change.
-Preserve the overall structure and only apply the requested changes.
-` : ""}
-
 Remember: Output ONLY the file tags with code. No explanations before or after.`;
+    }
 
-    console.log("[generate-ai-code] Generating code with Gemini...");
+    console.log("[generate-ai-code] Generating code with Gemini... Edit mode:", editMode);
 
     // Use Gemini API
     const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse";
