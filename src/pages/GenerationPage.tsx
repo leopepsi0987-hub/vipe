@@ -171,10 +171,9 @@ export default function GenerationPage() {
     }
   };
 
-  const generateCode = async (prompt: string, scrapedContent?: any) => {
+  const generateCode = async (prompt: string, scrapedContent?: any, forceNewProject = false) => {
     setIsGenerating(true);
     setStreamedCode("");
-    setGenerationFiles([]);
     setActiveTab("code");
 
     try {
@@ -189,7 +188,22 @@ export default function GenerationPage() {
         }
       }
 
-      addMessage("Generating code...", "system");
+      // Determine if this is an edit (we have existing files from previous generation)
+      const hasExistingFiles = generationFiles.length > 0;
+      const isEdit = hasExistingFiles && !forceNewProject && !scrapedContent;
+
+      // Build existing files map for edit mode
+      let existingFilesMap: Record<string, string> = {};
+      if (isEdit) {
+        for (const file of generationFiles) {
+          existingFilesMap[file.path] = file.content;
+        }
+      } else {
+        // Clear existing files for new project
+        setGenerationFiles([]);
+      }
+
+      addMessage(isEdit ? "Editing your code..." : "Generating code...", "system");
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-code`,
@@ -202,6 +216,8 @@ export default function GenerationPage() {
           body: JSON.stringify({
             prompt,
             scrapedContent,
+            isEdit,
+            existingFiles: isEdit ? existingFilesMap : undefined,
             context: {
               sandboxId: sandbox.sandboxId,
             },
@@ -245,11 +261,11 @@ export default function GenerationPage() {
               if (data.type === "stream" && data.text) {
                 fullContent += data.text;
                 setStreamedCode(fullContent);
-                parseFilesFromCode(fullContent);
+                parseFilesFromCode(fullContent, isEdit);
               } else if (data.type === "complete") {
                 fullContent = data.generatedCode || fullContent;
                 setStreamedCode(fullContent);
-                parseFilesFromCode(fullContent);
+                parseFilesFromCode(fullContent, isEdit);
 
                 // Apply code to sandbox (may create new one if expired)
                 const activeSandbox = await applyCodeToSandbox(sandbox, fullContent);
@@ -274,7 +290,7 @@ export default function GenerationPage() {
             if (data?.type === "complete") {
               fullContent = data.generatedCode || fullContent;
               setStreamedCode(fullContent);
-              parseFilesFromCode(fullContent);
+              parseFilesFromCode(fullContent, isEdit);
               const activeSandbox = await applyCodeToSandbox(sandbox, fullContent);
               if (activeSandbox !== sandbox) {
                 sandbox = activeSandbox;
@@ -286,7 +302,7 @@ export default function GenerationPage() {
         }
       }
 
-      addMessage("Code generated and applied!", "ai", {
+      addMessage(isEdit ? "Edit applied!" : "Code generated and applied!", "ai", {
         appliedFiles: generationFiles.map((f) => f.path),
       });
 
@@ -304,9 +320,9 @@ export default function GenerationPage() {
     }
   };
 
-  const parseFilesFromCode = (code: string) => {
+  const parseFilesFromCode = (code: string, mergeWithExisting = false) => {
     const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
-    const files: GenerationFile[] = [];
+    const newFiles: GenerationFile[] = [];
     let match;
 
     while ((match = fileRegex.exec(code)) !== null) {
@@ -314,7 +330,7 @@ export default function GenerationPage() {
       const fileContent = match[2].trim();
       const ext = filePath.split(".").pop() || "";
       
-      files.push({
+      newFiles.push({
         path: filePath,
         content: fileContent,
         type: ext === "jsx" || ext === "js" ? "javascript" : ext,
@@ -322,8 +338,19 @@ export default function GenerationPage() {
       });
     }
 
-    if (files.length > 0) {
-      setGenerationFiles(files);
+    if (newFiles.length > 0) {
+      if (mergeWithExisting) {
+        // Merge new files with existing ones (new files take precedence)
+        setGenerationFiles(prev => {
+          const existingMap = new Map(prev.map(f => [f.path, f]));
+          for (const file of newFiles) {
+            existingMap.set(file.path, file);
+          }
+          return Array.from(existingMap.values());
+        });
+      } else {
+        setGenerationFiles(newFiles);
+      }
     }
   };
 
