@@ -75,9 +75,41 @@ ${supabaseConnection.supabaseProjectId ? `**Project ID**: ${supabaseConnection.s
 
     let systemPrompt: string;
 
+    // IMPORTANT: Sandbox environment constraints
+    const sandboxConstraints = `
+## ⚠️ CRITICAL SANDBOX CONSTRAINTS:
+
+This app runs in a browser sandbox with ONLY these libraries available:
+- React (import from 'react')
+- ReactDOM (import from 'react-dom/client')
+- Tailwind CSS (via CDN, already loaded)
+
+### ❌ DO NOT USE THESE (they will cause errors):
+- react-router-dom (NO ROUTING LIBRARY)
+- axios, lodash, or any npm packages
+- Context providers from external packages
+- Any imports from packages not listed above
+
+### ✅ INSTEAD, USE THESE PATTERNS:
+
+**For navigation/routing:** Use simple state-based navigation:
+\`\`\`jsx
+const [page, setPage] = useState('home');
+// Then conditionally render: {page === 'home' && <Home />}
+\`\`\`
+
+**For HTTP requests:** Use native fetch()
+
+**For state management:** Use React useState/useReducer only
+
+**For icons:** Use emoji or inline SVG, NOT icon libraries
+`;
+
     if (editMode) {
       // EDIT MODE - preserve existing code, only modify what's needed
       systemPrompt = `You are an expert React developer who makes TARGETED EDITS to existing applications.
+
+${sandboxConstraints}
 
 ## CRITICAL EDIT RULES:
 
@@ -111,14 +143,28 @@ Remember:
       // NEW PROJECT MODE - generate from scratch
       systemPrompt = `You are an expert React developer who creates beautiful, production-ready applications.
 
+${sandboxConstraints}
+
 ## OUTPUT FORMAT (CRITICAL):
 
 You MUST output code in this exact format with file tags:
 
 <file path="src/App.jsx">
 // Your React code here
-import React from 'react'
-// ... rest of the component
+import React, { useState } from 'react'
+
+function App() {
+  const [currentPage, setCurrentPage] = useState('home');
+  
+  return (
+    <div>
+      {currentPage === 'home' && <Home onNavigate={setCurrentPage} />}
+      {currentPage === 'about' && <About onNavigate={setCurrentPage} />}
+    </div>
+  );
+}
+
+export default App;
 </file>
 
 <file path="src/components/Header.jsx">
@@ -138,6 +184,7 @@ import React from 'react'
 5. Use semantic HTML elements
 6. Add hover states, transitions, and micro-interactions
 7. Create multiple components (Header, Footer, sections, etc.)
+8. Use STATE-BASED NAVIGATION (no react-router-dom!)
 
 ${websiteContext ? `## CLONING INSTRUCTIONS:
 You are cloning a website. Match the visual style, layout, and content structure.
@@ -154,7 +201,7 @@ ${fileContext}
 - Add hover effects on interactive elements
 - Use proper spacing (p-4, m-6, gap-4, etc.)
 - Create visually appealing color schemes
-- Include icons using emoji or simple SVG shapes
+- Include icons using emoji or inline SVG shapes
 
 Remember: Output ONLY the file tags with code. No explanations before or after.`;
     }
