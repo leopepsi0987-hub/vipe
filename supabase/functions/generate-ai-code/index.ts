@@ -87,6 +87,7 @@ This app runs in a browser sandbox with ONLY these libraries available:
 ### ❌ DO NOT USE THESE (they will cause errors):
 - react-router-dom (NO ROUTING LIBRARY)
 - axios, lodash, or any npm packages
+- @supabase/supabase-js (DON'T import it!)
 - Context providers from external packages
 - Any imports from packages not listed above
 
@@ -105,11 +106,96 @@ const [page, setPage] = useState('home');
 **For icons:** Use emoji or inline SVG, NOT icon libraries
 `;
 
+    // Supabase instructions when connected
+    const getSupabaseInstructions = (conn: any) => {
+      if (!conn?.url || !conn?.anonKey) return '';
+      
+      return `
+## 🔌 SUPABASE DATABASE CONNECTED
+
+The user has connected their Supabase database. You can use it like this:
+
+**IMPORTANT: Do NOT import @supabase/supabase-js! Use fetch() instead.**
+
+**For database operations, use the Supabase REST API with fetch():**
+
+\`\`\`jsx
+// Helper function for Supabase API calls
+const SUPABASE_URL = '${conn.url}';
+const SUPABASE_KEY = '${conn.anonKey}';
+
+const supabaseFetch = async (table, options = {}) => {
+  const { method = 'GET', body, filters = '' } = options;
+  const url = SUPABASE_URL + '/rest/v1/' + table + filters;
+  
+  const res = await fetch(url, {
+    method,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': method === 'POST' ? 'return=representation' : undefined,
+    }.filter(Boolean),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  
+  return res.json();
+};
+
+// SELECT - Fetch all todos
+const todos = await supabaseFetch('todos', { filters: '?select=*' });
+
+// INSERT - Add new todo
+const newTodo = await supabaseFetch('todos', { 
+  method: 'POST', 
+  body: { title: 'New todo', done: false } 
+});
+
+// UPDATE - Mark todo as done
+await supabaseFetch('todos', { 
+  method: 'PATCH', 
+  body: { done: true },
+  filters: '?id=eq.1'
+});
+
+// DELETE - Remove todo
+await supabaseFetch('todos', { 
+  method: 'DELETE', 
+  filters: '?id=eq.1'
+});
+\`\`\`
+
+**React Pattern for Data Fetching:**
+\`\`\`jsx
+const [items, setItems] = useState([]);
+const [loading, setLoading] = useState(true);
+
+useEffect(() => {
+  fetch('${conn.url}/rest/v1/items?select=*', {
+    headers: {
+      'apikey': '${conn.anonKey}',
+      'Authorization': 'Bearer ${conn.anonKey}'
+    }
+  })
+    .then(res => res.json())
+    .then(data => { setItems(data); setLoading(false); })
+    .catch(err => { console.error(err); setLoading(false); });
+}, []);
+\`\`\`
+
+Remember: Always handle loading and error states!
+`;
+    };
+
+    // Get Supabase instructions if connected
+    const supabaseInstructions = getSupabaseInstructions(supabaseConnection);
+
     if (editMode) {
       // EDIT MODE - preserve existing code, only modify what's needed
       systemPrompt = `You are an expert React developer who makes TARGETED EDITS to existing applications.
 
 ${sandboxConstraints}
+${supabaseInstructions}
 
 ## CRITICAL EDIT RULES:
 
@@ -144,6 +230,7 @@ Remember:
       systemPrompt = `You are an expert React developer who creates beautiful, production-ready applications.
 
 ${sandboxConstraints}
+${supabaseInstructions}
 
 ## OUTPUT FORMAT (CRITICAL):
 
