@@ -227,11 +227,34 @@ When you output SQL in \`\`\`sql-migration blocks, our system will automatically
     const supabaseInstructions = getSupabaseInstructions(supabaseConnection, sessionId || '');
 
     if (editMode) {
+      // Check if Supabase was just connected but app doesn't use it yet
+      const supabaseJustConnected = supabaseConnection?.connected && supabaseConnection?.url && supabaseConnection?.anonKey;
+      const appMightNotUseSupabase = hasExistingFiles && !Object.values(existingFiles || {}).some((content: any) => 
+        typeof content === 'string' && (content.includes('supabaseFetch') || content.includes('/rest/v1/'))
+      );
+      
+      const supabaseIntegrationHint = (supabaseJustConnected && appMightNotUseSupabase) ? `
+## 🆕 SUPABASE WAS JUST CONNECTED!
+
+The user has connected their Supabase database, but the current app might not be using it yet.
+
+**If the user asks to "link Supabase", "connect to database", or "use database":**
+1. Look at the current app structure
+2. Identify data that should be persisted (users, todos, posts, etc.)
+3. Create the necessary tables using \`\`\`sql-migration blocks
+4. Update the React code to use the Supabase REST API for CRUD operations
+5. Add the supabaseFetch helper function to the main App.jsx or a lib file
+6. Replace any mock/local data with real database calls
+
+**Important:** Use the Supabase connection details provided above!
+` : '';
+
       // EDIT MODE - preserve existing code, only modify what's needed
       systemPrompt = `You are an expert React developer who makes TARGETED EDITS to existing applications.
 
 ${sandboxConstraints}
 ${supabaseInstructions}
+${supabaseIntegrationHint}
 
 ## CRITICAL EDIT RULES:
 

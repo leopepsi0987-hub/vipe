@@ -593,11 +593,23 @@ export default function GenerationPage() {
         addMessage("Database migration executed successfully!", "system");
         console.log("[generation] SQL migration result:", data);
       } else {
-        throw new Error(data?.error || "Migration failed");
+        // Extract and show the actual SQL error message
+        const errorMsg = data?.error || "Migration failed";
+        const sqlPreview = sql.length > 100 ? sql.substring(0, 100) + "..." : sql;
+        throw new Error(`${errorMsg}\n\nSQL attempted:\n${sqlPreview}`);
       }
     } catch (error) {
       console.error("[generation] SQL migration error:", error);
-      addMessage(`Database migration failed: ${error instanceof Error ? error.message : "Unknown error"}. You may need to run this SQL manually in your Supabase dashboard.`, "system");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      
+      // Show a more detailed error message with the actual error
+      addMessage(
+        `Database migration failed: ${errorMessage}\n\nYou may need to run this SQL manually in your Supabase dashboard's SQL Editor.`,
+        "system"
+      );
+      
+      // Also show a toast with the specific error
+      toast.error(`SQL Error: ${errorMessage.split('\n')[0]}`);
     }
   };
 
