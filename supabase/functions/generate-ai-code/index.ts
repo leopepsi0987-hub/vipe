@@ -190,31 +190,34 @@ Ask the user to provide table names and structure, then use the REST API pattern
 When the user needs database tables, you can create them! Output SQL in this special format:
 
 \`\`\`sql-migration
-CREATE TABLE todos (
+-- ALWAYS use IF NOT EXISTS to avoid errors if table already exists!
+CREATE TABLE IF NOT EXISTS todos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   completed BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- Enable RLS
+-- Enable RLS (use IF NOT EXISTS pattern)
 ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
 
--- Allow anyone to read/write (for demo - in production, add proper RLS)
+-- Drop existing policy first to avoid conflicts, then create
+DROP POLICY IF EXISTS "Allow all" ON todos;
 CREATE POLICY "Allow all" ON todos FOR ALL USING (true);
 \`\`\`
 
 When you output SQL in \`\`\`sql-migration blocks, our system will automatically execute it on the user's database.
 
-**Guidelines for creating tables:**
-1. Always use UUID for primary keys with gen_random_uuid()
-2. Include created_at TIMESTAMPTZ DEFAULT now() for tracking
-3. Enable RLS on all tables
-4. Add appropriate RLS policies
-5. Use proper data types (TEXT, BOOLEAN, INTEGER, TIMESTAMPTZ, etc.)
+**⚠️ CRITICAL SQL GUIDELINES:**
+1. **ALWAYS use CREATE TABLE IF NOT EXISTS** - never plain CREATE TABLE
+2. **ALWAYS use DROP POLICY IF EXISTS before CREATE POLICY** - to avoid conflicts
+3. Always use UUID for primary keys with gen_random_uuid()
+4. Include created_at TIMESTAMPTZ DEFAULT now() for tracking
+5. Enable RLS on all tables
+6. Use proper data types (TEXT, BOOLEAN, INTEGER, TIMESTAMPTZ, etc.)
 
 **When the user asks for features needing a database:**
-1. First, create the required tables using sql-migration blocks
+1. First, create the required tables using sql-migration blocks (with IF NOT EXISTS!)
 2. Then write the React code to use those tables via REST API
 3. Handle errors gracefully (table might not exist yet on first render)
 4. Always show loading states
