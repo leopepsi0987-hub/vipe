@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, model, context, scrapedContent, isEdit, existingFiles } = await req.json();
+    const { prompt, model, context, scrapedContent, isEdit, existingFiles, supabaseConnection } = await req.json();
     const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
     if (!GEMINI_API_KEY) {
@@ -35,6 +35,27 @@ ${scrapedContent.markdown || scrapedContent.content || "No content available"}
 
 ### Branding (if available):
 ${scrapedContent.branding ? JSON.stringify(scrapedContent.branding, null, 2) : "Not available"}
+`;
+    }
+
+    // Build Supabase context if user has connected their database
+    let supabaseContext = "";
+    if (supabaseConnection?.connected && supabaseConnection?.url) {
+      supabaseContext = `
+## SUPABASE DATABASE CONNECTED:
+The user has connected their Supabase database! You can now use Supabase for this project.
+
+**Supabase Project URL**: ${supabaseConnection.url}
+**Connection Method**: ${supabaseConnection.connectedVia || "manual"}
+${supabaseConnection.supabaseProjectId ? `**Project ID**: ${supabaseConnection.supabaseProjectId}` : ""}
+
+### IMPORTANT SUPABASE GUIDELINES:
+1. Import the Supabase client using: \`import { supabase } from './lib/supabase'\`
+2. Create a supabase.js file in src/lib/ that initializes the client
+3. Use Supabase for authentication, database operations, and storage
+4. Implement RLS-friendly queries that respect user permissions
+5. Use supabase.auth for login/signup functionality when needed
+6. The anon key should be used client-side (it's safe to expose)
 `;
     }
 
@@ -121,6 +142,8 @@ import React from 'react'
 ${websiteContext ? `## CLONING INSTRUCTIONS:
 You are cloning a website. Match the visual style, layout, and content structure.
 ${websiteContext}` : ""}
+
+${supabaseContext}
 
 ${fileContext}
 

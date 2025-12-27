@@ -43,6 +43,7 @@ const App = () => {
             <Route path="/oauth/callback" element={<OAuthCallback />} />
             <Route path="/app/:slug" element={<PublishedApp />} />
             <Route path="/generation" element={<GenerationPage />} />
+            <Route path="/g/:sessionId" element={<GenerationPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
