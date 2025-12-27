@@ -120,6 +120,12 @@ export default function GenerationPage() {
               url: sessionData.sandbox_url,
             });
           }
+          
+          // Load supabase connection from session
+          if (sessionData.supabase_connection) {
+            const conn = sessionData.supabase_connection as unknown as SupabaseConnection;
+            setSupabaseConnection(conn);
+          }
         }
 
         // Load messages

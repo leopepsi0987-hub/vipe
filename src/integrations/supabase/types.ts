@@ -137,6 +137,7 @@ export type Database = {
           sandbox_id: string | null
           sandbox_url: string | null
           session_id: string
+          supabase_connection: Json | null
           updated_at: string
         }
         Insert: {
@@ -145,6 +146,7 @@ export type Database = {
           sandbox_id?: string | null
           sandbox_url?: string | null
           session_id: string
+          supabase_connection?: Json | null
           updated_at?: string
         }
         Update: {
@@ -153,6 +155,7 @@ export type Database = {
           sandbox_id?: string | null
           sandbox_url?: string | null
           session_id?: string
+          supabase_connection?: Json | null
           updated_at?: string
         }
         Relationships: []
@@ -210,6 +213,33 @@ export type Database = {
           is_read?: boolean
           receiver_id?: string
           sender_id?: string
+        }
+        Relationships: []
+      }
+      oauth_sessions: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: number | null
+          id: string
+          refresh_token: string | null
+          session_id: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          expires_at?: number | null
+          id?: string
+          refresh_token?: string | null
+          session_id: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: number | null
+          id?: string
+          refresh_token?: string | null
+          session_id?: string
         }
         Relationships: []
       }
