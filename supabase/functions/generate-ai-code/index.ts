@@ -126,15 +126,15 @@ ${projectId ? `**Project ID**: ${projectId}` : ''}
 
 **CRITICAL: Do NOT import @supabase/supabase-js! Use the REST API with fetch() instead.**
 
-${hasAnonKey ? `
-### Database Operations with fetch():
+\${hasAnonKey ? \`
+### Database Operations with fetch() - WITH ERROR HANDLING:
 
-\`\`\`jsx
+\\\`\\\`\\\`jsx
 // Supabase configuration
-const SUPABASE_URL = '${conn.url}';
-const SUPABASE_KEY = '${conn.anonKey}';
+const SUPABASE_URL = '\${conn.url}';
+const SUPABASE_KEY = '\${conn.anonKey}';
 
-// Helper function for Supabase API calls
+// Helper function for Supabase API calls with proper error handling
 const supabaseFetch = async (table, options = {}) => {
   const { method = 'GET', body, filters = '' } = options;
   const url = SUPABASE_URL + '/rest/v1/' + table + filters;
@@ -144,7 +144,8 @@ const supabaseFetch = async (table, options = {}) => {
     'Authorization': 'Bearer ' + SUPABASE_KEY,
     'Content-Type': 'application/json',
   };
-  if (method === 'POST') headers['Prefer'] = 'return=representation';
+  if (method === 'POST' || method === 'PATCH') headers['Prefer'] = 'return=representation';
+  if (method === 'DELETE') headers['Prefer'] = 'return=minimal';
   
   const res = await fetch(url, {
     method,
@@ -152,7 +153,17 @@ const supabaseFetch = async (table, options = {}) => {
     body: body ? JSON.stringify(body) : undefined,
   });
   
-  return res.json();
+  // Check for HTTP errors
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    const errorMessage = errorData.message || errorData.hint || errorData.error || res.statusText;
+    throw new Error(errorMessage);
+  }
+  
+  // DELETE returns no content
+  if (method === 'DELETE') return { success: true };
+  
+  return await res.json();
 };
 
 // Example usage:
@@ -160,30 +171,57 @@ const supabaseFetch = async (table, options = {}) => {
 // INSERT: await supabaseFetch('todos', { method: 'POST', body: { title: 'New', done: false } });
 // UPDATE: await supabaseFetch('todos', { method: 'PATCH', body: { done: true }, filters: '?id=eq.1' });
 // DELETE: await supabaseFetch('todos', { method: 'DELETE', filters: '?id=eq.1' });
-\`\`\`
+\\\`\\\`\\\`
 
-### React Pattern:
-\`\`\`jsx
+### React Pattern with PROPER ERROR HANDLING:
+\\\`\\\`\\\`jsx
 const [items, setItems] = useState([]);
 const [loading, setLoading] = useState(true);
+const [error, setError] = useState(null);
 
 useEffect(() => {
-  fetch('${conn.url}/rest/v1/your_table?select=*', {
-    headers: {
-      'apikey': '${conn.anonKey}',
-      'Authorization': 'Bearer ${conn.anonKey}'
+  const fetchData = async () => {
+    try {
+      const res = await fetch('\${conn.url}/rest/v1/your_table?select=*', {
+        headers: {
+          'apikey': '\${conn.anonKey}',
+          'Authorization': 'Bearer \${conn.anonKey}'
+        }
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || errData.hint || 'Failed to load data');
+      }
+      
+      const data = await res.json();
+      setItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setError(err.message || 'Failed to load data');
+    } finally {
+      setLoading(false);
     }
-  })
-    .then(res => res.json())
-    .then(data => { setItems(data); setLoading(false); })
-    .catch(err => { console.error(err); setLoading(false); });
+  };
+  fetchData();
 }, []);
-\`\`\`
-` : `
+
+// In your render:
+// if (loading) return <div>Loading...</div>;
+// if (error) return <div style={{color: 'red'}}>Error: {error}</div>;
+\\\`\\\`\\\`
+
+### ⚠️ IMPORTANT ERROR HANDLING RULES:
+1. **Always check res.ok** before parsing JSON
+2. **Always wrap fetch in try/catch**
+3. **Display user-friendly error messages** - show what went wrong
+4. **Handle edge cases**: empty arrays, null data, network failures
+5. **Show loading states** while fetching
+\` : \`
 ### The database is connected but the anon key is not available.
 You can still reference that the user has Supabase connected. 
 Ask the user to provide table names and structure, then use the REST API pattern.
-`}
+\`}
 
 ## 🗄️ DATABASE MIGRATIONS - YOU CAN CREATE TABLES!
 
@@ -223,8 +261,33 @@ When you output SQL in \`\`\`sql-migration blocks, our system will automatically
 4. Always show loading states
 `;
     };
-    // Get Supabase instructions if connected
-    const supabaseInstructions = getSupabaseInstructions(supabaseConnection, sessionId || '');
+    // Validate Supabase connection before using
+    let validatedSupabaseConnection = supabaseConnection;
+    if (supabaseConnection?.url && supabaseConnection?.anonKey) {
+      // Extract project ID from URL and verify it matches the key
+      const urlMatch = supabaseConnection.url.match(/https:\/\/([^.]+)\.supabase\.co/);
+      const urlProjectId = urlMatch ? urlMatch[1] : null;
+      
+      // Decode the JWT to check the 'ref' field
+      try {
+        const keyParts = supabaseConnection.anonKey.split('.');
+        if (keyParts.length >= 2) {
+          const payload = JSON.parse(atob(keyParts[1]));
+          const keyProjectId = payload.ref;
+          
+          if (urlProjectId && keyProjectId && urlProjectId !== keyProjectId) {
+            console.warn(`[generate-ai-code] Supabase URL/Key mismatch! URL project: ${urlProjectId}, Key project: ${keyProjectId}`);
+            // Clear the connection if mismatched - this will cause the app to use localStorage instead
+            validatedSupabaseConnection = null;
+          }
+        }
+      } catch (e) {
+        console.warn("[generate-ai-code] Failed to validate Supabase key:", e);
+      }
+    }
+
+    // Get Supabase instructions if connected and validated
+    const supabaseInstructions = getSupabaseInstructions(validatedSupabaseConnection, sessionId || '');
 
     if (editMode) {
       // Check if Supabase was just connected but app doesn't use it yet
