@@ -181,16 +181,22 @@ export default function GenerationPage() {
         }
 
         // Also try to load supabase connection from project_data (legacy)
-        const { data: connData } = await supabase
-          .from("project_data")
-          .select("value")
-          .eq("project_id", sessionId)
-          .eq("key", "supabase_connection")
-          .maybeSingle();
+        // Only run this if sessionId is a UUID; otherwise Postgres will throw.
+        const isUuid = (value: string) =>
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
-        if (connData && !supabaseConnection) {
-          const conn = connData.value as unknown as SupabaseConnection;
-          setSupabaseConnection(conn);
+        if (isUuid(sessionId)) {
+          const { data: connData } = await supabase
+            .from("project_data")
+            .select("value")
+            .eq("project_id", sessionId)
+            .eq("key", "supabase_connection")
+            .maybeSingle();
+
+          if (connData && !supabaseConnection) {
+            const conn = connData.value as unknown as SupabaseConnection;
+            setSupabaseConnection(conn);
+          }
         }
       } catch (error) {
         console.error("Error loading session:", error);
@@ -812,6 +818,7 @@ export default function GenerationPage() {
               iframeRef={iframeRef}
               isLoading={isGenerating || isScrapingUrl}
               screenshot={urlScreenshot}
+              files={Object.fromEntries(generationFiles.map((f) => [f.path, f.content]))}
             />
           ) : (
             <GenerationCodePanel

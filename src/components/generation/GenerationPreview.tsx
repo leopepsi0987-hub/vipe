@@ -1,6 +1,7 @@
-import { RefObject, useState, useEffect, useRef, useCallback } from "react";
+import { RefObject, useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Loader2, RefreshCw, ExternalLink, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SandboxPreview } from "@/components/SandboxPreview";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -10,6 +11,7 @@ interface GenerationPreviewProps {
   iframeRef: RefObject<HTMLIFrameElement>;
   isLoading: boolean;
   screenshot?: string | null;
+  files?: Record<string, string>;
 }
 
 export function GenerationPreview({
@@ -18,6 +20,7 @@ export function GenerationPreview({
   iframeRef,
   isLoading,
   screenshot,
+  files,
 }: GenerationPreviewProps) {
   const [iframeError, setIframeError] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -198,7 +201,42 @@ export function GenerationPreview({
     );
   }
 
-  // Sandbox loaded - show iframe with direct URL
+  const hasFiles = useMemo(() => !!files && Object.keys(files).length > 0, [files]);
+
+  // Prefer in-app preview (srcDoc bundling) to avoid iframe/X-Frame issues from external sandboxes.
+  if (hasFiles) {
+    return (
+      <div className="relative w-full h-full">
+        <SandboxPreview files={files ?? {}} className="w-full h-full" useESM />
+
+        {/* Optional external/open controls */}
+        {sandboxUrl && (
+          <div className="absolute bottom-4 right-4 flex gap-2 items-center">
+            <Button
+              size="sm"
+              variant="secondary"
+              className="shadow-lg"
+              onClick={handleOpenExternal}
+            >
+              <ExternalLink className="w-4 h-4 mr-1" />
+              Open
+            </Button>
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-card rounded-lg p-4 shadow-xl flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <span className="text-sm font-medium">Updating...</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Fallback: external sandbox iframe (may be blocked by X-Frame headers)
   if (sandboxUrl) {
     const iframeSrc = getSandboxUrl(sandboxUrl);
 
