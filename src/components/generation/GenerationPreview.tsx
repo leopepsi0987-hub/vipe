@@ -27,10 +27,10 @@ export function GenerationPreview({
   const maxRetries = 8;
   const retryDelay = 2000; // 2 seconds between retries
 
-  // Build proxied URL for iframe embedding
-  const getProxiedUrl = useCallback((url: string): string => {
-    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sandbox-proxy`;
-    return `${proxyUrl}?url=${encodeURIComponent(url)}`;
+  // Use direct sandbox URL - E2B sandboxes allow embedding
+  const getSandboxUrl = useCallback((url: string): string => {
+    // Return URL directly - E2B sandboxes are designed to be embedded
+    return url;
   }, []);
 
   // Reset states when URL changes
@@ -59,8 +59,7 @@ export function GenerationPreview({
 
     try {
       // Try to fetch the URL directly to check if it's ready
-      const proxyUrl = getProxiedUrl(sandboxUrl);
-      const response = await fetch(proxyUrl, { method: 'HEAD' });
+      const response = await fetch(sandboxUrl, { method: 'HEAD', mode: 'no-cors' });
       
       // Check iframe content for error messages
       const iframe = iframeRef.current;
@@ -88,10 +87,8 @@ export function GenerationPreview({
       }
 
       // If response is OK, we're good
-      if (response.ok) {
-        setIsAutoRetrying(false);
-        setRetryCount(0);
-      }
+      setIsAutoRetrying(false);
+      setRetryCount(0);
     } catch {
       // Network error, try again
       if (retryCount < maxRetries) {
@@ -103,7 +100,7 @@ export function GenerationPreview({
         }, retryDelay);
       }
     }
-  }, [sandboxUrl, iframeRef, isLoading, retryCount, getProxiedUrl]);
+  }, [sandboxUrl, iframeRef, isLoading, retryCount]);
 
   // Start auto-retry when sandbox URL changes and we're not loading
   useEffect(() => {
@@ -117,9 +114,9 @@ export function GenerationPreview({
   const handleRefresh = useCallback(() => {
     setIframeError(false);
     if (iframeRef.current && sandboxUrl) {
-      iframeRef.current.src = getProxiedUrl(sandboxUrl) + `&t=${Date.now()}`;
+      iframeRef.current.src = getSandboxUrl(sandboxUrl) + `?t=${Date.now()}`;
     }
-  }, [iframeRef, sandboxUrl, getProxiedUrl]);
+  }, [iframeRef, sandboxUrl, getSandboxUrl]);
 
   const handleOpenExternal = () => {
     if (sandboxUrl) {
@@ -201,19 +198,18 @@ export function GenerationPreview({
     );
   }
 
-  // Sandbox loaded - show iframe with proxied URL
+  // Sandbox loaded - show iframe with direct URL
   if (sandboxUrl) {
-    const proxiedUrl = getProxiedUrl(sandboxUrl);
+    const iframeSrc = getSandboxUrl(sandboxUrl);
 
     return (
       <div className="relative w-full h-full">
         <iframe
           ref={iframeRef}
-          src={proxiedUrl}
+          src={iframeSrc}
           className="w-full h-full border-none bg-white"
           title="Sandbox Preview"
           allow="clipboard-write"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
         />
 
         {/* Floating controls */}
