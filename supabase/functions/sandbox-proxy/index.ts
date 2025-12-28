@@ -88,17 +88,36 @@ serve(async (req) => {
 
     console.log(`[sandbox-proxy] Proxying: ${targetUrl}`);
 
+    // Check if this is a non-HTML asset request (JS, CSS, etc)
+    const isAssetRequest = /\.(js|jsx|ts|tsx|css|json|svg|png|jpg|jpeg|gif|woff|woff2|ttf|eot|ico)($|\?)/.test(targetUrl) ||
+                           targetUrl.includes("/@") || // Vite special paths like /@vite/client, /@react-refresh
+                           targetUrl.includes("/node_modules/");
+
     // Forward the request to the E2B sandbox
     const response = await fetch(targetUrl, {
       method: req.method,
       headers: {
         "User-Agent": "Mozilla/5.0 (compatible; VipeProxy/1.0)",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept": isAssetRequest ? "*/*" : "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
       },
     });
 
-    // Get the response body
+    // For asset requests, stream the response directly without modification
+    if (isAssetRequest) {
+      const originalContentType = response.headers.get("Content-Type") || "application/octet-stream";
+      
+      return new Response(response.body, {
+        status: response.status,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": originalContentType,
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+
+    // Get the response body for HTML processing
     let body = await response.text();
 
     // Check for various E2B error conditions
@@ -110,7 +129,7 @@ serve(async (req) => {
       return new Response(
         generateErrorPage("Sandbox Expired", "The sandbox has timed out. Please regenerate your app."),
         {
-          status: 200, // Return 200 so iframe displays it
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
         },
       );
@@ -124,77 +143,73 @@ serve(async (req) => {
           "The development server is starting. Please wait a moment and press Refresh.",
         ),
         {
-          status: 200, // Return 200 so iframe displays it
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" },
         },
       );
     }
 
-    // Rewrite asset URLs to go through proxy
-    const baseUrl = new URL(targetUrl);
+    // Build proxy URL for rewriting
     const proxyBase = `${url.origin}${url.pathname}?url=`;
+    const baseUrl = new URL(targetUrl);
 
-    // Rewrite relative URLs in the HTML
-    body = body.replace(
-      /(src|href)=["'](?!https?:\/\/|data:|#|javascript:)([^"']+)["']/g,
-      (match, attr, path) => {
-        const absoluteUrl = new URL(path, targetUrl).href;
-        return `${attr}="${proxyBase}${encodeURIComponent(absoluteUrl)}"`;
-      }
-    );
+    // Only process HTML content
+    const contentType = response.headers.get("Content-Type") || "";
+    const isHtml = contentType.includes("text/html") || 
+                   body.trim().startsWith("<!DOCTYPE") || 
+                   body.trim().startsWith("<html") || 
+                   body.includes("<head>");
 
-    // Rewrite module imports
-    body = body.replace(
-      /from\s+["'](?!https?:\/\/)([^"']+)["']/g,
-      (match, path) => {
-        if (path.startsWith('/')) {
-          const absoluteUrl = `${baseUrl.origin}${path}`;
-          return `from "${proxyBase}${encodeURIComponent(absoluteUrl)}"`;
+    if (isHtml) {
+      // Rewrite script src and link href to go through proxy
+      body = body.replace(
+        /<(script|link)([^>]*)(src|href)=["']([^"']+)["']([^>]*)>/gi,
+        (match, tag, before, attr, urlPath, after) => {
+          // Skip data URLs and fragments
+          if (urlPath.startsWith("data:") || urlPath.startsWith("#") || urlPath.startsWith("javascript:")) {
+            return match;
+          }
+          
+          // Build absolute URL
+          let absoluteUrl: string;
+          if (urlPath.startsWith("http://") || urlPath.startsWith("https://")) {
+            absoluteUrl = urlPath;
+          } else if (urlPath.startsWith("/")) {
+            absoluteUrl = `${baseUrl.origin}${urlPath}`;
+          } else {
+            absoluteUrl = new URL(urlPath, targetUrl).href;
+          }
+          
+          const proxiedUrl = `${proxyBase}${encodeURIComponent(absoluteUrl)}`;
+          return `<${tag}${before}${attr}="${proxiedUrl}"${after}>`;
         }
-        return match;
-      }
-    );
+      );
 
-    // Add base tag to handle relative URLs
-    if (body.includes('<head>')) {
-      body = body.replace('<head>', `<head><base href="${targetUrl}">`);
+      // Rewrite ES module imports in inline scripts
+      body = body.replace(
+        /import\s+(?:{[^}]+}|[\w\*\s,]+)\s+from\s+["']([^"']+)["']/g,
+        (match, importPath) => {
+          if (importPath.startsWith("http://") || importPath.startsWith("https://")) {
+            // Already absolute, just proxy it
+            return match.replace(importPath, `${proxyBase}${encodeURIComponent(importPath)}`);
+          }
+          if (importPath.startsWith("/") || importPath.startsWith("./") || importPath.startsWith("../")) {
+            const absoluteUrl = new URL(importPath, targetUrl).href;
+            return match.replace(importPath, `${proxyBase}${encodeURIComponent(absoluteUrl)}`);
+          }
+          return match;
+        }
+      );
     }
 
-    // Determine proper content type - always use text/html for HTML content
-    const originalContentType = response.headers.get("Content-Type") || "";
-    let contentType = originalContentType;
-    
-    // If body looks like HTML, force text/html with charset
-    if (body.trim().startsWith("<!DOCTYPE") || body.trim().startsWith("<html") || body.includes("<head>")) {
-      contentType = "text/html; charset=utf-8";
-    } else if (!contentType) {
-      contentType = "text/html; charset=utf-8";
-    }
-
-    // Create response headers without X-Frame-Options or restrictive CSP
+    // Create response headers
     const responseHeaders: Record<string, string> = {
       ...corsHeaders,
-      "Content-Type": contentType,
+      "Content-Type": isHtml ? "text/html; charset=utf-8" : (contentType || "text/html; charset=utf-8"),
+      "Cache-Control": "no-cache",
     };
 
-    // Copy some useful headers but skip security headers that block framing
-    const skipHeaders = [
-      "x-frame-options",
-      "content-security-policy",
-      "x-content-type-options",
-      "cross-origin-opener-policy",
-      "cross-origin-embedder-policy",
-      "cross-origin-resource-policy",
-      "content-type", // Skip - we set this explicitly above
-    ];
-
-    response.headers.forEach((value, key) => {
-      if (!skipHeaders.includes(key.toLowerCase())) {
-        responseHeaders[key] = value;
-      }
-    });
-
-    console.log(`[sandbox-proxy] Returning with Content-Type: ${contentType}`);
+    console.log(`[sandbox-proxy] Returning HTML with proxied assets`);
 
     return new Response(body, {
       status: response.status,
@@ -203,8 +218,8 @@ serve(async (req) => {
   } catch (error) {
     console.error("[sandbox-proxy] Error:", error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Proxy error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      generateErrorPage("Connection Error", "Failed to connect to sandbox. Please try refreshing."),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html; charset=utf-8" } }
     );
   }
 });
