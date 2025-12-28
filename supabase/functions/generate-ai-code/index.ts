@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, model, context, scrapedContent, isEdit, existingFiles, supabaseConnection, sessionId } = await req.json();
+    const { prompt, model, context, scrapedContent, isEdit, existingFiles, supabaseConnection, sessionId, imageData } = await req.json();
     const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
     if (!GEMINI_API_KEY) {
@@ -21,6 +21,7 @@ serve(async (req) => {
     // Determine if this is an edit request (has existing files or explicit isEdit flag)
     const hasExistingFiles = existingFiles && Object.keys(existingFiles).length > 0;
     const editMode = isEdit || hasExistingFiles;
+    const hasImage = !!imageData;
 
     // Build context from scraped website if available
     let websiteContext = "";
@@ -126,13 +127,13 @@ ${projectId ? `**Project ID**: ${projectId}` : ''}
 
 **CRITICAL: Do NOT import @supabase/supabase-js! Use the REST API with fetch() instead.**
 
-\${hasAnonKey ? \`
+${hasAnonKey ? `
 ### Database Operations with fetch() - WITH ERROR HANDLING:
 
-\\\`\\\`\\\`jsx
+\`\`\`jsx
 // Supabase configuration
-const SUPABASE_URL = '\${conn.url}';
-const SUPABASE_KEY = '\${conn.anonKey}';
+const SUPABASE_URL = '${conn.url}';
+const SUPABASE_KEY = '${conn.anonKey}';
 
 // Helper function for Supabase API calls with proper error handling
 const supabaseFetch = async (table, options = {}) => {
@@ -171,10 +172,10 @@ const supabaseFetch = async (table, options = {}) => {
 // INSERT: await supabaseFetch('todos', { method: 'POST', body: { title: 'New', done: false } });
 // UPDATE: await supabaseFetch('todos', { method: 'PATCH', body: { done: true }, filters: '?id=eq.1' });
 // DELETE: await supabaseFetch('todos', { method: 'DELETE', filters: '?id=eq.1' });
-\\\`\\\`\\\`
+\`\`\`
 
 ### React Pattern with PROPER ERROR HANDLING:
-\\\`\\\`\\\`jsx
+\`\`\`jsx
 const [items, setItems] = useState([]);
 const [loading, setLoading] = useState(true);
 const [error, setError] = useState(null);
@@ -182,10 +183,10 @@ const [error, setError] = useState(null);
 useEffect(() => {
   const fetchData = async () => {
     try {
-      const res = await fetch('\${conn.url}/rest/v1/your_table?select=*', {
+      const res = await fetch('${conn.url}/rest/v1/your_table?select=*', {
         headers: {
-          'apikey': '\${conn.anonKey}',
-          'Authorization': 'Bearer \${conn.anonKey}'
+          'apikey': '${conn.anonKey}',
+          'Authorization': 'Bearer ${conn.anonKey}'
         }
       });
       
@@ -209,7 +210,7 @@ useEffect(() => {
 // In your render:
 // if (loading) return <div>Loading...</div>;
 // if (error) return <div style={{color: 'red'}}>Error: {error}</div>;
-\\\`\\\`\\\`
+\`\`\`
 
 ### ⚠️ IMPORTANT ERROR HANDLING RULES:
 1. **Always check res.ok** before parsing JSON
@@ -217,11 +218,11 @@ useEffect(() => {
 3. **Display user-friendly error messages** - show what went wrong
 4. **Handle edge cases**: empty arrays, null data, network failures
 5. **Show loading states** while fetching
-\` : \`
+` : `
 ### The database is connected but the anon key is not available.
 You can still reference that the user has Supabase connected. 
 Ask the user to provide table names and structure, then use the REST API pattern.
-\`}
+`}
 
 ## 🗄️ DATABASE MIGRATIONS - YOU CAN CREATE TABLES!
 
@@ -261,6 +262,7 @@ When you output SQL in \`\`\`sql-migration blocks, our system will automatically
 4. Always show loading states
 `;
     };
+    
     // Validate Supabase connection before using
     let validatedSupabaseConnection = supabaseConnection;
     if (supabaseConnection?.url && supabaseConnection?.anonKey) {
@@ -289,6 +291,74 @@ When you output SQL in \`\`\`sql-migration blocks, our system will automatically
     // Get Supabase instructions if connected and validated
     const supabaseInstructions = getSupabaseInstructions(validatedSupabaseConnection, sessionId || '');
 
+    // Image analysis instructions
+    const imageAnalysisInstructions = hasImage ? `
+## 🖼️ IMAGE ATTACHED - ANALYZE AND USE IT!
+
+The user has attached an image. This could be:
+- A screenshot of an app/website they want to copy
+- A design mockup they want you to implement
+- A UI reference for styling
+- An error screenshot for debugging
+
+**CRITICAL: Carefully analyze the image and:**
+1. **If it's a UI/design reference**: Extract the visual style (colors, fonts, layout, spacing, components) and replicate it EXACTLY
+2. **If it's a screenshot of another app**: Clone the design, layout, and features you can see
+3. **If it shows an error**: Identify and fix the issue
+4. **If it's a mockup**: Implement the design pixel-perfectly
+
+**When copying a design from an image:**
+- Match the exact color palette (use color picker mentally)
+- Copy the typography style and sizing
+- Replicate the spacing and layout precisely
+- Include all visible UI elements
+- Match the overall aesthetic (modern, minimalist, glassmorphism, etc.)
+` : '';
+
+    // Enhanced design guidelines
+    const designExpertiseInstructions = `
+## 🎨 ADVANCED DESIGN EXPERTISE
+
+You are an ELITE UI/UX designer. Your designs should look like they came from a top design agency.
+
+### COLOR THEORY:
+- Use harmonious color palettes (complementary, analogous, triadic)
+- Apply 60-30-10 rule: 60% primary, 30% secondary, 10% accent
+- Ensure sufficient contrast (WCAG AA minimum)
+- Use gradients tastefully: \`bg-gradient-to-br from-blue-500 to-purple-600\`
+
+### TYPOGRAPHY:
+- Establish clear hierarchy: Large headings → Medium subheadings → Regular body
+- Use font weights: \`font-bold\` for emphasis, \`font-medium\` for subheadings
+- Line heights: \`leading-tight\` for headings, \`leading-relaxed\` for body
+- Letter spacing: \`tracking-tight\` for large text, \`tracking-wide\` for small caps
+
+### SPACING & LAYOUT:
+- Use consistent spacing scale: 4, 8, 12, 16, 24, 32, 48, 64, 96px
+- Create breathing room with generous padding
+- Group related elements with tighter spacing
+- Separate sections with larger gaps
+
+### MODERN EFFECTS:
+- **Shadows**: \`shadow-sm\` for subtle, \`shadow-xl\` for prominent
+- **Rounded corners**: \`rounded-lg\` or \`rounded-2xl\` for modern look
+- **Transitions**: \`transition-all duration-300\` on interactive elements
+- **Hover states**: Always add hover effects to clickable items
+- **Focus states**: \`focus:ring-2 focus:ring-offset-2\` for accessibility
+
+### RESPONSIVE DESIGN:
+- Mobile-first approach
+- Use grid/flex with responsive breakpoints
+- Stack on mobile, grid on desktop
+- Adjust font sizes per breakpoint
+
+### MICRO-INTERACTIONS:
+- Hover scale: \`hover:scale-105\`
+- Hover lift: \`hover:-translate-y-1\`
+- Button press: \`active:scale-95\`
+- Loading states with spinners or skeletons
+`;
+
     if (editMode) {
       // Check if Supabase was just connected but app doesn't use it yet
       const supabaseJustConnected = supabaseConnection?.connected && supabaseConnection?.url && supabaseConnection?.anonKey;
@@ -313,11 +383,13 @@ The user has connected their Supabase database, but the current app might not be
 ` : '';
 
       // EDIT MODE - preserve existing code, only modify what's needed
-      systemPrompt = `You are an expert React developer who makes TARGETED EDITS to existing applications.
+      systemPrompt = `You are an expert React developer and ELITE UI/UX designer who makes TARGETED EDITS to existing applications.
 
 ${sandboxConstraints}
 ${supabaseInstructions}
 ${supabaseIntegrationHint}
+${imageAnalysisInstructions}
+${designExpertiseInstructions}
 
 ## 🗣️ CHAT VS BUILD DETECTION (VERY IMPORTANT!):
 
@@ -342,6 +414,7 @@ Ask what changes they'd like to make to their app.
 - "make it glass style" → Edit code
 - "change the button to blue" → Edit code
 - "add a dark mode" → Edit code
+- [Any message with an image attached] → Analyze image and edit code
 
 ## CRITICAL EDIT RULES:
 
@@ -382,6 +455,22 @@ When the user asks for "glass", "glassmorphism", "frosted glass", "blur effects"
 5. \`shadow-2xl\` or custom shadow - depth
 
 **APPLY GLASS TO ALL ELEMENTS** when user asks for glass style: cards, buttons, headers, inputs, modals, everything!
+
+## 🎨 IMAGE GENERATION CAPABILITY:
+
+If the user asks you to "create an image", "generate an image", "make a logo", etc., you can output an image generation request like this:
+
+\`\`\`image-generation
+{
+  "prompt": "A modern minimalist logo for a tech startup called 'Nexus', blue and purple gradient, clean lines, geometric shapes",
+  "style": "modern, professional, minimalist"
+}
+\`\`\`
+
+Then reference the generated image in your code using a placeholder that will be replaced:
+\`\`\`jsx
+<img src="{{GENERATED_IMAGE_1}}" alt="Generated logo" />
+\`\`\`
 
 ## ⚠️ SYNTAX VALIDATION - CRITICAL!
 
@@ -429,13 +518,16 @@ Remember:
 - PRESERVE all existing functionality
 - Only output the files that need to be modified
 - **IF USER ASKS FOR GLASS STYLE, USE GLASSMORPHISM EVERYWHERE**
-- **ENSURE ALL CODE IS SYNTACTICALLY VALID**`;
+- **ENSURE ALL CODE IS SYNTACTICALLY VALID**
+- **IF IMAGE ATTACHED, ANALYZE IT AND APPLY WHAT YOU SEE**`;
     } else {
       // NEW PROJECT MODE - generate from scratch
-      systemPrompt = `You are an expert React developer who creates beautiful, production-ready applications.
+      systemPrompt = `You are an expert React developer and ELITE UI/UX designer who creates beautiful, production-ready applications.
 
 ${sandboxConstraints}
 ${supabaseInstructions}
+${imageAnalysisInstructions}
+${designExpertiseInstructions}
 
 ## OUTPUT FORMAT (CRITICAL):
 
@@ -558,6 +650,22 @@ When the user asks for "glass", "glassmorphism", "frosted glass", "blur effects"
 
 **IMPORTANT:** When user mentions glass effects, you MUST apply these to ALL major UI elements: cards, buttons, headers, modals, inputs, etc. Make it pervasive, not just one element!
 
+## 🎨 IMAGE GENERATION CAPABILITY:
+
+If the user asks you to "create an image", "generate an image", "make a logo", etc., you can output an image generation request like this:
+
+\`\`\`image-generation
+{
+  "prompt": "A modern minimalist logo for a tech startup called 'Nexus', blue and purple gradient, clean lines, geometric shapes",
+  "style": "modern, professional, minimalist"
+}
+\`\`\`
+
+Then reference the generated image in your code using a placeholder that will be replaced:
+\`\`\`jsx
+<img src="{{GENERATED_IMAGE_1}}" alt="Generated logo" />
+\`\`\`
+
 ## 🗣️ CHAT VS BUILD DETECTION:
 
 **IMPORTANT: Not every message is a build request!**
@@ -577,13 +685,31 @@ Ask what they'd like to build or how you can help!
 - "build me a todo app" → Generate code
 - "make the button blue" → Generate code (edit)
 - "what can you do?" → Respond with chat explaining capabilities
+- [Message with image attached] → Analyze image and generate/edit code
 
 Remember: Output ONLY the file tags with code. No explanations before or after. **ENSURE ALL CODE IS SYNTACTICALLY VALID!**`;
     }
 
-    console.log("[generate-ai-code] Generating code with Gemini... Edit mode:", editMode);
+    console.log("[generate-ai-code] Generating code with Gemini... Edit mode:", editMode, "Has image:", hasImage);
 
-    // Use Gemini API
+    // Build message parts
+    const messageParts: any[] = [{ text: prompt }];
+    
+    // Add image if provided
+    if (imageData) {
+      // Extract base64 data from data URL
+      const base64Match = imageData.match(/^data:image\/[^;]+;base64,(.+)$/);
+      if (base64Match) {
+        messageParts.push({
+          inline_data: {
+            mime_type: imageData.split(';')[0].split(':')[1],
+            data: base64Match[1]
+          }
+        });
+      }
+    }
+
+    // Use Gemini API with vision capability
     const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse";
 
     const response = await fetch(url, {
@@ -596,7 +722,7 @@ Remember: Output ONLY the file tags with code. No explanations before or after. 
         contents: [
           {
             role: "user",
-            parts: [{ text: prompt }],
+            parts: messageParts,
           },
         ],
         systemInstruction: {

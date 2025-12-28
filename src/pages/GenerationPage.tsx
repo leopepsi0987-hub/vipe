@@ -23,6 +23,7 @@ interface ChatMessage {
     appliedFiles?: string[];
     isSupabaseInfo?: boolean;
     supabaseConnection?: SupabaseConnection;
+    imageUrl?: string;
   };
 }
 
@@ -355,13 +356,13 @@ export default function GenerationPage() {
     }
   };
 
-  const generateCode = async (prompt: string, scrapedContent?: any, forceNewProject = false) => {
+  const generateCode = async (prompt: string, scrapedContent?: any, forceNewProject = false, imageData?: string) => {
     setIsGenerating(true);
     setStreamedCode("");
     setActiveTab("code");
 
     try {
-      addMessage(prompt, "user");
+      addMessage(prompt, "user", imageData ? { imageUrl: imageData } : undefined);
       
       // Create sandbox if not exists
       let sandbox = sandboxData;
@@ -407,6 +408,7 @@ export default function GenerationPage() {
             existingFiles: isEdit ? existingFilesMap : undefined,
             supabaseConnection: supabaseInfoMessage?.metadata?.supabaseConnection || supabaseConnection,
             sessionId, // Pass session ID for SQL execution
+            imageData, // Pass image data for vision
             context: {
               sandboxId: sandbox.sandboxId,
               sessionId,
@@ -728,23 +730,23 @@ export default function GenerationPage() {
     }
   };
 
-  const handleSubmit = async (inputValue?: string) => {
-    const input = (inputValue || chatInput).trim();
-    if (!input) return;
+  const handleSubmit = async (inputValue?: string, imageData?: string) => {
+    const input = (typeof inputValue === 'string' ? inputValue : chatInput).trim();
+    if (!input && !imageData) return;
 
     setChatInput("");
     setLoading(true);
 
     try {
-      if (isUrl(input)) {
+      if (isUrl(input) && !imageData) {
         // It's a URL - scrape and clone
         const scraped = await scrapeUrl(input);
         if (scraped) {
           await generateCode(`Clone this website: ${input}`, scraped);
         }
       } else {
-        // It's a prompt - generate directly
-        await generateCode(input, scrapedData);
+        // It's a prompt (with optional image) - generate directly
+        await generateCode(input || "Analyze this image and create something based on it", scrapedData, false, imageData);
       }
     } catch (error) {
       console.error("[generation] Submit error:", error);
@@ -780,7 +782,7 @@ export default function GenerationPage() {
         chatMessages={chatMessages}
         chatInput={chatInput}
         setChatInput={setChatInput}
-        onSubmit={() => handleSubmit()}
+        onSubmit={(imageData) => handleSubmit(chatInput, imageData)}
         onKeyDown={handleKeyDown}
         isLoading={loading || isGenerating || isScrapingUrl}
         chatContainerRef={chatContainerRef}

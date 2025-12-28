@@ -179,8 +179,12 @@ const EXTERNAL_MODULE_MAP: Record<string, { global: string; namedExports?: strin
   "clsx": { global: "__clsxModule", hasDefault: true, namedExports: ["clsx"] },
   "tailwind-merge": { global: "__twMergeModule", hasDefault: true, namedExports: ["twMerge", "twJoin"] },
   "class-variance-authority": { global: "__cvaModule", hasDefault: true, namedExports: ["cva", "cx"] },
-  "tailwindcss-animate": { global: "{}"},
+  "tailwindcss-animate": { global: "{}" },
   "tailwindcss": { global: "{}" },
+  "tailwindcss/base": { global: "{}" },
+  "tailwindcss/components": { global: "{}" },
+  "tailwindcss/utilities": { global: "{}" },
+  "tailwindcss/preflight": { global: "{}" },
 
   // Emotion & styled-components
   "@emotion/react": { global: "emotionReact", namedExports: ["css", "jsx", "Global", "ClassNames", "keyframes", "ThemeProvider", "useTheme"] },
