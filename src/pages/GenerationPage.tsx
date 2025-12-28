@@ -455,6 +455,17 @@ export default function GenerationPage() {
               } else if (data.type === "complete") {
                 fullContent = data.generatedCode || fullContent;
                 setStreamedCode(fullContent);
+                
+                // Check if this is a chat response (no code, just conversation)
+                const chatMatch = fullContent.match(/```chat\s*([\s\S]*?)```/);
+                if (chatMatch) {
+                  // This is a conversational response, not code generation
+                  const chatResponse = chatMatch[1].trim();
+                  addMessage(chatResponse, "ai");
+                  setIsGenerating(false);
+                  return;
+                }
+                
                 parseFilesFromCode(fullContent, isEdit);
 
                 // Apply code to sandbox (may create new one if expired)
@@ -480,6 +491,16 @@ export default function GenerationPage() {
             if (data?.type === "complete") {
               fullContent = data.generatedCode || fullContent;
               setStreamedCode(fullContent);
+              
+              // Check for chat response in final flush too
+              const chatMatch = fullContent.match(/```chat\s*([\s\S]*?)```/);
+              if (chatMatch) {
+                const chatResponse = chatMatch[1].trim();
+                addMessage(chatResponse, "ai");
+                setIsGenerating(false);
+                return;
+              }
+              
               parseFilesFromCode(fullContent, isEdit);
               const activeSandbox = await applyCodeToSandbox(sandbox, fullContent);
               if (activeSandbox !== sandbox) {

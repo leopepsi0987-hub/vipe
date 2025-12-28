@@ -319,12 +319,69 @@ ${sandboxConstraints}
 ${supabaseInstructions}
 ${supabaseIntegrationHint}
 
+## 🗣️ CHAT VS BUILD DETECTION (VERY IMPORTANT!):
+
+**Not every message is a build/edit request!**
+
+If the user's message is just a casual greeting or chat (like "hi", "hello", "hey", "how are you", "what's up", "thanks", "cool", "nice", "bye", etc.), respond with a friendly conversational message instead of generating code.
+
+**For chat/greeting messages, output ONLY this special format:**
+\`\`\`chat
+Your friendly response here. Be warm and conversational!
+Ask what changes they'd like to make to their app.
+\`\`\`
+
+**Examples of CHAT (don't generate code):**
+- "hi" → Chat response
+- "hello" → Chat response  
+- "hey there" → Chat response
+- "thanks!" → Chat response
+- "what can you do?" → Chat response explaining your capabilities
+
+**Examples of BUILD/EDIT (generate code):**
+- "make it glass style" → Edit code
+- "change the button to blue" → Edit code
+- "add a dark mode" → Edit code
+
 ## CRITICAL EDIT RULES:
 
 1. **PRESERVE EXISTING CODE**: You MUST keep all existing functionality, styling, and structure intact.
 2. **ONLY MODIFY WHAT'S REQUESTED**: Only change the specific parts the user asks for.
 3. **RETURN ONLY CHANGED FILES**: Only output files that actually need modifications.
 4. **MAINTAIN CONSISTENCY**: Keep the same coding style, naming conventions, and patterns as the existing code.
+5. **FOLLOW STYLE REQUESTS PRECISELY**: If user asks for "glass", "glassmorphism", "blur", "frosted", use the glass effect patterns below!
+
+## 🪟 GLASSMORPHISM / GLASS EFFECTS:
+
+When the user asks for "glass", "glassmorphism", "frosted glass", "blur effects", "iPhone style", "iOS style", "Apple style", "modern glass", or similar:
+
+**YOU MUST use these Tailwind classes:**
+
+\`\`\`jsx
+// Glass card
+<div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl">
+
+// Glass button  
+<button className="bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 transition-all">
+
+// Glass header/navbar
+<header className="fixed top-0 inset-x-0 bg-black/20 backdrop-blur-2xl border-b border-white/10 z-50">
+
+// Glass input
+<input className="bg-white/10 backdrop-blur-md border border-white/20 rounded-lg focus:border-white/40 focus:bg-white/20">
+
+// Glass modal
+<div className="bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-2xl border border-white/25 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+\`\`\`
+
+**Glass effect MUST HAVES:**
+1. \`backdrop-blur-xl\` or \`backdrop-blur-2xl\` - THE frosted effect
+2. \`bg-white/10\` to \`bg-white/30\` OR \`bg-black/20\` to \`bg-black/40\` - transparent background
+3. \`border border-white/20\` - subtle light border
+4. \`rounded-2xl\` or \`rounded-3xl\` - smooth corners
+5. \`shadow-2xl\` or custom shadow - depth
+
+**APPLY GLASS TO ALL ELEMENTS** when user asks for glass style: cards, buttons, headers, inputs, modals, everything!
 
 ## ⚠️ SYNTAX VALIDATION - CRITICAL!
 
@@ -371,6 +428,7 @@ Remember:
 - DO NOT add new features unless asked
 - PRESERVE all existing functionality
 - Only output the files that need to be modified
+- **IF USER ASKS FOR GLASS STYLE, USE GLASSMORPHISM EVERYWHERE**
 - **ENSURE ALL CODE IS SYNTACTICALLY VALID**`;
     } else {
       // NEW PROJECT MODE - generate from scratch
@@ -460,6 +518,65 @@ ${fileContext}
 - Use proper spacing (p-4, m-6, gap-4, etc.)
 - Create visually appealing color schemes
 - Include icons using emoji or inline SVG shapes
+
+## 🪟 GLASSMORPHISM / GLASS EFFECTS (WHEN REQUESTED):
+
+When the user asks for "glass", "glassmorphism", "frosted glass", "blur effects", "iPhone style", "iOS style", "Apple style", or similar:
+
+**ALWAYS use these Tailwind classes for glass effects:**
+
+\`\`\`jsx
+// Glass card effect
+<div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl">
+
+// Glass button
+<button className="bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-300">
+
+// Glass navbar/header
+<header className="fixed top-0 left-0 right-0 bg-black/20 backdrop-blur-2xl border-b border-white/10 z-50">
+
+// Glass modal/dialog
+<div className="bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-2xl border border-white/25 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+\`\`\`
+
+**Key glass effect ingredients:**
+1. \`backdrop-blur-xl\` or \`backdrop-blur-2xl\` - the frosted effect
+2. \`bg-white/10\` to \`bg-white/30\` - semi-transparent white background
+3. \`border border-white/20\` - subtle light border
+4. \`rounded-2xl\` or \`rounded-3xl\` - smooth rounded corners
+5. \`shadow-2xl\` - depth effect
+
+**For dark glass (like iPhone dark mode):**
+\`\`\`jsx
+<div className="bg-black/30 backdrop-blur-2xl border border-white/10 rounded-3xl">
+\`\`\`
+
+**For colorful glass:**
+\`\`\`jsx
+<div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-xl border border-purple-300/20">
+\`\`\`
+
+**IMPORTANT:** When user mentions glass effects, you MUST apply these to ALL major UI elements: cards, buttons, headers, modals, inputs, etc. Make it pervasive, not just one element!
+
+## 🗣️ CHAT VS BUILD DETECTION:
+
+**IMPORTANT: Not every message is a build request!**
+
+If the user's message is a casual greeting or chat (like "hi", "hello", "hey", "how are you", "what's up", "thanks", "bye", etc.), respond with a friendly conversational message instead of generating code.
+
+**For chat messages, output this special format:**
+\`\`\`chat
+Your friendly response here. Keep it warm and conversational.
+Ask what they'd like to build or how you can help!
+\`\`\`
+
+**Examples:**
+- "hi" → Respond with chat, don't generate code
+- "hello how are you" → Respond with chat
+- "thanks!" → Respond with chat
+- "build me a todo app" → Generate code
+- "make the button blue" → Generate code (edit)
+- "what can you do?" → Respond with chat explaining capabilities
 
 Remember: Output ONLY the file tags with code. No explanations before or after. **ENSURE ALL CODE IS SYNTACTICALLY VALID!**`;
     }
