@@ -111,6 +111,9 @@ export default function GenerationPage() {
   
   // Mobile view mode: chat or preview (must be before any early returns)
   const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
+  
+  // AI mode: chat (conversation only) or build (code generation)
+  const [aiMode, setAiMode] = useState<"chat" | "build">("build");
 
   // Redirect to unique URL if on /generation
   useEffect(() => {
@@ -459,7 +462,8 @@ export default function GenerationPage() {
   };
 
   const generateCode = async (prompt: string, scrapedContent?: any, forceNewProject = false, imageData?: string) => {
-    const chatOnly = isChatOnlyPrompt(prompt) && !scrapedContent && !forceNewProject;
+    // Use aiMode state directly - if "chat" mode, force chat-only behavior
+    const chatOnly = aiMode === "chat" || (isChatOnlyPrompt(prompt) && !scrapedContent && !forceNewProject && aiMode !== "build");
 
     // Track if we've shown the plan message (to avoid duplicates)
     let planShown = false;
@@ -1085,6 +1089,8 @@ export default function GenerationPage() {
           urlScreenshot={urlScreenshot}
           supabaseConnection={supabaseConnection}
           onOpenSupabaseModal={() => setShowSupabaseModal(true)}
+          aiMode={aiMode}
+          onModeChange={setAiMode}
         />
 
         {/* Main Content */}
