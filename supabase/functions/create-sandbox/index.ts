@@ -14,9 +14,9 @@ const VITE_TEMPLATE: Record<string, string> = {
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0 --port 5173",
+    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --host 0.0.0.0 --port 5173 --strictPort"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -24,6 +24,9 @@ const VITE_TEMPLATE: Record<string, string> = {
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
     "vite": "^5.1.0"
   }
 }`,
@@ -40,13 +43,26 @@ export default defineConfig({
     allowedHosts: true,
   },
 })`,
+  "postcss.config.js": `export default {
+  plugins: {
+    tailwindcss: {},
+    autoprefixer: {},
+  },
+};`,
+  "tailwind.config.js": `/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};`,
   "index.html": `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VIPE DZ App</title>
-    <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
     <div id="root"></div>
@@ -69,12 +85,8 @@ function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-4xl font-bold text-white mb-4">
-          Welcome to VIPE DZ 🚀
-        </h1>
-        <p className="text-slate-300 text-lg">
-          Start chatting to build your app!
-        </p>
+        <h1 className="text-4xl font-bold text-white mb-4">Welcome to VIPE DZ 🚀</h1>
+        <p className="text-slate-300 text-lg">Start chatting to build your app!</p>
       </div>
     </div>
   )
@@ -93,7 +105,7 @@ export default App`,
 
 body {
   font-family: system-ui, -apple-system, sans-serif;
-}`
+}`,
 };
 
 serve(async (req) => {

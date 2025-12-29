@@ -57,12 +57,32 @@ serve(async (req) => {
     };
 
     // Install packages if needed
-    if (Array.isArray(packages) && packages.length > 0) {
-      console.log(`[apply-code] Installing packages: ${packages.join(", ")}`);
-      await sandbox.commands.run(`cd /home/user/app && npm install ${packages.join(" ")}`, {
+    const packagesToInstall = new Set<string>(Array.isArray(packages) ? packages : []);
+
+    // If the update includes Tailwind config or Tailwind directives, ensure Tailwind tooling is installed.
+    if (Array.isArray(files)) {
+      const touchesTailwindConfig = files.some((f: FileOperation) =>
+        ["tailwind.config.js", "tailwind.config.cjs", "postcss.config.js", "postcss.config.cjs"].includes(f.path),
+      );
+
+      const hasTailwindDirectives = files.some((f: FileOperation) =>
+        typeof f.content === "string" && (f.content.includes("@tailwind") || f.content.includes("@import 'tailwindcss'") || f.content.includes('@import "tailwindcss"')),
+      );
+
+      if (touchesTailwindConfig || hasTailwindDirectives) {
+        packagesToInstall.add("tailwindcss");
+        packagesToInstall.add("postcss");
+        packagesToInstall.add("autoprefixer");
+      }
+    }
+
+    if (packagesToInstall.size > 0) {
+      const pkgs = Array.from(packagesToInstall);
+      console.log(`[apply-code] Installing packages: ${pkgs.join(", ")}`);
+      await sandbox.commands.run(`cd /home/user/app && npm install ${pkgs.join(" ")}`, {
         timeoutMs: 180000,
       });
-      results.packagesInstalled = packages;
+      results.packagesInstalled = pkgs;
     }
 
     // Apply file operations
@@ -85,7 +105,14 @@ serve(async (req) => {
           continue;
         }
 
-        writes.push({ path: normalizedPath, data: file.content ?? "" });
+        // Fix common Tailwind v4 import that breaks Vite/Tailwind v3 setups.
+        // '@import "tailwindcss"' triggers a resolver file lookup and crashes the dev server.
+        let content = file.content ?? "";
+        if (typeof content === "string" && (content.includes("@import 'tailwindcss'") || content.includes('@import "tailwindcss"'))) {
+          content = content.replace(/@import\s+['\"]tailwindcss['\"];?\s*/g, "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n");
+        }
+
+        writes.push({ path: normalizedPath, data: content });
 
         if (action === "create") results.filesCreated.push(file.path);
         else results.filesUpdated.push(file.path);
