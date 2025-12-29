@@ -17,12 +17,15 @@ import {
   Calendar,
   FolderOpen,
   ExternalLink,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LanguageToggle, useI18n } from "@/lib/i18n";
 
 export default function ProfilePage() {
   const { profile, updateProfile, uploadAvatar, checkUsernameAvailable } = useProfile();
   const { projects } = useProjects();
+  const { t } = useI18n();
   
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -111,7 +114,13 @@ export default function ProfilePage() {
         <div className="glass-card rounded-2xl p-6 mb-6 relative overflow-hidden">
           <div className="absolute -top-20 -right-20 w-60 h-60 bg-gradient-primary blur-3xl opacity-20 pointer-events-none" />
           
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 relative">
+          {/* Language Toggle in Profile Card */}
+          <div className="absolute top-4 right-4 z-10">
+            <LanguageToggle />
+          
+          </div>
+          
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 relative mt-8 sm:mt-0">
             {/* Avatar */}
             <div className="relative group">
               <Avatar className="w-24 h-24 border-4 border-primary/20">
