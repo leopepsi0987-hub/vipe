@@ -816,6 +816,556 @@ toast.promise(saveData(), {
 // Custom duration
 toast("Hello", { duration: 5000 });
     `
+  },
+
+  // ============================================
+  // AUTHENTICATION & SECURITY
+  // ============================================
+  
+  supabaseAuth: {
+    name: "Supabase Auth",
+    installed: true,
+    description: "Complete authentication system built into Supabase",
+    usage: `
+import { supabase } from "@/integrations/supabase/client";
+import { User, Session } from "@supabase/supabase-js";
+
+// Sign up new user
+const { data, error } = await supabase.auth.signUp({
+  email: "user@example.com",
+  password: "password123",
+  options: {
+    emailRedirectTo: \`\${window.location.origin}/\`
+  }
+});
+
+// Sign in with email/password
+const { data, error } = await supabase.auth.signInWithPassword({
+  email: "user@example.com",
+  password: "password123"
+});
+
+// Sign in with OAuth (Google)
+const { data, error } = await supabase.auth.signInWithOAuth({
+  provider: "google",
+  options: {
+    redirectTo: \`\${window.location.origin}/auth/callback\`
+  }
+});
+
+// Sign out
+await supabase.auth.signOut();
+
+// Get current user
+const { data: { user } } = await supabase.auth.getUser();
+
+// Get current session
+const { data: { session } } = await supabase.auth.getSession();
+
+// Listen for auth changes (CRITICAL PATTERN)
+useEffect(() => {
+  // Set up listener FIRST
+  const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    (event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    }
+  );
+  
+  // THEN check existing session
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    setSession(session);
+    setUser(session?.user ?? null);
+  });
+
+  return () => subscription.unsubscribe();
+}, []);
+
+// Password reset
+await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: \`\${window.location.origin}/reset-password\`
+});
+
+// Update password
+await supabase.auth.updateUser({ password: newPassword });
+
+// Protected route pattern
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  
+  if (loading) return <LoadingSpinner />;
+  if (!user) return <Navigate to="/auth" />;
+  
+  return children;
+}
+    `
+  },
+
+  // ============================================
+  // TESTING
+  // ============================================
+  
+  vitest: {
+    name: "Vitest",
+    installed: true,
+    description: "Fast unit testing framework powered by Vite",
+    usage: `
+// vitest.config.ts
+import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
+import path from "path";
+
+export default defineConfig({
+  plugins: [react()],
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test/setup.ts"]
+  },
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src")
+    }
+  }
+});
+
+// src/test/setup.ts
+import "@testing-library/jest-dom";
+
+// Example test file: src/components/Button.test.tsx
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { Button } from "./Button";
+
+describe("Button", () => {
+  it("renders with text", () => {
+    render(<Button>Click me</Button>);
+    expect(screen.getByText("Click me")).toBeInTheDocument();
+  });
+
+  it("calls onClick when clicked", () => {
+    const handleClick = vi.fn();
+    render(<Button onClick={handleClick}>Click</Button>);
+    fireEvent.click(screen.getByText("Click"));
+    expect(handleClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("can be disabled", () => {
+    render(<Button disabled>Disabled</Button>);
+    expect(screen.getByText("Disabled")).toBeDisabled();
+  });
+});
+
+// Run tests: npx vitest
+// Run once: npx vitest run
+// Watch mode: npx vitest --watch
+// Coverage: npx vitest run --coverage
+    `
+  },
+
+  reactTestingLibrary: {
+    name: "React Testing Library",
+    installed: true,
+    description: "Testing utilities for React components",
+    usage: `
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+// Basic rendering
+render(<MyComponent />);
+
+// Query methods (getBy throws if not found, queryBy returns null)
+screen.getByText("Hello");           // Exact match
+screen.getByText(/hello/i);          // Regex (case insensitive)
+screen.getByRole("button");          // By ARIA role
+screen.getByRole("button", { name: "Submit" });
+screen.getByLabelText("Email");      // By label
+screen.getByPlaceholderText("Enter email");
+screen.getByTestId("my-element");    // By data-testid
+
+// queryBy for optional elements
+const element = screen.queryByText("Maybe exists");
+expect(element).toBeNull();
+
+// findBy for async elements
+const asyncElement = await screen.findByText("Loaded");
+
+// User events (more realistic than fireEvent)
+const user = userEvent.setup();
+await user.click(button);
+await user.type(input, "Hello");
+await user.keyboard("{Enter}");
+
+// Waiting for async operations
+await waitFor(() => {
+  expect(screen.getByText("Loaded")).toBeInTheDocument();
+});
+
+// Testing hooks
+import { renderHook, act } from "@testing-library/react";
+
+const { result } = renderHook(() => useCounter());
+act(() => {
+  result.current.increment();
+});
+expect(result.current.count).toBe(1);
+    `
+  },
+
+  msw: {
+    name: "MSW (Mock Service Worker)",
+    installed: true,
+    description: "API mocking library for testing",
+    usage: `
+// src/mocks/handlers.ts
+import { http, HttpResponse } from "msw";
+
+export const handlers = [
+  http.get("/api/users", () => {
+    return HttpResponse.json([
+      { id: 1, name: "John" },
+      { id: 2, name: "Jane" }
+    ]);
+  }),
+  
+  http.post("/api/users", async ({ request }) => {
+    const body = await request.json();
+    return HttpResponse.json({ id: 3, ...body }, { status: 201 });
+  }),
+  
+  http.get("/api/users/:id", ({ params }) => {
+    return HttpResponse.json({ id: params.id, name: "User" });
+  })
+];
+
+// src/mocks/server.ts
+import { setupServer } from "msw/node";
+import { handlers } from "./handlers";
+
+export const server = setupServer(...handlers);
+
+// src/test/setup.ts
+import { server } from "../mocks/server";
+
+beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+// Override in specific tests
+import { http, HttpResponse } from "msw";
+import { server } from "../mocks/server";
+
+it("handles error", async () => {
+  server.use(
+    http.get("/api/users", () => {
+      return HttpResponse.json({ error: "Failed" }, { status: 500 });
+    })
+  );
+  // Test error handling...
+});
+    `
+  },
+
+  // ============================================
+  // BUILD TOOLS & CODE QUALITY
+  // ============================================
+  
+  vite: {
+    name: "Vite",
+    installed: true,
+    description: "Next-generation frontend build tool",
+    usage: `
+// vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import path from "path";
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src")
+    }
+  },
+  server: {
+    port: 3000,
+    proxy: {
+      "/api": {
+        target: "http://localhost:8080",
+        changeOrigin: true
+      }
+    }
+  },
+  build: {
+    outDir: "dist",
+    sourcemap: true
+  }
+});
+
+// Environment variables
+// .env files: .env, .env.local, .env.development, .env.production
+// Access: import.meta.env.VITE_API_URL
+// Only VITE_ prefixed vars are exposed to client
+    `
+  },
+
+  eslint: {
+    name: "ESLint",
+    installed: true,
+    description: "JavaScript/TypeScript linter",
+    usage: `
+// eslint.config.js (flat config)
+import js from "@eslint/js";
+import typescript from "@typescript-eslint/eslint-plugin";
+import typescriptParser from "@typescript-eslint/parser";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
+
+export default [
+  js.configs.recommended,
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaFeatures: { jsx: true }
+      }
+    },
+    plugins: {
+      "@typescript-eslint": typescript,
+      react,
+      "react-hooks": reactHooks
+    },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
+      "no-console": "warn"
+    }
+  }
+];
+
+// Run: npx eslint src/
+// Fix: npx eslint src/ --fix
+    `
+  },
+
+  prettier: {
+    name: "Prettier",
+    installed: true,
+    description: "Code formatter",
+    usage: `
+// .prettierrc
+{
+  "semi": true,
+  "singleQuote": false,
+  "tabWidth": 2,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "plugins": ["prettier-plugin-tailwindcss"]
+}
+
+// .prettierignore
+node_modules
+dist
+build
+.next
+
+// Format: npx prettier --write src/
+// Check: npx prettier --check src/
+
+// VS Code settings.json
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true
+}
+    `
+  },
+
+  // ============================================
+  // BACKEND & EDGE FUNCTIONS
+  // ============================================
+  
+  supabaseEdgeFunctions: {
+    name: "Supabase Edge Functions",
+    installed: true,
+    description: "Serverless functions running on Deno",
+    usage: `
+// supabase/functions/my-function/index.ts
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+};
+
+serve(async (req) => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const { name } = await req.json();
+    
+    return new Response(
+      JSON.stringify({ message: \`Hello \${name}!\` }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error) {
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
+
+// Call from client
+import { supabase } from "@/integrations/supabase/client";
+
+const { data, error } = await supabase.functions.invoke("my-function", {
+  body: { name: "World" }
+});
+
+// With Supabase client in edge function
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Get user from auth header
+const authHeader = req.headers.get("Authorization")!;
+const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    `
+  },
+
+  lovableAI: {
+    name: "Lovable AI Gateway",
+    installed: true,
+    description: "AI models via Lovable's gateway (Gemini, GPT-5)",
+    usage: `
+// Edge function using Lovable AI
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+};
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  const { messages } = await req.json();
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+  const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: \`Bearer \${LOVABLE_API_KEY}\`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash", // or openai/gpt-5
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        ...messages
+      ],
+      stream: true
+    })
+  });
+
+  return new Response(response.body, {
+    headers: { ...corsHeaders, "Content-Type": "text/event-stream" }
+  });
+});
+
+// Available models:
+// - google/gemini-2.5-pro (best for complex reasoning)
+// - google/gemini-2.5-flash (balanced, DEFAULT)
+// - google/gemini-2.5-flash-lite (fastest, cheapest)
+// - openai/gpt-5 (powerful all-rounder)
+// - openai/gpt-5-mini (cost-effective)
+// - openai/gpt-5-nano (fastest, cheapest)
+    `
+  },
+
+  // ============================================
+  // ROUTING
+  // ============================================
+  
+  reactRouter: {
+    name: "React Router",
+    installed: true,
+    description: "Declarative routing for React",
+    usage: `
+import { BrowserRouter, Routes, Route, Link, useNavigate, useParams, Navigate } from "react-router-dom";
+
+// App setup
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/users" element={<Users />} />
+        <Route path="/users/:id" element={<UserDetail />} />
+        <Route path="/dashboard/*" element={<Dashboard />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+// Navigation
+function Nav() {
+  const navigate = useNavigate();
+  
+  return (
+    <nav>
+      <Link to="/">Home</Link>
+      <Link to="/users">Users</Link>
+      <button onClick={() => navigate("/dashboard")}>Dashboard</button>
+      <button onClick={() => navigate(-1)}>Back</button>
+    </nav>
+  );
+}
+
+// URL parameters
+function UserDetail() {
+  const { id } = useParams();
+  return <div>User ID: {id}</div>;
+}
+
+// Protected route
+function ProtectedRoute({ children }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+// Usage
+<Route path="/admin" element={
+  <ProtectedRoute>
+    <AdminPanel />
+  </ProtectedRoute>
+} />
+
+// Nested routes
+function Dashboard() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      <Routes>
+        <Route index element={<DashboardHome />} />
+        <Route path="settings" element={<Settings />} />
+        <Route path="profile" element={<Profile />} />
+      </Routes>
+    </div>
+  );
+}
+    `
   }
 };
 
@@ -831,7 +1381,12 @@ export const QUICK_REFERENCE = {
   pdf: ["@react-pdf/renderer"],
   charts: ["recharts"],
   editor: ["@monaco-editor/react"],
-  utils: ["date-fns", "lucide-react", "class-variance-authority", "clsx", "tailwind-merge"]
+  utils: ["date-fns", "lucide-react", "class-variance-authority", "clsx", "tailwind-merge"],
+  auth: ["Supabase Auth"],
+  testing: ["vitest", "@testing-library/react", "msw"],
+  build: ["vite", "eslint", "prettier"],
+  backend: ["Supabase Edge Functions", "Lovable AI Gateway"],
+  routing: ["react-router-dom"]
 };
 
 // What each library is best for
@@ -845,5 +1400,55 @@ export const USE_CASES = {
   "Need charts?": "Use recharts",
   "Need PDF export?": "Use @react-pdf/renderer",
   "Need code editor?": "Use @monaco-editor/react",
-  "Need icons?": "Use lucide-react"
+  "Need icons?": "Use lucide-react",
+  "Need authentication?": "Use Supabase Auth (built-in)",
+  "Need unit tests?": "Use vitest + @testing-library/react",
+  "Need API mocking?": "Use msw (Mock Service Worker)",
+  "Need code formatting?": "Use prettier",
+  "Need AI integration?": "Use Lovable AI Gateway in edge functions",
+  "Need routing?": "Use react-router-dom",
+  "Need backend logic?": "Use Supabase Edge Functions"
+};
+
+// Security best practices
+export const SECURITY_GUIDELINES = {
+  authentication: [
+    "Always use Supabase Auth for authentication",
+    "Never store passwords in plain text",
+    "Use emailRedirectTo for signup redirects",
+    "Set up onAuthStateChange listener before getSession",
+    "Implement proper protected routes"
+  ],
+  dataAccess: [
+    "Always use RLS (Row Level Security) policies",
+    "Never expose service role key to client",
+    "Validate all user inputs with zod",
+    "Use parameterized queries to prevent SQL injection"
+  ],
+  apiKeys: [
+    "Store private keys in Supabase secrets",
+    "Only VITE_ prefixed vars are exposed to client",
+    "Never log sensitive data to console"
+  ]
+};
+
+// Testing best practices
+export const TESTING_GUIDELINES = {
+  unitTests: [
+    "Test components in isolation",
+    "Use screen queries (getByRole, getByText)",
+    "Prefer userEvent over fireEvent",
+    "Mock external dependencies"
+  ],
+  integrationTests: [
+    "Use MSW to mock API calls",
+    "Test user flows end-to-end",
+    "Test error states and loading states"
+  ],
+  bestPractices: [
+    "Write tests as you build features",
+    "Keep tests focused and fast",
+    "Use describe blocks to organize tests",
+    "Test accessibility with proper ARIA roles"
+  ]
 };
