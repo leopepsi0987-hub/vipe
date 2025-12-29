@@ -123,6 +123,25 @@ return (
 **Icons:** Use emoji (🚀, ✨, 💫) or inline SVG
 **HTTP:** Use native fetch()
 **State:** React hooks only
+
+**CRITICAL CSS FILE FORMAT:**
+When creating src/index.css, use this EXACT format (NO @tailwind directives!):
+\`\`\`css
+@import 'tailwindcss';
+
+/* Your custom styles here */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+\`\`\`
+
+NEVER use @tailwind base, @tailwind components, @tailwind utilities - those cause errors!
 `;
 
     // ═══════════════════════════════════════════════════════════════════
