@@ -1018,71 +1018,91 @@ You have access to the following tools to help you build and manage files:
 
 ### FILE OPERATIONS:
 
-**lov-view** - Read file contents
+**lov-view / read_file** - Read file contents
 - Read any file in the project
-- Can specify line ranges for large files
+- Can specify line ranges for large files (1-indexed)
 - Example: Read src/App.jsx to understand current structure
+- Parameters: target_file (path), start_line_one_indexed, end_line_one_indexed_inclusive, should_read_entire_file
 
-**lov-write** - Create or overwrite files
+**lov-write / edit_file** - Create or overwrite files
 - Creates new files or replaces existing ones
 - Use for new files or complete rewrites
-- Always write complete file contents
+- Use \`// ... existing code ...\` comment to represent unchanged code
+- Parameters: target_file, instructions, code_edit
 
-**lov-line-replace** - Edit specific parts of files
-- Surgically edit specific line ranges
+**lov-line-replace / search_replace** - Edit specific parts of files
+- Surgically edit specific line ranges or search/replace text
 - Preferred over full file rewrites
-- Use ellipsis (...) for large unchanged sections
+- CRITICAL: old_string MUST uniquely identify the instance (include 3-5 lines context before/after)
+- Can only change ONE instance at a time
+- Parameters: file_path, old_string, new_string
 
-**lov-delete** - Delete files
+**lov-delete / delete_file** - Delete files
 - Remove files from the project
 - Use when cleaning up or refactoring
+- Parameters: target_file
 
 **lov-rename** - Rename files
 - Move/rename files without recreating them
 - Preserves file history
+- Parameters: original_file_path, new_file_path
 
 **lov-copy** - Copy files
 - Duplicate files or copy from uploads
 - Useful for user-uploaded assets
+- Parameters: source_file_path, destination_file_path
 
 **lov-download-to-repo** - Download from URL
 - Download images, assets from URLs
-- Save directly to project folders
+- Save directly to project folders (prefer src/assets)
+- Parameters: source_url, target_path
 
 ### SEARCH & DISCOVERY:
 
-**lov-search-files** - Regex code search
-- Search across project files with regex patterns
+**lov-search-files / grep_search** - Regex code search
+- Search across project files with regex patterns using ripgrep
 - Filter by include/exclude patterns
-- Case sensitive option available
+- Results capped at 50 matches
+- ALWAYS escape special regex characters: ( ) [ ] { } + * ? ^ $ | . \\
+- Parameters: query (regex pattern), include_pattern, exclude_pattern, case_sensitive
 
 **codebase_search** - Semantic code search
 - Find code by meaning, not exact text
 - Great for finding related functionality
-- Specify target directories for focused search
-
-**grep_search** - Fast exact text search
-- ripgrep-powered search
-- Best for exact matches
-- Escape special regex characters
+- Reuse user's exact query wording for best results
+- Parameters: query, target_directories, explanation
 
 **file_search** - Fuzzy file name search
 - Find files by partial name
 - Returns up to 10 matches
+- Parameters: query, explanation
 
 **list_dir** - List directory contents
 - Explore folder structure
+- Lists non-hidden files up to 2 levels deep
 - Good for understanding project layout
+- Parameters: relative_workspace_path
+
+### TERMINAL & COMMANDS:
+
+**run_terminal_cmd / bash** - Run shell commands
+- Execute commands on the system
+- For long-running commands, run in background (is_background: true)
+- For commands using pager, append \` | cat\`
+- Pass non-interactive flags (e.g., --yes for npx)
+- Parameters: command, is_background, explanation
 
 ### DEPENDENCIES:
 
-**lov-add-dependency** - Install npm packages
+**lov-add-dependency / packager_tool** - Install packages
 - Add any npm package to the project
-- Example: lov-add-dependency("lodash@latest")
+- Also supports: nodejs, bun, python, system dependencies
+- Parameters: package OR dependency_list, language_or_system, install_or_uninstall
 
 **lov-remove-dependency** - Uninstall packages
 - Remove packages from project
 - Cleans up package.json
+- Parameters: package
 
 ### DEBUGGING:
 
@@ -1090,62 +1110,132 @@ You have access to the following tools to help you build and manage files:
 - See latest console.log outputs
 - Filter with search query
 - Useful for debugging errors
+- Parameters: search
 
 **lov-read-network-requests** - View network activity
 - See API calls and responses
 - Debug fetch/API issues
+- Parameters: search
 
 ### EXTERNAL RESOURCES:
 
 **lov-fetch-website** - Scrape websites
 - Get markdown, HTML, or screenshots
 - Great for cloning designs
+- Parameters: url, formats (markdown,html,screenshot)
 
-**websearch--web_search** - Web search
-- Search the internet for info
-- Can filter by category (news, github, etc.)
+**web_search / websearch--web_search** - Web search
+- Search the internet for real-time information
+- Find current docs, news, technical info
+- Can filter by category (news, github, pdf, linkedin profile, etc.)
+- Parameters: search_term/query, category, numResults, links, imageLinks
 
 **document--parse_document** - Parse documents
-- Extract content from PDFs, Word docs, etc.
-- OCR on images in documents
+- Extract content from PDFs, Word docs, PowerPoint, Excel, MP3
+- OCR on images in documents (first 50 pages)
+- Parameters: file_path
 
 ### SECRETS & SECURITY:
 
-**secrets--add_secret** - Add API keys
+**secrets--add_secret / ask_secrets** - Add API keys
 - Securely store secrets
-- Available as environment variables
+- Available as environment variables in edge functions
+- Parameters: secret_name / secret_keys, user_message
 
 **secrets--update_secret** - Update secrets
 - Change existing secret values
+- Parameters: secret_name
+
+**check_secrets** - Check if secrets exist
+- Verify secret presence without exposing value
+- Parameters: secret_keys
 
 **security--run_security_scan** - Security scan
 - Analyze for vulnerabilities
 - Check RLS policies
 
-### DATABASE (Supabase):
+### DATABASE:
 
 **supabase--docs-search** - Search Supabase docs
 - Find documentation on auth, storage, etc.
+- Parameters: query, max_results
 
 **supabase--docs-get** - Get full doc page
 - Fetch complete documentation by slug
+- Parameters: slug
+
+**execute_sql_tool** - Execute SQL queries
+- Run SQL on connected database
+- Fix database errors, explore schema
+- Parameters: sql_query
+
+**create_postgresql_database_tool** - Create PostgreSQL database
+- Sets up DATABASE_URL, PGPORT, PGUSER, PGPASSWORD, PGDATABASE, PGHOST
+- Parameters: none
+
+**check_database_status** - Check database availability
+- Verify database connection
+- Parameters: none
 
 ### IMAGES:
 
 **imagegen--generate_image** - Generate images
 - AI image generation from text
-- Models: flux.schnell (fast), flux.dev (quality)
-- Save to src/assets folder
+- Models: flux.schnell (fast, <1000px), flux.dev (quality, large)
+- Max resolution 1920x1920, dimensions must be multiples of 32
+- Parameters: prompt, target_path, width, height, model
 
 **imagegen--edit_image** - Edit/merge images
 - Apply AI edits to existing images
 - Merge multiple images together
+- Parameters: image_paths, prompt, target_path
+
+### WORKFLOWS & DEPLOYMENT:
+
+**workflows_set_run_config_tool** - Configure background tasks
+- Start dev servers, build processes
+- Always serve on port 5000
+- Parameters: name, command, wait_for_port
+
+**workflows_remove_run_config_tool** - Remove workflow
+- Remove previously added commands
+- Parameters: name
+
+**restart_workflow** - Restart workflow
+- Restart or start a workflow
+- Parameters: name
+
+**suggest_deploy** - Suggest deployment
+- Call when project ready for deployment
+- Terminal action - task complete after calling
+- Parameters: none
+
+### FEEDBACK & INTERACTION:
+
+**web_application_feedback_tool** - Capture screenshot & get feedback
+- Verify web app running in workflow
+- Display app to user and ask question
+- Parameters: query, workflow_name, website_route
+
+**shell_command_application_feedback_tool** - CLI app feedback
+- Test interactive CLI applications
+- Parameters: query, shell_command, workflow_name
+
+**vnc_window_application_feedback** - Desktop app feedback
+- Test desktop applications via VNC
+- Parameters: query, vnc_execution_command, workflow_name
+
+**report_progress** - Report task completion
+- Call when user confirms feature complete
+- Summarize accomplishments (max 5 items, 30 words)
+- Parameters: summary
 
 ### ANALYTICS:
 
 **analytics--read_project_analytics** - View app usage
 - Read traffic and usage data
-- Specify date range and granularity
+- Specify date range and granularity (hourly/daily)
+- Parameters: startdate, enddate, granularity
 
 ### INTEGRATIONS:
 
@@ -1153,14 +1243,48 @@ You have access to the following tools to help you build and manage files:
 - Enable payment processing
 - Prompts for API key
 
+### DIAGRAM & VISUALIZATION:
+
+**create_diagram** - Create Mermaid diagrams
+- Rendered in chat UI
+- Use <br/> for line breaks, wrap text in double quotes
+- No custom colors or beta features
+- Parameters: content (raw Mermaid DSL)
+
+### NOTEBOOK:
+
+**edit_notebook** - Edit Jupyter notebooks
+- Edit existing cells or create new ones
+- Supports: python, markdown, javascript, typescript, r, sql, shell, raw
+- Parameters: target_notebook, cell_idx, is_new_cell, cell_language, old_string, new_string
+
+### ADVANCED:
+
+**reapply** - Reapply last edit with smarter model
+- Use if edit_file diff wasn't as expected
+- Parameters: target_file
+
+**search_filesystem** - Open relevant files
+- Semantic search for classes, functions, code snippets
+- Parameters: query_description, class_names, function_names, code
+
+**programming_language_install_tool** - Install languages
+- Install Python, Node.js, etc.
+- Examples: python-3.11, python-3.10, nodejs-20, nodejs-18
+- Parameters: programming_languages
+
 ## TOOL USAGE GUIDELINES:
 
 1. **Read before writing** - Always understand current code before editing
 2. **Parallel operations** - Run independent tool calls simultaneously
-3. **Minimal changes** - Prefer lov-line-replace over full file rewrites
-4. **Search first** - Use search tools to find relevant code
-5. **Download assets** - Use lov-download-to-repo for external images
-6. **Add dependencies** - Use lov-add-dependency for new packages
+3. **Minimal changes** - Prefer lov-line-replace/search_replace over full file rewrites
+4. **Include context** - Always include 3-5 lines before/after for unique matching
+5. **Search first** - Use search tools to find relevant code
+6. **Download assets** - Use lov-download-to-repo for external images
+7. **Add dependencies** - Use lov-add-dependency for new packages
+8. **Escape regex** - Always escape special characters in grep/search patterns
+9. **Background tasks** - Use is_background for long-running commands
+10. **Port 5000** - Always serve web apps on port 5000
 `;
 
 
