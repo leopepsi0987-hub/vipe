@@ -31,10 +31,11 @@ export function GenerationPreview({
 
   
 
-  // Use direct sandbox URL - E2B sandboxes allow embedding
+  // Use sandbox-proxy to avoid X-Frame-Options restrictions from E2B
   const getSandboxUrl = useCallback((url: string): string => {
-    // Return URL directly - E2B sandboxes are designed to be embedded
-    return url;
+    // Use our edge function proxy to bypass iframe restrictions
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    return `${supabaseUrl}/functions/v1/sandbox-proxy?url=${encodeURIComponent(url)}`;
   }, []);
 
   // Reset states when URL changes
