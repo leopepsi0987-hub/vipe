@@ -957,7 +957,7 @@ const supabaseFetch = async (table, options = {}) => {
 \`\`\`jsx
 <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-6 py-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-full">
   <div className="flex items-center gap-8">
-    <span className="font-bold text-white text-xl">✦ NOVA</span>
+    <span className="font-bold text-white text-xl">✦ VIPE DZ</span>
     <div className="flex gap-6">
       {['Home', 'Features', 'Pricing', 'Contact'].map((item) => (
         <button key={item} className="text-white/70 hover:text-white transition-colors font-medium">

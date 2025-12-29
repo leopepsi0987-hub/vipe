@@ -9,7 +9,7 @@ const corsHeaders = {
 // Vite React template files
 const VITE_TEMPLATE: Record<string, string> = {
   "package.json": `{
-  "name": "vipe-sandbox",
+  "name": "vipedz-sandbox",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -45,7 +45,7 @@ export default defineConfig({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vipe App</title>
+    <title>VIPE DZ App</title>
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
@@ -70,7 +70,7 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-white mb-4">
-          Welcome to Vipe 🚀
+          Welcome to VIPE DZ 🚀
         </h1>
         <p className="text-slate-300 text-lg">
           Start chatting to build your app!
