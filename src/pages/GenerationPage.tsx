@@ -276,6 +276,60 @@ export default function GenerationPage() {
     return urlPattern.test(str.trim());
   };
 
+  const isChatOnlyPrompt = (p: string): boolean => {
+    const t = (p || "").trim().toLowerCase();
+    if (!t) return true;
+
+    // Strong "build" indicators
+    const buildKeywords = [
+      "build",
+      "create",
+      "make",
+      "design",
+      "implement",
+      "code",
+      "add ",
+      "remove ",
+      "change ",
+      "update ",
+      "fix ",
+      "edit ",
+      "clone",
+      "replicate",
+      "landing page",
+      "dashboard",
+      "react",
+      "tailwind",
+      "three",
+      "3d",
+      "shader",
+    ];
+    if (buildKeywords.some((k) => t.includes(k))) return false;
+
+    // Greetings / small talk / questions
+    const chatKeywords = [
+      "hi",
+      "hello",
+      "hey",
+      "yo",
+      "sup",
+      "how are you",
+      "who are you",
+      "what can you do",
+      "thanks",
+      "thank you",
+      "is it safe",
+      "api key",
+      "apikey",
+      "gemini",
+      "openai",
+    ];
+
+    // If it's short and not explicitly a build request, treat as chat.
+    if (t.length <= 140) return true;
+    return chatKeywords.some((k) => t.includes(k));
+  };
+
   const createSandbox = async (): Promise<SandboxData | null> => {
     try {
       addMessage("Creating sandbox environment...", "system");
@@ -357,16 +411,45 @@ export default function GenerationPage() {
   };
 
   const generateCode = async (prompt: string, scrapedContent?: any, forceNewProject = false, imageData?: string) => {
+    const chatOnly = isChatOnlyPrompt(prompt) && !scrapedContent && !forceNewProject;
+
     setIsGenerating(true);
-    setStreamedCode("");
-    setActiveTab("code");
+    if (!chatOnly) {
+      setStreamedCode("");
+      setActiveTab("code");
+    }
 
     try {
       addMessage(prompt, "user", imageData ? { imageUrl: imageData } : undefined);
-      
-      // Create sandbox if not exists
+
+      // If this is a chat-only prompt, we still call the AI but we do NOT stream into the code panel.
+      // We'll stream into a single AI chat message.
+      const chatStreamMessageId = chatOnly ? crypto.randomUUID() : null;
+      if (chatOnly && chatStreamMessageId) {
+        const aiMsg: ChatMessage = {
+          id: chatStreamMessageId,
+          content: "",
+          type: "ai",
+          timestamp: new Date(),
+        };
+        setChatMessages((prev) => [...prev, aiMsg]);
+        supabase
+          .from("generation_messages")
+          .insert({
+            id: aiMsg.id,
+            session_id: sessionId,
+            content: aiMsg.content,
+            type: aiMsg.type,
+            metadata: aiMsg.metadata as any,
+          })
+          .then(({ error }) => {
+            if (error) console.error("Error saving message:", error);
+          });
+      }
+
+      // Create sandbox if not exists (only required for code builds)
       let sandbox = sandboxData;
-      if (!sandbox) {
+      if (!chatOnly && !sandbox) {
         sandbox = await createSandbox();
         if (!sandbox) {
           throw new Error("Failed to create sandbox");
@@ -375,7 +458,7 @@ export default function GenerationPage() {
 
       // Determine if this is an edit (we have existing files from previous generation)
       const hasExistingFiles = generationFiles.length > 0;
-      const isEdit = hasExistingFiles && !forceNewProject && !scrapedContent;
+      const isEdit = !chatOnly && hasExistingFiles && !forceNewProject && !scrapedContent;
 
       // Build existing files map for edit mode
       let existingFilesMap: Record<string, string> = {};
@@ -383,39 +466,39 @@ export default function GenerationPage() {
         for (const file of generationFiles) {
           existingFilesMap[file.path] = file.content;
         }
-      } else {
+      } else if (!chatOnly) {
         // Clear existing files for new project
         setGenerationFiles([]);
       }
 
-      addMessage(isEdit ? "Editing your code..." : "Generating code...", "system");
+      addMessage(chatOnly ? "Thinking..." : isEdit ? "Editing your code..." : "Generating code...", "system");
 
       // Find if there's a supabase connection message in chat history
-      const supabaseInfoMessage = chatMessages.find(m => m.metadata?.isSupabaseInfo && m.metadata?.supabaseConnection);
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-code`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            prompt,
-            scrapedContent,
-            isEdit,
-            existingFiles: isEdit ? existingFilesMap : undefined,
-            supabaseConnection: supabaseInfoMessage?.metadata?.supabaseConnection || supabaseConnection,
-            sessionId, // Pass session ID for SQL execution
-            imageData, // Pass image data for vision
-            context: {
-              sandboxId: sandbox.sandboxId,
-              sessionId,
-            },
-          }),
-        }
+      const supabaseInfoMessage = chatMessages.find(
+        (m) => m.metadata?.isSupabaseInfo && m.metadata?.supabaseConnection
       );
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-code`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({
+          prompt,
+          scrapedContent,
+          mode: chatOnly ? "chat" : "code",
+          isEdit,
+          existingFiles: isEdit ? existingFilesMap : undefined,
+          supabaseConnection: supabaseInfoMessage?.metadata?.supabaseConnection || supabaseConnection,
+          sessionId,
+          imageData,
+          context: {
+            sandboxId: sandbox?.sandboxId,
+            sessionId,
+          },
+        }),
+      });
 
       if (!response.ok) {
         throw new Error("Failed to generate code");
@@ -452,26 +535,46 @@ export default function GenerationPage() {
 
               if (data.type === "stream" && data.text) {
                 fullContent += data.text;
-                setStreamedCode(fullContent);
-                parseFilesFromCode(fullContent, isEdit);
+
+                if (chatOnly) {
+                  // Stream into the last AI message instead of the code panel
+                  setChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === chatStreamMessageId ? { ...m, content: fullContent } : m
+                    )
+                  );
+                } else {
+                  setStreamedCode(fullContent);
+                  parseFilesFromCode(fullContent, isEdit);
+                }
               } else if (data.type === "complete") {
                 fullContent = data.generatedCode || fullContent;
+
+                if (chatOnly) {
+                  setChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === chatStreamMessageId ? { ...m, content: fullContent.trim() } : m
+                    )
+                  );
+                  setIsGenerating(false);
+                  return;
+                }
+
                 setStreamedCode(fullContent);
-                
-                // Check if this is a chat response (no code, just conversation)
+
+                // Check if this is a chat response (legacy support)
                 const chatMatch = fullContent.match(/```chat\s*([\s\S]*?)```/);
                 if (chatMatch) {
-                  // This is a conversational response, not code generation
                   const chatResponse = chatMatch[1].trim();
                   addMessage(chatResponse, "ai");
                   setIsGenerating(false);
                   return;
                 }
-                
+
                 parseFilesFromCode(fullContent, isEdit);
 
                 // Apply code to sandbox (may create new one if expired)
-                const activeSandbox = await applyCodeToSandbox(sandbox, fullContent);
+                const activeSandbox = await applyCodeToSandbox(sandbox!, fullContent);
                 if (activeSandbox !== sandbox) {
                   sandbox = activeSandbox;
                 }
@@ -486,15 +589,25 @@ export default function GenerationPage() {
           }
         }
 
-        // Final flush (in case last line didn't end with newline)
         if (textBuffer.trim().startsWith("data: ")) {
           try {
             const data = JSON.parse(textBuffer.trim().slice(6));
             if (data?.type === "complete") {
               fullContent = data.generatedCode || fullContent;
+
+              if (chatOnly) {
+                setChatMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === chatStreamMessageId ? { ...m, content: fullContent.trim() } : m
+                  )
+                );
+                setIsGenerating(false);
+                return;
+              }
+
               setStreamedCode(fullContent);
-              
-              // Check for chat response in final flush too
+
+              // Check for chat response in final flush too (legacy support)
               const chatMatch = fullContent.match(/```chat\s*([\s\S]*?)```/);
               if (chatMatch) {
                 const chatResponse = chatMatch[1].trim();
@@ -502,9 +615,9 @@ export default function GenerationPage() {
                 setIsGenerating(false);
                 return;
               }
-              
+
               parseFilesFromCode(fullContent, isEdit);
-              const activeSandbox = await applyCodeToSandbox(sandbox, fullContent);
+              const activeSandbox = await applyCodeToSandbox(sandbox!, fullContent);
               if (activeSandbox !== sandbox) {
                 sandbox = activeSandbox;
               }
