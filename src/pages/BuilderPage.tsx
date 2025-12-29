@@ -71,22 +71,13 @@ export default function BuilderPage() {
             </p>
           </div>
           
-          <div className="flex gap-3">
-            <Button
+          <Button
               onClick={() => navigate("/generation")}
               className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
             >
               <Sparkles className="w-4 h-4 mr-2" />
               Generate New App
             </Button>
-            <Button
-              onClick={handleCreateProject}
-              className="bg-gradient-primary shadow-glow"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Project
-            </Button>
-          </div>
         </div>
 
         {/* Projects Grid */}
@@ -96,24 +87,24 @@ export default function BuilderPage() {
               <FolderOpen className="w-10 h-10 text-muted-foreground" />
             </div>
             <h2 className="text-xl font-semibold text-foreground mb-2">No projects yet</h2>
-            <p className="text-muted-foreground mb-6">Create your first project to get started</p>
-            <Button onClick={handleCreateProject} className="bg-gradient-primary">
+            <p className="text-muted-foreground mb-6">Generate your first app to get started</p>
+            <Button onClick={() => navigate("/generation")} className="bg-gradient-to-r from-purple-600 to-pink-600">
               <Sparkles className="w-4 h-4 mr-2" />
-              Create First Project
+              Generate First App
             </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* New Project Card */}
+            {/* Generate New App Card */}
             <button
-              onClick={handleCreateProject}
+              onClick={() => navigate("/generation")}
               className="glass-card rounded-xl p-6 border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center justify-center min-h-[200px] group"
             >
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                <Plus className="w-6 h-6 text-primary" />
+                <Sparkles className="w-6 h-6 text-primary" />
               </div>
-              <span className="font-medium text-foreground">New Project</span>
-              <span className="text-sm text-muted-foreground">Start building with AI</span>
+              <span className="font-medium text-foreground">Generate New App</span>
+              <span className="text-sm text-muted-foreground">Create with AI</span>
             </button>
 
             {/* Project Cards */}

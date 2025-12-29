@@ -6,7 +6,10 @@ import { GenerationSidebar } from "@/components/generation/GenerationSidebar";
 import { GenerationPreview } from "@/components/generation/GenerationPreview";
 import { GenerationCodePanel } from "@/components/generation/GenerationCodePanel";
 import { SupabaseConnectionModal } from "@/components/SupabaseConnectionModal";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
+import { Loader2, ArrowLeft, Send, Database, CheckCircle } from "lucide-react";
 
 interface SandboxData {
   sandboxId: string;
@@ -936,66 +939,200 @@ export default function GenerationPage() {
     );
   }
 
+  // Mobile view mode: chat or preview
+  const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
+
   return (
     <div className="h-screen flex bg-background overflow-hidden">
-      {/* Sidebar - Chat & Controls */}
-      <GenerationSidebar
-        chatMessages={chatMessages}
-        chatInput={chatInput}
-        setChatInput={setChatInput}
-        onSubmit={(imageData) => handleSubmit(chatInput, imageData)}
-        onKeyDown={handleKeyDown}
-        isLoading={loading || isGenerating || isScrapingUrl}
-        chatContainerRef={chatContainerRef}
-        onBack={() => navigate("/builder")}
-        urlScreenshot={urlScreenshot}
-        supabaseConnection={supabaseConnection}
-        onOpenSupabaseModal={() => setShowSupabaseModal(true)}
-      />
+      {/* Desktop Layout */}
+      <div className="hidden md:flex w-full">
+        {/* Sidebar - Chat & Controls */}
+        <GenerationSidebar
+          chatMessages={chatMessages}
+          chatInput={chatInput}
+          setChatInput={setChatInput}
+          onSubmit={(imageData) => handleSubmit(chatInput, imageData)}
+          onKeyDown={handleKeyDown}
+          isLoading={loading || isGenerating || isScrapingUrl}
+          chatContainerRef={chatContainerRef}
+          onBack={() => navigate("/builder")}
+          urlScreenshot={urlScreenshot}
+          supabaseConnection={supabaseConnection}
+          onOpenSupabaseModal={() => setShowSupabaseModal(true)}
+        />
 
-      {/* Supabase Connection Modal */}
-      <SupabaseConnectionModal
-        open={showSupabaseModal}
-        onOpenChange={setShowSupabaseModal}
-        projectId={sessionId}
-        onConnected={handleSupabaseConnected}
-      />
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col">
+          {/* Tabs */}
+          <div className="h-12 border-b border-border flex items-center px-4 gap-4 bg-card">
+            <button
+              onClick={() => setActiveTab("preview")}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeTab === "preview"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Preview
+            </button>
+            <button
+              onClick={() => setActiveTab("code")}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeTab === "code"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              Code
+            </button>
+            
+            {sandboxData && (
+              <span className="ml-auto text-xs text-muted-foreground">
+                Sandbox: {sandboxData.sandboxId}
+              </span>
+            )}
+          </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col">
-        {/* Tabs */}
-        <div className="h-12 border-b border-border flex items-center px-4 gap-4 bg-card">
-          <button
-            onClick={() => setActiveTab("preview")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === "preview"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            Preview
-          </button>
-          <button
-            onClick={() => setActiveTab("code")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === "code"
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            Code
-          </button>
+          {/* Content */}
+          <div className="flex-1 overflow-hidden">
+            {activeTab === "preview" ? (
+              <GenerationPreview
+                sandboxUrl={sandboxData?.url || null}
+                sandboxId={sandboxData?.sandboxId || null}
+                iframeRef={iframeRef}
+                isLoading={isGenerating || isScrapingUrl}
+                screenshot={urlScreenshot}
+                files={Object.fromEntries(generationFiles.map((f) => [f.path, f.content]))}
+              />
+            ) : (
+              <GenerationCodePanel
+                files={generationFiles}
+                streamedCode={streamedCode}
+                selectedFile={selectedFile}
+                onSelectFile={setSelectedFile}
+                isGenerating={isGenerating}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Layout - Separate Chat and Preview tabs */}
+      <div className="flex md:hidden flex-col w-full h-full">
+        {/* Mobile Header with Tabs */}
+        <div className="h-12 border-b border-border flex items-center justify-between px-2 bg-card">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/builder")}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
           
-          {sandboxData && (
-            <span className="ml-auto text-xs text-muted-foreground">
-              Sandbox: {sandboxData.sandboxId}
-            </span>
-          )}
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            <button
+              onClick={() => setMobileView("chat")}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                mobileView === "chat"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground"
+              }`}
+            >
+              Chat
+            </button>
+            <button
+              onClick={() => setMobileView("preview")}
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
+                mobileView === "preview"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground"
+              }`}
+            >
+              Preview
+            </button>
+          </div>
+          
+          <Button
+            variant={supabaseConnection?.connected ? "outline" : "ghost"}
+            size="icon"
+            onClick={() => setShowSupabaseModal(true)}
+          >
+            {supabaseConnection?.connected ? (
+              <CheckCircle className="w-4 h-4 text-green-500" />
+            ) : (
+              <Database className="w-4 h-4" />
+            )}
+          </Button>
         </div>
 
-        {/* Content */}
+        {/* Mobile Content */}
         <div className="flex-1 overflow-hidden">
-          {activeTab === "preview" ? (
+          {mobileView === "chat" ? (
+            <div className="flex flex-col h-full">
+              {/* Chat Messages */}
+              <ScrollArea className="flex-1">
+                <div ref={chatContainerRef} className="p-4 space-y-4">
+                  {chatMessages.map((message) => (
+                    <div
+                      key={message.id}
+                      className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+                          message.type === "user"
+                            ? "bg-primary text-primary-foreground"
+                            : message.type === "ai"
+                            ? "bg-muted text-foreground"
+                            : "bg-muted/50 text-muted-foreground text-sm"
+                        }`}
+                      >
+                        {message.metadata?.imageUrl && (
+                          <div className="mb-2 rounded-lg overflow-hidden">
+                            <img
+                              src={message.metadata.imageUrl}
+                              alt="Attached"
+                              className="max-w-full h-auto max-h-32 object-contain"
+                            />
+                          </div>
+                        )}
+                        <p className="whitespace-pre-wrap text-sm">{message.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {(loading || isGenerating || isScrapingUrl) && (
+                    <div className="flex justify-start">
+                      <div className="bg-muted/50 rounded-2xl px-4 py-2.5 flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Processing...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+
+              {/* Mobile Input */}
+              <div className="p-3 border-t border-border bg-card">
+                <div className="flex items-center gap-2">
+                  <Textarea
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Describe what to build..."
+                    className="min-h-[44px] max-h-[120px] resize-none bg-background text-sm"
+                    disabled={loading || isGenerating}
+                  />
+                  <Button
+                    size="icon"
+                    onClick={() => handleSubmit()}
+                    disabled={loading || isGenerating || !chatInput.trim()}
+                  >
+                    {loading || isGenerating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : (
             <GenerationPreview
               sandboxUrl={sandboxData?.url || null}
               sandboxId={sandboxData?.sandboxId || null}
@@ -1004,17 +1141,17 @@ export default function GenerationPage() {
               screenshot={urlScreenshot}
               files={Object.fromEntries(generationFiles.map((f) => [f.path, f.content]))}
             />
-          ) : (
-            <GenerationCodePanel
-              files={generationFiles}
-              streamedCode={streamedCode}
-              selectedFile={selectedFile}
-              onSelectFile={setSelectedFile}
-              isGenerating={isGenerating}
-            />
           )}
         </div>
       </div>
+
+      {/* Supabase Connection Modal */}
+      <SupabaseConnectionModal
+        open={showSupabaseModal}
+        onOpenChange={setShowSupabaseModal}
+        projectId={sessionId}
+        onConnected={handleSupabaseConnected}
+      />
     </div>
   );
 }
