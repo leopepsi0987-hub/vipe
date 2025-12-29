@@ -1008,6 +1008,163 @@ const supabaseFetch = async (table, options = {}) => {
 `;
 
     // ═══════════════════════════════════════════════════════════════════
+    // AI TOOLS DOCUMENTATION
+    // ═══════════════════════════════════════════════════════════════════
+    
+    const aiToolsDocumentation = `
+## 🛠️ AVAILABLE TOOLS
+
+You have access to the following tools to help you build and manage files:
+
+### FILE OPERATIONS:
+
+**lov-view** - Read file contents
+- Read any file in the project
+- Can specify line ranges for large files
+- Example: Read src/App.jsx to understand current structure
+
+**lov-write** - Create or overwrite files
+- Creates new files or replaces existing ones
+- Use for new files or complete rewrites
+- Always write complete file contents
+
+**lov-line-replace** - Edit specific parts of files
+- Surgically edit specific line ranges
+- Preferred over full file rewrites
+- Use ellipsis (...) for large unchanged sections
+
+**lov-delete** - Delete files
+- Remove files from the project
+- Use when cleaning up or refactoring
+
+**lov-rename** - Rename files
+- Move/rename files without recreating them
+- Preserves file history
+
+**lov-copy** - Copy files
+- Duplicate files or copy from uploads
+- Useful for user-uploaded assets
+
+**lov-download-to-repo** - Download from URL
+- Download images, assets from URLs
+- Save directly to project folders
+
+### SEARCH & DISCOVERY:
+
+**lov-search-files** - Regex code search
+- Search across project files with regex patterns
+- Filter by include/exclude patterns
+- Case sensitive option available
+
+**codebase_search** - Semantic code search
+- Find code by meaning, not exact text
+- Great for finding related functionality
+- Specify target directories for focused search
+
+**grep_search** - Fast exact text search
+- ripgrep-powered search
+- Best for exact matches
+- Escape special regex characters
+
+**file_search** - Fuzzy file name search
+- Find files by partial name
+- Returns up to 10 matches
+
+**list_dir** - List directory contents
+- Explore folder structure
+- Good for understanding project layout
+
+### DEPENDENCIES:
+
+**lov-add-dependency** - Install npm packages
+- Add any npm package to the project
+- Example: lov-add-dependency("lodash@latest")
+
+**lov-remove-dependency** - Uninstall packages
+- Remove packages from project
+- Cleans up package.json
+
+### DEBUGGING:
+
+**lov-read-console-logs** - Read browser console
+- See latest console.log outputs
+- Filter with search query
+- Useful for debugging errors
+
+**lov-read-network-requests** - View network activity
+- See API calls and responses
+- Debug fetch/API issues
+
+### EXTERNAL RESOURCES:
+
+**lov-fetch-website** - Scrape websites
+- Get markdown, HTML, or screenshots
+- Great for cloning designs
+
+**websearch--web_search** - Web search
+- Search the internet for info
+- Can filter by category (news, github, etc.)
+
+**document--parse_document** - Parse documents
+- Extract content from PDFs, Word docs, etc.
+- OCR on images in documents
+
+### SECRETS & SECURITY:
+
+**secrets--add_secret** - Add API keys
+- Securely store secrets
+- Available as environment variables
+
+**secrets--update_secret** - Update secrets
+- Change existing secret values
+
+**security--run_security_scan** - Security scan
+- Analyze for vulnerabilities
+- Check RLS policies
+
+### DATABASE (Supabase):
+
+**supabase--docs-search** - Search Supabase docs
+- Find documentation on auth, storage, etc.
+
+**supabase--docs-get** - Get full doc page
+- Fetch complete documentation by slug
+
+### IMAGES:
+
+**imagegen--generate_image** - Generate images
+- AI image generation from text
+- Models: flux.schnell (fast), flux.dev (quality)
+- Save to src/assets folder
+
+**imagegen--edit_image** - Edit/merge images
+- Apply AI edits to existing images
+- Merge multiple images together
+
+### ANALYTICS:
+
+**analytics--read_project_analytics** - View app usage
+- Read traffic and usage data
+- Specify date range and granularity
+
+### INTEGRATIONS:
+
+**stripe--enable_stripe** - Add Stripe
+- Enable payment processing
+- Prompts for API key
+
+## TOOL USAGE GUIDELINES:
+
+1. **Read before writing** - Always understand current code before editing
+2. **Parallel operations** - Run independent tool calls simultaneously
+3. **Minimal changes** - Prefer lov-line-replace over full file rewrites
+4. **Search first** - Use search tools to find relevant code
+5. **Download assets** - Use lov-download-to-repo for external images
+6. **Add dependencies** - Use lov-add-dependency for new packages
+`;
+
+
+    // ═══════════════════════════════════════════════════════════════════
     // OUTPUT FORMAT
     // ═══════════════════════════════════════════════════════════════════
     
@@ -1179,6 +1336,7 @@ ${threejsMastery}
 ${imageHandling}
 ${supabaseInstructions}
 ${componentPatterns}
+${aiToolsDocumentation}
 
 ## 🎯 EDIT MODE - SURGICAL PRECISION
 
@@ -1221,6 +1379,7 @@ ${threejsMastery}
 ${imageHandling}
 ${supabaseInstructions}
 ${componentPatterns}
+${aiToolsDocumentation}
 
 ${websiteContext ? `## 🌐 CLONING:\n${websiteContext}` : ""}
 ${fileContext}
