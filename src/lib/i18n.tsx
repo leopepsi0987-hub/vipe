@@ -240,6 +240,40 @@ export const translations = {
     sandboxReady: "Sandbox ready",
     sandboxExpired: "Sandbox expired",
     creatingSandbox: "Creating sandbox...",
+    
+    // Post Components
+    shareWhatBuilding: "Share what you're building...",
+    showcaseApp: "Showcase App",
+    post: "Post",
+    addContentOrMedia: "Please add some content or media",
+    failedUploadMedia: "Failed to upload media",
+    failedCreatePost: "Failed to create post",
+    postCreated: "Post created!",
+    selectProjectToShowcase: "Select a project to showcase",
+    selectImageOrVideo: "Please select an image or video file",
+    alreadyShared: "You've already shared this post",
+    postShared: "Post shared!",
+    postDeleted: "Post deleted",
+    writeComment: "Write a comment...",
+    appShowcase: "App Showcase",
+    remix: "Remix",
+    
+    // Builder Page Extended
+    createManageApps: "Create and manage your AI-powered applications",
+    noProjectsYet: "No projects yet",
+    generateFirstToStart: "Generate your first app to get started",
+    
+    // Visual Editor
+    visualEdit: "Visual Edit",
+    selectElement: "Select an element to edit",
+    applyChanges: "Apply Changes",
+    cancelEdit: "Cancel Edit",
+    
+    // AI Tools
+    imageGeneration: "Image Generation",
+    webSearchTool: "Web Search",
+    documentParsing: "Document Parsing",
+    codeExecution: "Code Execution",
   },
   dz: {
     // Auth
@@ -477,6 +511,40 @@ export const translations = {
     sandboxReady: "الساندبوكس جاهز",
     sandboxExpired: "انتهت صلاحية الساندبوكس",
     creatingSandbox: "راني ندير ساندبوكس...",
+    
+    // Post Components
+    shareWhatBuilding: "شارك واش راك تبني...",
+    showcaseApp: "عرض التطبيق",
+    post: "انشر",
+    addContentOrMedia: "زيد شي حاجة ولا صورة",
+    failedUploadMedia: "ما قدرناش نرفعو الميديا",
+    failedCreatePost: "ما قدرناش ننشرو",
+    postCreated: "تم النشر!",
+    selectProjectToShowcase: "اختار مشروع للعرض",
+    selectImageOrVideo: "اختار صورة ولا فيديو",
+    alreadyShared: "سبق لك شاركتي هذا البوست",
+    postShared: "تم المشاركة!",
+    postDeleted: "تم المسح",
+    writeComment: "كتب تعليق...",
+    appShowcase: "عرض التطبيق",
+    remix: "ريميكس",
+    
+    // Builder Page Extended
+    createManageApps: "دير وتحكم في تطبيقاتك بالذكاء الاصطناعي",
+    noProjectsYet: "ما كاين حتى مشروع",
+    generateFirstToStart: "ولّد أول تطبيق تاعك باش تبدأ",
+    
+    // Visual Editor
+    visualEdit: "تعديل مرئي",
+    selectElement: "اختار عنصر للتعديل",
+    applyChanges: "طبق التغييرات",
+    cancelEdit: "الغي التعديل",
+    
+    // AI Tools
+    imageGeneration: "توليد الصور",
+    webSearchTool: "بحث في الويب",
+    documentParsing: "قراءة المستندات",
+    codeExecution: "تنفيذ الكود",
   },
 };
 

@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { usePosts } from "@/hooks/usePosts";
 import { useProjects } from "@/hooks/useProjects";
 import { useProfile } from "@/hooks/useProfile";
+import { useI18n } from "@/lib/i18n";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,8 +15,10 @@ import {
 } from "@/components/ui/select";
 import { Image, Video, X, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export function CreatePost() {
+  const { t, isRTL } = useI18n();
   const { profile } = useProfile();
   const { createPost, uploadMedia } = usePosts();
   const { projects } = useProjects();
@@ -38,7 +41,7 @@ export function CreatePost() {
     const isVideo = file.type.startsWith("video/");
 
     if (!isImage && !isVideo) {
-      toast.error("Please select an image or video file");
+      toast.error(t("selectImageOrVideo"));
       return;
     }
 
@@ -58,7 +61,7 @@ export function CreatePost() {
 
   const handlePost = async () => {
     if (!content.trim() && !mediaFile) {
-      toast.error("Please add some content or media");
+      toast.error(t("addContentOrMedia"));
       return;
     }
 
@@ -68,7 +71,7 @@ export function CreatePost() {
     if (mediaFile) {
       const { url, error } = await uploadMedia(mediaFile);
       if (error) {
-        toast.error("Failed to upload media");
+        toast.error(t("failedUploadMedia"));
         setPosting(false);
         return;
       }
@@ -84,9 +87,9 @@ export function CreatePost() {
     );
 
     if (error) {
-      toast.error("Failed to create post");
+      toast.error(t("failedCreatePost"));
     } else {
-      toast.success("Post created!");
+      toast.success(t("postCreated"));
       setContent("");
       removeMedia();
       setIsAppShowcase(false);
@@ -97,7 +100,7 @@ export function CreatePost() {
   };
 
   return (
-    <div className="glass-card rounded-xl p-4 mb-6">
+    <div className={cn("glass-card rounded-xl p-4 mb-6", isRTL && "rtl")}>
       <div className="flex gap-3">
         <Avatar className="h-10 w-10">
           <AvatarImage src={profile?.avatar_url || undefined} />
@@ -110,7 +113,7 @@ export function CreatePost() {
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Share what you're building..."
+            placeholder={t("shareWhatBuilding")}
             className="min-h-[80px] resize-none bg-transparent border-none focus-visible:ring-0 p-0 text-foreground placeholder:text-muted-foreground"
           />
 
@@ -146,7 +149,7 @@ export function CreatePost() {
                 onValueChange={setSelectedProjectId}
               >
                 <SelectTrigger className="flex-1 h-8 bg-transparent border-none">
-                  <SelectValue placeholder="Select a project to showcase" />
+                  <SelectValue placeholder={t("selectProjectToShowcase")} />
                 </SelectTrigger>
                 <SelectContent>
                   {publishedProjects.map((project) => (
@@ -202,7 +205,7 @@ export function CreatePost() {
                   className="gap-1"
                 >
                   <Sparkles className="w-4 h-4" />
-                  Showcase App
+                  {t("showcaseApp")}
                 </Button>
               )}
             </div>
@@ -215,7 +218,7 @@ export function CreatePost() {
               {posting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                "Post"
+                t("post")
               )}
             </Button>
           </div>

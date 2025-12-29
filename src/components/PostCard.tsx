@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PostWithDetails, usePosts } from "@/hooks/usePosts";
 import { useAuth } from "@/hooks/useAuth";
+import { useI18n } from "@/lib/i18n";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, onRemix }: PostCardProps) {
+  const { t, isRTL } = useI18n();
   const { user } = useAuth();
   const { likePost, unlikePost, addComment, deleteComment, sharePost, deletePost } = usePosts();
   const [showComments, setShowComments] = useState(false);
@@ -46,12 +48,12 @@ export function PostCard({ post, onRemix }: PostCardProps) {
 
   const handleShare = async () => {
     if (post.is_shared) {
-      toast.info("You've already shared this post");
+      toast.info(t("alreadyShared"));
       return;
     }
     const { error } = await sharePost(post.id);
     if (!error) {
-      toast.success("Post shared!");
+      toast.success(t("postShared"));
     }
   };
 
@@ -68,7 +70,7 @@ export function PostCard({ post, onRemix }: PostCardProps) {
   const handleDeletePost = async () => {
     const { error } = await deletePost(post.id);
     if (!error) {
-      toast.success("Post deleted");
+      toast.success(t("postDeleted"));
     }
   };
 
@@ -79,7 +81,7 @@ export function PostCard({ post, onRemix }: PostCardProps) {
   };
 
   return (
-    <div className="glass-card rounded-xl overflow-hidden">
+    <div className={cn("glass-card rounded-xl overflow-hidden", isRTL && "rtl")}>
       {/* Header */}
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
@@ -107,7 +109,7 @@ export function PostCard({ post, onRemix }: PostCardProps) {
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={handleDeletePost} className="text-destructive">
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete
+                {t("delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -159,14 +161,14 @@ export function PostCard({ post, onRemix }: PostCardProps) {
         <div className="px-4 pb-3">
           <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 border border-primary/20">
             <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm text-primary font-medium">App Showcase</span>
+            <span className="text-sm text-primary font-medium">{t("appShowcase")}</span>
             <Button
               variant="outline"
               size="sm"
               className="ml-auto"
               onClick={handleRemix}
             >
-              Remix
+              {t("remix")}
             </Button>
           </div>
         </div>
@@ -213,7 +215,7 @@ export function PostCard({ post, onRemix }: PostCardProps) {
             <Input
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Write a comment..."
+              placeholder={t("writeComment")}
               className="flex-1 glass-input"
               onKeyPress={(e) => {
                 if (e.key === "Enter") handleAddComment();
