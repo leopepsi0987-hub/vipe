@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/MainLayout";
 import { useProjects } from "@/hooks/useProjects";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -24,12 +25,13 @@ import { cn } from "@/lib/utils";
 
 export default function BuilderPage() {
   const navigate = useNavigate();
+  const { t, isRTL } = useI18n();
   const { projects, loading, createProject, deleteProject } = useProjects();
 
   const handleCreateProject = async () => {
     const project = await createProject();
     if (project) {
-      toast.success("Project created!");
+      toast.success(t("projectCreated"));
       navigate(`/project/${project.id}`);
     }
   };
@@ -38,7 +40,7 @@ export default function BuilderPage() {
     e.stopPropagation();
     const success = await deleteProject(id);
     if (success) {
-      toast.success("Project deleted");
+      toast.success(t("projectDeleted"));
     }
   };
 
@@ -58,26 +60,26 @@ export default function BuilderPage() {
 
   return (
     <MainLayout>
-      <div className="container mx-auto px-4 py-8">
+      <div className={cn("container mx-auto px-4 py-8", isRTL && "rtl")}>
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
               <Rocket className="w-8 h-8 text-primary" />
-              Builder
+              {t("builder")}
             </h1>
             <p className="text-muted-foreground mt-1">
-              Create and manage your AI-powered applications
+              {t("createManageApps")}
             </p>
           </div>
           
           <Button
-              onClick={() => navigate("/generation")}
-              className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Generate New App
-            </Button>
+            onClick={() => navigate("/generation")}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
+          >
+            <Sparkles className="w-4 h-4 mr-2" />
+            {t("generateNewApp")}
+          </Button>
         </div>
 
         {/* Projects Grid */}
@@ -86,11 +88,11 @@ export default function BuilderPage() {
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-muted/30 mb-6">
               <FolderOpen className="w-10 h-10 text-muted-foreground" />
             </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">No projects yet</h2>
-            <p className="text-muted-foreground mb-6">Generate your first app to get started</p>
+            <h2 className="text-xl font-semibold text-foreground mb-2">{t("noProjectsYet")}</h2>
+            <p className="text-muted-foreground mb-6">{t("generateFirstToStart")}</p>
             <Button onClick={() => navigate("/generation")} className="bg-gradient-to-r from-purple-600 to-pink-600">
               <Sparkles className="w-4 h-4 mr-2" />
-              Generate First App
+              {t("generateFirstApp")}
             </Button>
           </div>
         ) : (
@@ -103,8 +105,8 @@ export default function BuilderPage() {
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                 <Sparkles className="w-6 h-6 text-primary" />
               </div>
-              <span className="font-medium text-foreground">Generate New App</span>
-              <span className="text-sm text-muted-foreground">Create with AI</span>
+              <span className="font-medium text-foreground">{t("generateNewApp")}</span>
+              <span className="text-sm text-muted-foreground">{t("createWithAI")}</span>
             </button>
 
             {/* Project Cards */}
@@ -118,7 +120,7 @@ export default function BuilderPage() {
                 {project.is_published && (
                   <div className="absolute top-4 right-12 flex items-center gap-1 px-2 py-1 rounded-full bg-green-500/20 text-green-400 text-xs">
                     <Globe className="w-3 h-3" />
-                    Published
+                    {t("published")}
                   </div>
                 )}
 
@@ -140,7 +142,7 @@ export default function BuilderPage() {
                       className="text-red-400"
                     >
                       <Trash2 className="w-4 h-4 mr-2" />
-                      Delete
+                      {t("delete")}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
