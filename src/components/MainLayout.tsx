@@ -21,9 +21,11 @@ import {
   Settings,
   Menu,
   X,
+  Globe,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
+import { LanguageToggle } from "@/lib/i18n";
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -86,6 +88,9 @@ export function MainLayout({ children }: MainLayoutProps) {
 
           {/* User Menu */}
           <div className="flex items-center gap-2">
+            {/* Language Toggle */}
+            <LanguageToggle className="hidden sm:flex" />
+            
             {/* Mobile menu button */}
             <Button
               variant="ghost"
@@ -166,6 +171,11 @@ export function MainLayout({ children }: MainLayoutProps) {
                   </NavLink>
                 );
               })}
+              
+              {/* Language Toggle for Mobile */}
+              <div className="mt-2 pt-2 border-t border-border/40">
+                <LanguageToggle className="w-full justify-center" />
+              </div>
             </div>
           </nav>
         )}
