@@ -280,54 +280,71 @@ export default function GenerationPage() {
     const t = (p || "").trim().toLowerCase();
     if (!t) return true;
 
-    // Strong "build" indicators
+    // FIRST CHECK: Strong "chat" indicators - these ALWAYS mean chat
+    const strongChatPatterns = [
+      /^(hi|hello|hey|yo|sup|howdy|hola)\b/,
+      /\?$/,  // Ends with a question mark = it's a question
+      /is it (safe|ok|okay|good|fine)/,
+      /can i (send|give|share|use)/,
+      /should i/,
+      /what (is|are|do|does|should|can|will)/,
+      /how (do|does|can|should|to)/,
+      /who (are|is)/,
+      /why (do|does|is|are|should)/,
+      /\bapi\s*key\b/,
+      /\bsafe\b/,
+      /\bthanks?\b/,
+      /\bthank you\b/,
+      /\bwhat do you think\b/,
+      /\bexplain\b/,
+      /\bhelp me understand\b/,
+      /\bi have a question\b/,
+      /\bquestion\b/,
+    ];
+    if (strongChatPatterns.some((pattern) => pattern.test(t))) return true;
+
+    // Strong "build" indicators - explicit commands to create
     const buildKeywords = [
-      "build",
-      "create",
-      "make",
-      "design",
-      "implement",
-      "code",
-      "add ",
-      "remove ",
-      "change ",
-      "update ",
-      "fix ",
-      "edit ",
-      "clone",
+      "build me",
+      "create a",
+      "create an",
+      "make me",
+      "make a",
+      "make an",
+      "design a",
+      "design an",
+      "implement a",
+      "implement an",
+      "code a",
+      "code an",
+      "add a ",
+      "add an ",
+      "add the ",
+      "remove the",
+      "change the",
+      "update the",
+      "fix the",
+      "edit the",
+      "clone this",
+      "clone the",
       "replicate",
       "landing page",
       "dashboard",
-      "react",
-      "tailwind",
-      "three",
-      "3d",
-      "shader",
+      "website",
+      "web app",
+      "application",
     ];
     if (buildKeywords.some((k) => t.includes(k))) return false;
 
-    // Greetings / small talk / questions
-    const chatKeywords = [
-      "hi",
-      "hello",
-      "hey",
-      "yo",
-      "sup",
-      "how are you",
-      "who are you",
-      "what can you do",
-      "thanks",
-      "thank you",
-      "is it safe",
-      "api key",
-      "apikey",
-      "gemini",
-      "openai",
-    ];
+    // If it's short (under 100 chars) and no explicit build command, treat as chat
+    if (t.length <= 100) return true;
 
-    // If it's short and not explicitly a build request, treat as chat.
-    if (t.length <= 140) return true;
-    return chatKeywords.some((k) => t.includes(k));
+    // Default: if nothing matched, check for generic build words as last resort
+    const genericBuildWords = ["build", "create", "make", "design", "code"];
+    if (genericBuildWords.some((k) => t.includes(k))) return false;
+
+    // Default to chat for anything ambiguous
+    return true;
   };
 
   const createSandbox = async (): Promise<SandboxData | null> => {
