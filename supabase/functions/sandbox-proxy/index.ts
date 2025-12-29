@@ -150,7 +150,9 @@ serve(async (req) => {
     }
 
     // Build proxy URL for rewriting
-    const proxyBase = `${url.origin}${url.pathname}?url=`;
+    // Force https to avoid mixed-content blocks inside iframes
+    const proxyOrigin = `https://${url.host}`;
+    const proxyBase = `${proxyOrigin}${url.pathname}?url=`;
     const baseUrl = new URL(targetUrl);
 
     // Only process HTML content
