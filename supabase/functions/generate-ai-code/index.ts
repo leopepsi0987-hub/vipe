@@ -993,29 +993,44 @@ const supabaseFetch = async (table, options = {}) => {
     // ═══════════════════════════════════════════════════════════════════
     
     const outputFormat = `
-## 📁 OUTPUT FORMAT - EXTREMELY CRITICAL!
-
-### FOR CODE BUILDS (when building/creating/editing):
+## 📋 OUTPUT FORMAT (CRITICAL - FOLLOW EXACTLY!)
 
 You MUST use this EXACT structure with special tags:
 
 1. **START with a <plan> tag** - Brief summary of what you're going to build (1-3 sentences)
-2. **THEN output <file> tags** - All your code files
-3. **END with a <summary> tag** - What you created and any tips (1-3 sentences)
+2. **THEN output <tasks> tag** - List of tasks you'll do (JSON array)
+3. **Update tasks as you work** - Use <task-update> tags to mark progress
+4. **Output <file> tags** - All your code files with <file-action> before each
+5. **END with a <summary> tag** - What you created and any tips (1-3 sentences)
 
 ### EXAMPLE (follow this EXACTLY):
 
 <plan>I'm going to create a stunning glassmorphism dashboard with animated cards, a sidebar navigation, and smooth hover effects.</plan>
 
+<tasks>[
+  {"id": "1", "title": "Setup design system", "status": "pending"},
+  {"id": "2", "title": "Create main layout", "status": "pending"},
+  {"id": "3", "title": "Add animations", "status": "pending"},
+  {"id": "4", "title": "Style components", "status": "pending"}
+]</tasks>
+
+<task-update id="1" status="done" />
+<file-action type="editing" path="src/index.css" />
+<file path="src/index.css">
+/* Your styles */
+</file>
+
+<task-update id="2" status="in-progress" />
+<file-action type="editing" path="src/App.jsx" />
 <file path="src/App.jsx">
 import React from 'react';
 // ... your code
 export default App;
 </file>
+<task-update id="2" status="done" />
 
-<file path="src/index.css">
-/* Your styles */
-</file>
+<task-update id="3" status="done" />
+<task-update id="4" status="done" />
 
 <summary>Done! I've created a modern dashboard with glassmorphism cards and smooth animations. Try hovering over the cards to see the effects!</summary>
 
@@ -1024,17 +1039,17 @@ export default App;
 ### CRITICAL RULES:
 
 1. **<plan>** tag MUST come FIRST - explain what you'll build
-2. **<file>** tags contain ALL the code - no text between files
-3. **<summary>** tag MUST come LAST - explain what you built
-4. **NO other text** outside these tags!
+2. **<tasks>** tag defines your task list as JSON array
+3. **<task-update>** tags mark task progress (status: "pending", "in-progress", "done")
+4. **<file-action>** before each file (type: "reading" or "editing", path: filename)
+5. **<file>** tags contain ALL the code
+6. **<summary>** tag MUST come LAST - explain what you built
+7. **NO other text** outside these tags!
 
-❌ WRONG:
-Of course! Let me build that for you...
-<file path="src/App.jsx">
-
-✅ CORRECT:
-<plan>I'll create an amazing landing page with...</plan>
-<file path="src/App.jsx">
+Task statuses:
+- "pending" = Not started (empty circle ○)
+- "in-progress" = Currently working (spinning ◌)
+- "done" = Completed (checkmark ✓)
 
 ---
 
