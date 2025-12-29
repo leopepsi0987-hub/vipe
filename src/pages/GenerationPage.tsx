@@ -430,6 +430,9 @@ export default function GenerationPage() {
   const generateCode = async (prompt: string, scrapedContent?: any, forceNewProject = false, imageData?: string) => {
     const chatOnly = isChatOnlyPrompt(prompt) && !scrapedContent && !forceNewProject;
 
+    // Track if we've shown the plan message (to avoid duplicates)
+    let planShown = false;
+
     setIsGenerating(true);
     if (!chatOnly) {
       setStreamedCode("");
@@ -561,8 +564,20 @@ export default function GenerationPage() {
                     )
                   );
                 } else {
-                  setStreamedCode(fullContent);
-                  parseFilesFromCode(fullContent, isEdit);
+                  // Extract and display <plan> tag content as a chat message
+                  const planMatch = fullContent.match(/<plan>([\s\S]*?)<\/plan>/);
+                  if (planMatch && !planShown) {
+                    planShown = true;
+                    addMessage(planMatch[1].trim(), "ai");
+                  }
+                  
+                  // Only show code in the code panel (strip plan/summary)
+                  const codeOnly = fullContent
+                    .replace(/<plan>[\s\S]*?<\/plan>/g, "")
+                    .replace(/<summary>[\s\S]*?<\/summary>/g, "")
+                    .trim();
+                  setStreamedCode(codeOnly);
+                  parseFilesFromCode(codeOnly, isEdit);
                 }
               } else if (data.type === "complete") {
                 fullContent = data.generatedCode || fullContent;
@@ -577,7 +592,12 @@ export default function GenerationPage() {
                   return;
                 }
 
-                setStreamedCode(fullContent);
+                // Strip plan/summary from code display
+                const codeOnly = fullContent
+                  .replace(/<plan>[\s\S]*?<\/plan>/g, "")
+                  .replace(/<summary>[\s\S]*?<\/summary>/g, "")
+                  .trim();
+                setStreamedCode(codeOnly);
 
                 // Check if this is a chat response (legacy support)
                 const chatMatch = fullContent.match(/```chat\s*([\s\S]*?)```/);
@@ -588,10 +608,10 @@ export default function GenerationPage() {
                   return;
                 }
 
-                parseFilesFromCode(fullContent, isEdit);
+                parseFilesFromCode(codeOnly, isEdit);
 
                 // Apply code to sandbox (may create new one if expired)
-                const activeSandbox = await applyCodeToSandbox(sandbox!, fullContent);
+                const activeSandbox = await applyCodeToSandbox(sandbox!, codeOnly);
                 if (activeSandbox !== sandbox) {
                   sandbox = activeSandbox;
                 }
@@ -622,7 +642,12 @@ export default function GenerationPage() {
                 return;
               }
 
-              setStreamedCode(fullContent);
+              // Strip plan/summary from code display
+              const codeOnly = fullContent
+                .replace(/<plan>[\s\S]*?<\/plan>/g, "")
+                .replace(/<summary>[\s\S]*?<\/summary>/g, "")
+                .trim();
+              setStreamedCode(codeOnly);
 
               // Check for chat response in final flush too (legacy support)
               const chatMatch = fullContent.match(/```chat\s*([\s\S]*?)```/);
@@ -633,8 +658,8 @@ export default function GenerationPage() {
                 return;
               }
 
-              parseFilesFromCode(fullContent, isEdit);
-              const activeSandbox = await applyCodeToSandbox(sandbox!, fullContent);
+              parseFilesFromCode(codeOnly, isEdit);
+              const activeSandbox = await applyCodeToSandbox(sandbox!, codeOnly);
               if (activeSandbox !== sandbox) {
                 sandbox = activeSandbox;
               }
@@ -645,7 +670,13 @@ export default function GenerationPage() {
         }
       }
 
-      addMessage(isEdit ? "Edit applied!" : "Code generated and applied!", "ai", {
+      // Extract summary from the full content, or use a default message
+      const summaryMatch = fullContent.match(/<summary>([\s\S]*?)<\/summary>/);
+      const summaryText = summaryMatch 
+        ? summaryMatch[1].trim() 
+        : (isEdit ? "Edit applied!" : "Code generated and applied!");
+      
+      addMessage(summaryText, "ai", {
         appliedFiles: generationFiles.map((f) => f.path),
       });
 

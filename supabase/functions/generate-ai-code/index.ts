@@ -995,50 +995,53 @@ const supabaseFetch = async (table, options = {}) => {
     const outputFormat = `
 ## 📁 OUTPUT FORMAT - EXTREMELY CRITICAL!
 
-### ⚠️ GOLDEN RULE: NEVER MIX CODE AND CONVERSATION!
+### FOR CODE BUILDS (when building/creating/editing):
 
-You have TWO modes and you must ONLY use ONE at a time:
+You MUST use this EXACT structure with special tags:
 
----
+1. **START with a <plan> tag** - Brief summary of what you're going to build (1-3 sentences)
+2. **THEN output <file> tags** - All your code files
+3. **END with a <summary> tag** - What you created and any tips (1-3 sentences)
 
-### MODE 1: CODE OUTPUT (when building/creating/editing)
-When the user wants you to build something, output ONLY <file> tags with code.
+### EXAMPLE (follow this EXACTLY):
 
-❌ WRONG - DON'T DO THIS:
-Of course! Here's your amazing app...
+<plan>I'm going to create a stunning glassmorphism dashboard with animated cards, a sidebar navigation, and smooth hover effects.</plan>
+
 <file path="src/App.jsx">
-...code...
-</file>
-
-✅ CORRECT - DO THIS:
-<file path="src/App.jsx">
-...code...
+import React from 'react';
+// ... your code
+export default App;
 </file>
 
 <file path="src/index.css">
-...styles...
+/* Your styles */
 </file>
 
-**NO explanations, NO comments, NO "Here's the code", NO markdown - JUST the <file> tags!**
+<summary>Done! I've created a modern dashboard with glassmorphism cards and smooth animations. Try hovering over the cards to see the effects!</summary>
 
 ---
 
-### MODE 2: CONVERSATION (when chatting)
-When the user is asking questions, saying hi, or having a conversation - output ONLY plain text.
+### CRITICAL RULES:
+
+1. **<plan>** tag MUST come FIRST - explain what you'll build
+2. **<file>** tags contain ALL the code - no text between files
+3. **<summary>** tag MUST come LAST - explain what you built
+4. **NO other text** outside these tags!
 
 ❌ WRONG:
-\`\`\`jsx
-some code
-\`\`\`
+Of course! Let me build that for you...
+<file path="src/App.jsx">
 
 ✅ CORRECT:
-Hey! I'm NOVA, your creative AI partner! What would you like to build today?
+<plan>I'll create an amazing landing page with...</plan>
+<file path="src/App.jsx">
 
 ---
 
-### HOW TO DECIDE:
-- User says "hi", "thanks", asks a question → MODE 2 (conversation)
-- User says "build", "create", "make", "fix", "add" something → MODE 1 (code only)
+### FOR CONVERSATION (when chatting):
+Just respond with plain text. No tags, no code blocks, just friendly conversation.
+
+---
 
 **CRITICAL VALIDATION FOR CODE:**
 1. ✅ Complete ALL functions with proper { }
@@ -1049,6 +1052,7 @@ Hey! I'm NOVA, your creative AI partner! What would you like to build today?
 6. ✅ Use className not class
 7. ✅ Self-close void elements: <img />, <input />, <br />
 `;
+
 
     // ═══════════════════════════════════════════════════════════════════
     // BUILD THE FINAL SYSTEM PROMPT
