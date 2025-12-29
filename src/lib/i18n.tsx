@@ -126,6 +126,9 @@ export const translations = {
     posts: "Posts",
     followers: "Followers",
     following: "Following",
+    joined: "Joined",
+    publishedProjects: "Published Projects",
+    noPublishedProjects: "No published projects yet",
     
     // Social
     like: "Like",
@@ -360,6 +363,9 @@ export const translations = {
     posts: "المنشورات",
     followers: "المتابعين",
     following: "نتابع",
+    joined: "انضم في",
+    publishedProjects: "المشاريع المنشورة",
+    noPublishedProjects: "ما كاين حتى مشروع منشور",
     
     // Social
     like: "عجبني",
