@@ -18,7 +18,7 @@ serve(async (req) => {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
-    // Determine if this is an edit request (has existing files or explicit isEdit flag)
+    // Determine if this is an edit request
     const hasExistingFiles = existingFiles && Object.keys(existingFiles).length > 0;
     const editMode = isEdit || hasExistingFiles;
     const hasImage = !!imageData;
@@ -49,21 +49,13 @@ The user has connected their Supabase database! You can now use Supabase for thi
 **Supabase Project URL**: ${supabaseConnection.url}
 **Connection Method**: ${supabaseConnection.connectedVia || "manual"}
 ${supabaseConnection.supabaseProjectId ? `**Project ID**: ${supabaseConnection.supabaseProjectId}` : ""}
-
-### IMPORTANT SUPABASE GUIDELINES:
-1. Import the Supabase client using: \`import { supabase } from './lib/supabase'\`
-2. Create a supabase.js file in src/lib/ that initializes the client
-3. Use Supabase for authentication, database operations, and storage
-4. Implement RLS-friendly queries that respect user permissions
-5. Use supabase.auth for login/signup functionality when needed
-6. The anon key should be used client-side (it's safe to expose)
 `;
     }
 
     // Build file context from existing files
     let fileContext = "";
     if (hasExistingFiles) {
-      fileContext = "\n\n## CURRENT PROJECT FILES (YOU MUST PRESERVE THESE AND ONLY MODIFY WHAT'S NEEDED):\n";
+      fileContext = "\n\n## CURRENT PROJECT FILES (PRESERVE AND MODIFY ONLY WHAT'S NEEDED):\n";
       for (const [path, content] of Object.entries(existingFiles)) {
         fileContext += `\n### ${path}\n\`\`\`\n${content}\n\`\`\`\n`;
       }
@@ -74,476 +66,493 @@ ${supabaseConnection.supabaseProjectId ? `**Project ID**: ${supabaseConnection.s
       }
     }
 
-    let systemPrompt: string;
-
-    // IMPORTANT: Sandbox environment constraints
+    // ========== CORE CAPABILITIES ==========
+    
     const sandboxConstraints = `
-## ⚠️ CRITICAL SANDBOX CONSTRAINTS:
+## ⚠️ SANDBOX ENVIRONMENT:
 
-This app runs in a browser sandbox with ONLY these libraries available:
+Available libraries in the sandbox:
 - React (import from 'react')
-- ReactDOM (import from 'react-dom/client')
+- ReactDOM (import from 'react-dom/client')  
 - Tailwind CSS (via CDN, already loaded)
+- THREE.js (available as window.THREE)
+- GSAP (available as window.gsap)
 
-### ❌ DO NOT USE THESE (they will cause errors):
-- react-router-dom (NO ROUTING LIBRARY)
-- axios, lodash, or any npm packages
-- @supabase/supabase-js (DON'T import it!)
-- Context providers from external packages
-- Any imports from packages not listed above
+### ❌ DO NOT USE:
+- react-router-dom (use state-based navigation instead)
+- External npm packages not listed above
+- @supabase/supabase-js (use REST API instead)
 
-### ✅ INSTEAD, USE THESE PATTERNS:
-
-**For navigation/routing:** Use simple state-based navigation:
-\`\`\`jsx
-const [page, setPage] = useState('home');
-// Then conditionally render: {page === 'home' && <Home />}
-\`\`\`
-
-**For HTTP requests:** Use native fetch()
-
-**For state management:** Use React useState/useReducer only
-
-**For icons:** Use emoji or inline SVG, NOT icon libraries
+### ✅ USE THESE PATTERNS:
+- State-based navigation: \`const [page, setPage] = useState('home')\`
+- Native fetch() for HTTP requests
+- React useState/useReducer for state
+- Emoji or inline SVG for icons
+- window.THREE for Three.js
+- window.gsap for GSAP animations
 `;
 
-    // Supabase instructions when connected
-    const getSupabaseInstructions = (conn: any, sessId: string) => {
-      if (!conn?.url) return '';
-      
-      const hasAnonKey = !!conn?.anonKey;
-      const hasServiceRole = !!conn?.serviceRoleKey;
-      const projectId = conn?.supabaseProjectId || '';
+    // ========== 3D & ADVANCED GRAPHICS ==========
+    
+    const advancedGraphicsInstructions = `
+## 🎮 3D GRAPHICS & ADVANCED EFFECTS (THREE.JS)
+
+**THREE.js is available as window.THREE!** When user asks for 3D, portals, vortex, particles, space effects, etc:
+
+### Basic Three.js Setup:
+\`\`\`jsx
+import React, { useEffect, useRef } from 'react';
+
+function ThreeScene() {
+  const containerRef = useRef(null);
+  
+  useEffect(() => {
+    const THREE = window.THREE;
+    if (!THREE || !containerRef.current) return;
+    
+    // Scene setup
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    containerRef.current.appendChild(renderer.domElement);
+    
+    // Your 3D objects here
+    
+    // Animation loop
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+    animate();
+    
+    // Cleanup
+    return () => {
+      renderer.dispose();
+      containerRef.current?.removeChild(renderer.domElement);
+    };
+  }, []);
+  
+  return <div ref={containerRef} className="fixed inset-0 -z-10" />;
+}
+\`\`\`
+
+### 🌀 PORTAL / VORTEX EFFECT:
+\`\`\`jsx
+// Create swirling portal with particles
+const portalGeometry = new THREE.TorusGeometry(2, 0.5, 16, 100);
+const portalMaterial = new THREE.MeshBasicMaterial({
+  color: 0x00ffff,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.8
+});
+const portal = new THREE.Mesh(portalGeometry, portalMaterial);
+scene.add(portal);
+
+// Particle system
+const particleCount = 5000;
+const particles = new THREE.BufferGeometry();
+const positions = new Float32Array(particleCount * 3);
+for (let i = 0; i < particleCount * 3; i += 3) {
+  const theta = Math.random() * Math.PI * 2;
+  const radius = Math.random() * 5;
+  positions[i] = Math.cos(theta) * radius;
+  positions[i + 1] = (Math.random() - 0.5) * 10;
+  positions[i + 2] = Math.sin(theta) * radius;
+}
+particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+const particleMaterial = new THREE.PointsMaterial({
+  color: 0xff00ff,
+  size: 0.05,
+  transparent: true,
+  opacity: 0.8,
+  blending: THREE.AdditiveBlending
+});
+const particleSystem = new THREE.Points(particles, particleMaterial);
+scene.add(particleSystem);
+
+// Animate
+function animate() {
+  portal.rotation.z += 0.02;
+  particleSystem.rotation.y += 0.005;
+  // Move particles towards center
+  const pos = particles.attributes.position.array;
+  for (let i = 0; i < pos.length; i += 3) {
+    pos[i + 1] -= 0.05;
+    if (pos[i + 1] < -5) pos[i + 1] = 5;
+  }
+  particles.attributes.position.needsUpdate = true;
+}
+\`\`\`
+
+### 🌌 SHADER EFFECTS (Custom Materials):
+\`\`\`jsx
+// Glitch/distortion shader
+const glitchMaterial = new THREE.ShaderMaterial({
+  uniforms: {
+    time: { value: 0 },
+    resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+  },
+  vertexShader: \`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  \`,
+  fragmentShader: \`
+    uniform float time;
+    varying vec2 vUv;
+    void main() {
+      vec2 uv = vUv;
+      float glitch = sin(uv.y * 50.0 + time * 10.0) * 0.01;
+      uv.x += glitch;
+      vec3 color = vec3(0.0, 1.0, 1.0) * (1.0 - length(uv - 0.5));
+      gl_FragColor = vec4(color, 1.0);
+    }
+  \`
+});
+\`\`\`
+
+### ⚡ NEON / GLOW EFFECTS:
+\`\`\`jsx
+// Bloom/glow effect with post-processing (simplified)
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.5;
+
+// Glowing material
+const glowMaterial = new THREE.MeshStandardMaterial({
+  color: 0x00ffff,
+  emissive: 0x00ffff,
+  emissiveIntensity: 2,
+  metalness: 0.5,
+  roughness: 0.2
+});
+
+// Add fog for atmosphere
+scene.fog = new THREE.FogExp2(0x000000, 0.02);
+scene.background = new THREE.Color(0x000000);
+
+// Add ambient and point lights for neon effect
+const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+scene.add(ambientLight);
+
+const pointLight = new THREE.PointLight(0x00ffff, 2, 50);
+pointLight.position.set(0, 0, 5);
+scene.add(pointLight);
+\`\`\`
+
+### 🖱️ MOUSE INTERACTION:
+\`\`\`jsx
+const mouse = new THREE.Vector2();
+const raycaster = new THREE.Raycaster();
+
+window.addEventListener('mousemove', (event) => {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  
+  // Rotate camera based on mouse
+  camera.position.x = mouse.x * 2;
+  camera.position.y = mouse.y * 2;
+  camera.lookAt(0, 0, 0);
+});
+\`\`\`
+
+### 🎬 GSAP ANIMATIONS:
+\`\`\`jsx
+// GSAP for DOM animations
+const gsap = window.gsap;
+
+// Animate element
+gsap.to('.hero-title', {
+  y: 0,
+  opacity: 1,
+  duration: 1.5,
+  ease: 'power4.out'
+});
+
+// Scroll-triggered animations
+gsap.to('.section', {
+  scrollTrigger: '.section',
+  opacity: 1,
+  y: 0,
+  stagger: 0.2
+});
+
+// Timeline for sequences
+const tl = gsap.timeline();
+tl.from('.logo', { scale: 0, duration: 0.8, ease: 'back.out' })
+  .from('.nav-item', { x: -50, opacity: 0, stagger: 0.1 })
+  .from('.hero-text', { y: 100, opacity: 0 });
+\`\`\`
+`;
+
+    // ========== IMAGE HANDLING ==========
+    
+    const imageInstructions = hasImage ? `
+## 🖼️ IMAGE ATTACHED - CRITICAL INSTRUCTIONS!
+
+The user has attached an image. You MUST analyze it carefully:
+
+### IF THE IMAGE IS A UI/DESIGN REFERENCE:
+1. Extract EXACT colors (use mental color picker)
+2. Copy the typography exactly
+3. Replicate the layout pixel-perfectly
+4. Include ALL visible components
+5. Match the aesthetic (minimalist, glassmorphism, brutalist, etc.)
+
+### IF USER SAYS "PUT IT AS BACKGROUND" OR "USE THIS IMAGE":
+**YOU MUST OUTPUT AN IMAGE FILE!**
+\`\`\`
+<file path="public/background.jpg">
+{{USER_UPLOADED_IMAGE}}
+</file>
+\`\`\`
+
+Then reference it in your CSS/JSX:
+\`\`\`jsx
+// As inline style
+<div style={{ backgroundImage: 'url(/background.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+
+// Or with Tailwind
+<div className="bg-[url('/background.jpg')] bg-cover bg-center">
+
+// Or as an img element
+<img src="/background.jpg" alt="Background" className="absolute inset-0 w-full h-full object-cover -z-10" />
+\`\`\`
+
+### IF IT'S AN ERROR SCREENSHOT:
+1. Identify the error message
+2. Determine the cause
+3. Fix the issue in your code
+
+### IF IT'S ANOTHER APP TO CLONE:
+1. Study the design language
+2. Note all components visible
+3. Copy the styling approach
+4. Implement EXACTLY what you see
+` : `
+## 🖼️ IMAGE HANDLING:
+
+When user uploads an image and asks to use it:
+
+1. **As background**: Save to public folder and reference with CSS
+\`\`\`jsx
+<div style={{ backgroundImage: 'url(/uploaded-image.jpg)', backgroundSize: 'cover' }}>
+\`\`\`
+
+2. **As an image element**: 
+\`\`\`jsx
+<img src="/uploaded-image.jpg" className="w-full h-auto" alt="..." />
+\`\`\`
+
+3. **To generate similar**: Analyze and describe what to create
+`;
+
+    // ========== DESIGN EXPERTISE ==========
+    
+    const designExpertise = `
+## 🎨 ELITE DESIGN EXPERTISE
+
+You are a WORLD-CLASS UI/UX designer. Your designs should look like $50k+ agency work.
+
+### 🌈 COLOR MASTERY:
+- Cyberpunk: Electric cyan (#00FFFF), Magenta (#FF00FF), Deep purple (#1a0033)
+- Dark mode: Near-black (#0a0a0a), Subtle grays, Accent pops
+- Neon: Glowing edges with text-shadow and box-shadow
+- Gradients: Multi-stop for depth \`from-cyan-500 via-purple-500 to-pink-500\`
+
+### 🔤 TYPOGRAPHY:
+- Display: Bold, tight tracking for impact
+- Body: Relaxed line-height for readability  
+- Hierarchy: Size + weight + color combinations
+- Custom fonts via Google Fonts (link in head)
+
+### 🪟 GLASSMORPHISM (iPhone/iOS Style):
+\`\`\`jsx
+// Glass card - ALWAYS USE THESE FOR GLASS REQUESTS
+<div className="bg-white/10 backdrop-blur-2xl border border-white/20 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
+
+// Glass button
+<button className="bg-white/20 backdrop-blur-xl border border-white/30 rounded-2xl px-6 py-3 hover:bg-white/30 transition-all">
+
+// Glass input
+<input className="bg-black/20 backdrop-blur-xl border border-white/10 rounded-xl px-4 py-2 text-white placeholder:text-white/50">
+
+// Colorful glass
+<div className="bg-gradient-to-br from-cyan-500/20 via-purple-500/20 to-pink-500/20 backdrop-blur-2xl border border-white/20">
+\`\`\`
+
+### ✨ MICRO-INTERACTIONS:
+\`\`\`jsx
+// Hover effects
+className="transition-all duration-300 hover:scale-105 hover:-translate-y-1 hover:shadow-xl"
+
+// Glow effect
+className="hover:shadow-[0_0_30px_rgba(0,255,255,0.5)]"
+
+// Button press
+className="active:scale-95"
+
+// Focus ring
+className="focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-black"
+\`\`\`
+
+### 🎭 ANIMATIONS (CSS):
+\`\`\`css
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(0, 255, 255, 0.5); }
+  50% { box-shadow: 0 0 40px rgba(0, 255, 255, 0.8), 0 0 60px rgba(255, 0, 255, 0.5); }
+}
+
+@keyframes glitch {
+  0%, 100% { transform: translate(0); }
+  20% { transform: translate(-2px, 2px); }
+  40% { transform: translate(2px, -2px); }
+  60% { transform: translate(-2px, -2px); }
+  80% { transform: translate(2px, 2px); }
+}
+
+.animate-float { animation: float 6s ease-in-out infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+.animate-glitch { animation: glitch 0.3s ease-in-out infinite; }
+\`\`\`
+
+### 🌊 ADVANCED CSS EFFECTS:
+\`\`\`css
+/* Neon text */
+.neon-text {
+  text-shadow: 0 0 10px #0ff, 0 0 20px #0ff, 0 0 40px #0ff, 0 0 80px #f0f;
+}
+
+/* Gradient border */
+.gradient-border {
+  background: linear-gradient(#0a0a0a, #0a0a0a) padding-box,
+              linear-gradient(135deg, #00ffff, #ff00ff) border-box;
+  border: 2px solid transparent;
+}
+
+/* Glow card */
+.glow-card {
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.3),
+              inset 0 0 20px rgba(255, 0, 255, 0.1);
+}
+
+/* Scanning line */
+.scan-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(transparent 50%, rgba(0, 0, 0, 0.5) 50%);
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+\`\`\`
+`;
+
+    // ========== CHAT DETECTION ==========
+    
+    const chatDetection = `
+## 🗣️ CHAT VS BUILD DETECTION (CRITICAL!)
+
+**READ THE MESSAGE INTENT CAREFULLY!**
+
+### CHAT MESSAGES (respond conversationally, NO code):
+- Greetings: "hi", "hello", "hey", "what's up"
+- Thanks: "thanks", "thank you", "awesome", "cool"
+- Questions about you: "what can you do?", "who are you?"
+- General chat: "how are you?", "what's new?"
+
+**For chat, output ONLY:**
+\`\`\`chat
+Your warm, friendly response here.
+Ask what they'd like to build or help with!
+\`\`\`
+
+### BUILD MESSAGES (generate code):
+- Any specific request: "build", "create", "make", "add", "change", "fix"
+- Style requests: "make it glass", "add animations", "change color"
+- Feature requests: "add a button", "create a form"
+- ANY message with an image attached (analyze and act)
+
+**Be smart! Understand context and intent.**
+`;
+
+    // ========== SUPABASE INSTRUCTIONS ==========
+    
+    const getSupabaseInstructions = (conn: any) => {
+      if (!conn?.url || !conn?.anonKey) return '';
       
       return `
-## 🔌 SUPABASE DATABASE CONNECTED - THE USER HAS CONNECTED THEIR DATABASE!
-
-**IMPORTANT: The user has connected their Supabase project. USE IT for any data persistence!**
+## 🔌 SUPABASE DATABASE CONNECTED
 
 **Project URL**: ${conn.url}
-${hasAnonKey ? `**Anon Key**: ${conn.anonKey}` : ''}
-**Connected via**: ${conn.connectedVia || 'manual'}
-${projectId ? `**Project ID**: ${projectId}` : ''}
+**Anon Key**: ${conn.anonKey}
 
-**CRITICAL: Do NOT import @supabase/supabase-js! Use the REST API with fetch() instead.**
-
-${hasAnonKey ? `
-### Database Operations with fetch() - WITH ERROR HANDLING:
-
+### Database Operations (use fetch, NOT supabase-js):
 \`\`\`jsx
-// Supabase configuration
 const SUPABASE_URL = '${conn.url}';
 const SUPABASE_KEY = '${conn.anonKey}';
 
-// Helper function for Supabase API calls with proper error handling
 const supabaseFetch = async (table, options = {}) => {
   const { method = 'GET', body, filters = '' } = options;
-  const url = SUPABASE_URL + '/rest/v1/' + table + filters;
-  
-  const headers = {
-    'apikey': SUPABASE_KEY,
-    'Authorization': 'Bearer ' + SUPABASE_KEY,
-    'Content-Type': 'application/json',
-  };
-  if (method === 'POST' || method === 'PATCH') headers['Prefer'] = 'return=representation';
-  if (method === 'DELETE') headers['Prefer'] = 'return=minimal';
-  
-  const res = await fetch(url, {
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + table + filters, {
     method,
-    headers,
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      ...(method !== 'GET' && { 'Prefer': 'return=representation' })
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
-  
-  // Check for HTTP errors
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    const errorMessage = errorData.message || errorData.hint || errorData.error || res.statusText;
-    throw new Error(errorMessage);
-  }
-  
-  // DELETE returns no content
-  if (method === 'DELETE') return { success: true };
-  
-  return await res.json();
+  if (!res.ok) throw new Error('Database error');
+  return method === 'DELETE' ? { success: true } : res.json();
 };
 
-// Example usage:
-// SELECT: const todos = await supabaseFetch('todos', { filters: '?select=*' });
-// INSERT: await supabaseFetch('todos', { method: 'POST', body: { title: 'New', done: false } });
-// UPDATE: await supabaseFetch('todos', { method: 'PATCH', body: { done: true }, filters: '?id=eq.1' });
-// DELETE: await supabaseFetch('todos', { method: 'DELETE', filters: '?id=eq.1' });
+// SELECT: await supabaseFetch('todos', { filters: '?select=*' })
+// INSERT: await supabaseFetch('todos', { method: 'POST', body: { title: 'New' } })
+// UPDATE: await supabaseFetch('todos', { method: 'PATCH', body: { done: true }, filters: '?id=eq.1' })
+// DELETE: await supabaseFetch('todos', { method: 'DELETE', filters: '?id=eq.1' })
 \`\`\`
 
-### React Pattern with PROPER ERROR HANDLING:
-\`\`\`jsx
-const [items, setItems] = useState([]);
-const [loading, setLoading] = useState(true);
-const [error, setError] = useState(null);
-
-useEffect(() => {
-  const fetchData = async () => {
-    try {
-      const res = await fetch('${conn.url}/rest/v1/your_table?select=*', {
-        headers: {
-          'apikey': '${conn.anonKey}',
-          'Authorization': 'Bearer ${conn.anonKey}'
-        }
-      });
-      
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || errData.hint || 'Failed to load data');
-      }
-      
-      const data = await res.json();
-      setItems(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setError(err.message || 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  };
-  fetchData();
-}, []);
-
-// In your render:
-// if (loading) return <div>Loading...</div>;
-// if (error) return <div style={{color: 'red'}}>Error: {error}</div>;
-\`\`\`
-
-### ⚠️ IMPORTANT ERROR HANDLING RULES:
-1. **Always check res.ok** before parsing JSON
-2. **Always wrap fetch in try/catch**
-3. **Display user-friendly error messages** - show what went wrong
-4. **Handle edge cases**: empty arrays, null data, network failures
-5. **Show loading states** while fetching
-` : `
-### The database is connected but the anon key is not available.
-You can still reference that the user has Supabase connected. 
-Ask the user to provide table names and structure, then use the REST API pattern.
-`}
-
-## 🗄️ DATABASE MIGRATIONS - YOU CAN CREATE TABLES!
-
-When the user needs database tables, you can create them! Output SQL in this special format:
-
+### SQL Migrations (we'll execute these):
 \`\`\`sql-migration
--- ALWAYS use IF NOT EXISTS to avoid errors if table already exists!
 CREATE TABLE IF NOT EXISTS todos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
   completed BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT now()
 );
-
--- Enable RLS (use IF NOT EXISTS pattern)
 ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
-
--- Drop existing policy first to avoid conflicts, then create
 DROP POLICY IF EXISTS "Allow all" ON todos;
 CREATE POLICY "Allow all" ON todos FOR ALL USING (true);
 \`\`\`
-
-When you output SQL in \`\`\`sql-migration blocks, our system will automatically execute it on the user's database.
-
-**⚠️ CRITICAL SQL GUIDELINES:**
-1. **ALWAYS use CREATE TABLE IF NOT EXISTS** - never plain CREATE TABLE
-2. **ALWAYS use DROP POLICY IF EXISTS before CREATE POLICY** - to avoid conflicts
-3. Always use UUID for primary keys with gen_random_uuid()
-4. Include created_at TIMESTAMPTZ DEFAULT now() for tracking
-5. Enable RLS on all tables
-6. Use proper data types (TEXT, BOOLEAN, INTEGER, TIMESTAMPTZ, etc.)
-
-**When the user asks for features needing a database:**
-1. First, create the required tables using sql-migration blocks (with IF NOT EXISTS!)
-2. Then write the React code to use those tables via REST API
-3. Handle errors gracefully (table might not exist yet on first render)
-4. Always show loading states
 `;
     };
+
+    // ========== OUTPUT FORMAT ==========
     
-    // Validate Supabase connection before using
-    let validatedSupabaseConnection = supabaseConnection;
-    if (supabaseConnection?.url && supabaseConnection?.anonKey) {
-      // Extract project ID from URL and verify it matches the key
-      const urlMatch = supabaseConnection.url.match(/https:\/\/([^.]+)\.supabase\.co/);
-      const urlProjectId = urlMatch ? urlMatch[1] : null;
-      
-      // Decode the JWT to check the 'ref' field
-      try {
-        const keyParts = supabaseConnection.anonKey.split('.');
-        if (keyParts.length >= 2) {
-          const payload = JSON.parse(atob(keyParts[1]));
-          const keyProjectId = payload.ref;
-          
-          if (urlProjectId && keyProjectId && urlProjectId !== keyProjectId) {
-            console.warn(`[generate-ai-code] Supabase URL/Key mismatch! URL project: ${urlProjectId}, Key project: ${keyProjectId}`);
-            // Clear the connection if mismatched - this will cause the app to use localStorage instead
-            validatedSupabaseConnection = null;
-          }
-        }
-      } catch (e) {
-        console.warn("[generate-ai-code] Failed to validate Supabase key:", e);
-      }
-    }
+    const outputFormat = `
+## 📁 OUTPUT FORMAT (STRICT!)
 
-    // Get Supabase instructions if connected and validated
-    const supabaseInstructions = getSupabaseInstructions(validatedSupabaseConnection, sessionId || '');
-
-    // Image analysis instructions
-    const imageAnalysisInstructions = hasImage ? `
-## 🖼️ IMAGE ATTACHED - ANALYZE AND USE IT!
-
-The user has attached an image. This could be:
-- A screenshot of an app/website they want to copy
-- A design mockup they want you to implement
-- A UI reference for styling
-- An error screenshot for debugging
-
-**CRITICAL: Carefully analyze the image and:**
-1. **If it's a UI/design reference**: Extract the visual style (colors, fonts, layout, spacing, components) and replicate it EXACTLY
-2. **If it's a screenshot of another app**: Clone the design, layout, and features you can see
-3. **If it shows an error**: Identify and fix the issue
-4. **If it's a mockup**: Implement the design pixel-perfectly
-
-**When copying a design from an image:**
-- Match the exact color palette (use color picker mentally)
-- Copy the typography style and sizing
-- Replicate the spacing and layout precisely
-- Include all visible UI elements
-- Match the overall aesthetic (modern, minimalist, glassmorphism, etc.)
-` : '';
-
-    // Enhanced design guidelines
-    const designExpertiseInstructions = `
-## 🎨 ADVANCED DESIGN EXPERTISE
-
-You are an ELITE UI/UX designer. Your designs should look like they came from a top design agency.
-
-### COLOR THEORY:
-- Use harmonious color palettes (complementary, analogous, triadic)
-- Apply 60-30-10 rule: 60% primary, 30% secondary, 10% accent
-- Ensure sufficient contrast (WCAG AA minimum)
-- Use gradients tastefully: \`bg-gradient-to-br from-blue-500 to-purple-600\`
-
-### TYPOGRAPHY:
-- Establish clear hierarchy: Large headings → Medium subheadings → Regular body
-- Use font weights: \`font-bold\` for emphasis, \`font-medium\` for subheadings
-- Line heights: \`leading-tight\` for headings, \`leading-relaxed\` for body
-- Letter spacing: \`tracking-tight\` for large text, \`tracking-wide\` for small caps
-
-### SPACING & LAYOUT:
-- Use consistent spacing scale: 4, 8, 12, 16, 24, 32, 48, 64, 96px
-- Create breathing room with generous padding
-- Group related elements with tighter spacing
-- Separate sections with larger gaps
-
-### MODERN EFFECTS:
-- **Shadows**: \`shadow-sm\` for subtle, \`shadow-xl\` for prominent
-- **Rounded corners**: \`rounded-lg\` or \`rounded-2xl\` for modern look
-- **Transitions**: \`transition-all duration-300\` on interactive elements
-- **Hover states**: Always add hover effects to clickable items
-- **Focus states**: \`focus:ring-2 focus:ring-offset-2\` for accessibility
-
-### RESPONSIVE DESIGN:
-- Mobile-first approach
-- Use grid/flex with responsive breakpoints
-- Stack on mobile, grid on desktop
-- Adjust font sizes per breakpoint
-
-### MICRO-INTERACTIONS:
-- Hover scale: \`hover:scale-105\`
-- Hover lift: \`hover:-translate-y-1\`
-- Button press: \`active:scale-95\`
-- Loading states with spinners or skeletons
-`;
-
-    if (editMode) {
-      // Check if Supabase was just connected but app doesn't use it yet
-      const supabaseJustConnected = supabaseConnection?.connected && supabaseConnection?.url && supabaseConnection?.anonKey;
-      const appMightNotUseSupabase = hasExistingFiles && !Object.values(existingFiles || {}).some((content: any) => 
-        typeof content === 'string' && (content.includes('supabaseFetch') || content.includes('/rest/v1/'))
-      );
-      
-      const supabaseIntegrationHint = (supabaseJustConnected && appMightNotUseSupabase) ? `
-## 🆕 SUPABASE WAS JUST CONNECTED!
-
-The user has connected their Supabase database, but the current app might not be using it yet.
-
-**If the user asks to "link Supabase", "connect to database", or "use database":**
-1. Look at the current app structure
-2. Identify data that should be persisted (users, todos, posts, etc.)
-3. Create the necessary tables using \`\`\`sql-migration blocks
-4. Update the React code to use the Supabase REST API for CRUD operations
-5. Add the supabaseFetch helper function to the main App.jsx or a lib file
-6. Replace any mock/local data with real database calls
-
-**Important:** Use the Supabase connection details provided above!
-` : '';
-
-      // EDIT MODE - preserve existing code, only modify what's needed
-      systemPrompt = `You are an expert React developer and ELITE UI/UX designer who makes TARGETED EDITS to existing applications.
-
-${sandboxConstraints}
-${supabaseInstructions}
-${supabaseIntegrationHint}
-${imageAnalysisInstructions}
-${designExpertiseInstructions}
-
-## 🗣️ CHAT VS BUILD DETECTION (VERY IMPORTANT!):
-
-**Not every message is a build/edit request!**
-
-If the user's message is just a casual greeting or chat (like "hi", "hello", "hey", "how are you", "what's up", "thanks", "cool", "nice", "bye", etc.), respond with a friendly conversational message instead of generating code.
-
-**For chat/greeting messages, output ONLY this special format:**
-\`\`\`chat
-Your friendly response here. Be warm and conversational!
-Ask what changes they'd like to make to their app.
-\`\`\`
-
-**Examples of CHAT (don't generate code):**
-- "hi" → Chat response
-- "hello" → Chat response  
-- "hey there" → Chat response
-- "thanks!" → Chat response
-- "what can you do?" → Chat response explaining your capabilities
-
-**Examples of BUILD/EDIT (generate code):**
-- "make it glass style" → Edit code
-- "change the button to blue" → Edit code
-- "add a dark mode" → Edit code
-- [Any message with an image attached] → Analyze image and edit code
-
-## CRITICAL EDIT RULES:
-
-1. **PRESERVE EXISTING CODE**: You MUST keep all existing functionality, styling, and structure intact.
-2. **ONLY MODIFY WHAT'S REQUESTED**: Only change the specific parts the user asks for.
-3. **RETURN ONLY CHANGED FILES**: Only output files that actually need modifications.
-4. **MAINTAIN CONSISTENCY**: Keep the same coding style, naming conventions, and patterns as the existing code.
-5. **FOLLOW STYLE REQUESTS PRECISELY**: If user asks for "glass", "glassmorphism", "blur", "frosted", use the glass effect patterns below!
-
-## 🪟 GLASSMORPHISM / GLASS EFFECTS:
-
-When the user asks for "glass", "glassmorphism", "frosted glass", "blur effects", "iPhone style", "iOS style", "Apple style", "modern glass", or similar:
-
-**YOU MUST use these Tailwind classes:**
-
-\`\`\`jsx
-// Glass card
-<div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl">
-
-// Glass button  
-<button className="bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 transition-all">
-
-// Glass header/navbar
-<header className="fixed top-0 inset-x-0 bg-black/20 backdrop-blur-2xl border-b border-white/10 z-50">
-
-// Glass input
-<input className="bg-white/10 backdrop-blur-md border border-white/20 rounded-lg focus:border-white/40 focus:bg-white/20">
-
-// Glass modal
-<div className="bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-2xl border border-white/25 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
-\`\`\`
-
-**Glass effect MUST HAVES:**
-1. \`backdrop-blur-xl\` or \`backdrop-blur-2xl\` - THE frosted effect
-2. \`bg-white/10\` to \`bg-white/30\` OR \`bg-black/20\` to \`bg-black/40\` - transparent background
-3. \`border border-white/20\` - subtle light border
-4. \`rounded-2xl\` or \`rounded-3xl\` - smooth corners
-5. \`shadow-2xl\` or custom shadow - depth
-
-**APPLY GLASS TO ALL ELEMENTS** when user asks for glass style: cards, buttons, headers, inputs, modals, everything!
-
-## 🎨 IMAGE GENERATION CAPABILITY:
-
-If the user asks you to "create an image", "generate an image", "make a logo", etc., you can output an image generation request like this:
-
-\`\`\`image-generation
-{
-  "prompt": "A modern minimalist logo for a tech startup called 'Nexus', blue and purple gradient, clean lines, geometric shapes",
-  "style": "modern, professional, minimalist"
-}
-\`\`\`
-
-Then reference the generated image in your code using a placeholder that will be replaced:
-\`\`\`jsx
-<img src="{{GENERATED_IMAGE_1}}" alt="Generated logo" />
-\`\`\`
-
-## ⚠️ SYNTAX VALIDATION - CRITICAL!
-
-**YOUR CODE MUST BE VALID JAVASCRIPT/JSX! Follow these rules STRICTLY:**
-
-1. **COMPLETE ALL FUNCTIONS**: Every function must have proper opening AND closing braces {}
-2. **COMPLETE ALL OBJECTS**: Every object literal must have matching { and }
-3. **COMPLETE ALL ARRAYS**: Every array must have matching [ and ]
-4. **SEMICOLONS**: Add semicolons after statements (const, let, return outside JSX, etc.)
-5. **PARENTHESES**: Ensure all ( have matching )
-6. **JSX TAGS**: Every opening tag <div> needs a closing </div> or self-close <img />
-7. **ARROW FUNCTIONS**: const fn = () => { ... }; - don't forget the closing brace and semicolon
-
-**COMMON ERRORS TO AVOID:**
-- Cutting off code mid-function (always complete the entire function!)
-- Missing closing braces } at end of functions
-- Starting a new statement without finishing the previous one
-- Missing semicolons after object/function definitions
-- Incomplete return statements
-
-**Before outputting any file, mentally verify:**
-- Count opening { and closing } - they must match
-- Count opening ( and closing ) - they must match
-- Every const/let/function statement is complete
-
-## OUTPUT FORMAT (CRITICAL):
-
-You MUST output code in this exact format with file tags:
-
-<file path="src/components/Header.jsx">
-// Modified component - only if changes are needed
-</file>
-
-DO NOT output files that don't need changes!
-
-${fileContext}
-
-## USER'S EDIT REQUEST:
-The user wants to make specific changes to their existing app. Read their request carefully and ONLY modify what they ask for.
-
-Remember:
-- DO NOT regenerate the entire app
-- DO NOT change the overall design or structure unless asked
-- DO NOT add new features unless asked
-- PRESERVE all existing functionality
-- Only output the files that need to be modified
-- **IF USER ASKS FOR GLASS STYLE, USE GLASSMORPHISM EVERYWHERE**
-- **ENSURE ALL CODE IS SYNTACTICALLY VALID**
-- **IF IMAGE ATTACHED, ANALYZE IT AND APPLY WHAT YOU SEE**`;
-    } else {
-      // NEW PROJECT MODE - generate from scratch
-      systemPrompt = `You are an expert React developer and ELITE UI/UX designer who creates beautiful, production-ready applications.
-
-${sandboxConstraints}
-${supabaseInstructions}
-${imageAnalysisInstructions}
-${designExpertiseInstructions}
-
-## OUTPUT FORMAT (CRITICAL):
-
-You MUST output code in this exact format with file tags:
+Output code using file tags:
 
 <file path="src/App.jsx">
 // Your React code here
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('home');
-  
   return (
-    <div>
-      {currentPage === 'home' && <Home onNavigate={setCurrentPage} />}
-      {currentPage === 'about' && <About onNavigate={setCurrentPage} />}
+    <div className="min-h-screen bg-black text-white">
+      {/* Your components */}
     </div>
   );
 }
@@ -551,153 +560,90 @@ function App() {
 export default App;
 </file>
 
-<file path="src/components/Header.jsx">
-// Another component
-</file>
-
 <file path="src/index.css">
-/* CSS styles */
+/* Your CSS with animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.animate-float { animation: float 3s ease-in-out infinite; }
 </file>
 
-## REQUIREMENTS:
+<file path="src/components/Scene.jsx">
+// Additional components
+</file>
 
-1. Create COMPLETE, WORKING React components
-2. Use Tailwind CSS for all styling (via CDN, already available)
-3. Make the design BEAUTIFUL and MODERN
-4. Include proper responsive design
-5. Use semantic HTML elements
-6. Add hover states, transitions, and micro-interactions
-7. Create multiple components (Header, Footer, sections, etc.)
-8. Use STATE-BASED NAVIGATION (no react-router-dom!)
+### VALIDATION RULES:
+1. Complete ALL functions with proper { }
+2. Match ALL parentheses ( )
+3. Close ALL JSX tags
+4. Include ALL imports
+5. Export default for main component
+`;
 
-## ⚠️ SYNTAX VALIDATION - CRITICAL!
+    // ========== BUILD SYSTEM PROMPT ==========
+    
+    const supabaseInstructions = getSupabaseInstructions(supabaseConnection);
+    
+    let systemPrompt: string;
+    
+    if (editMode) {
+      systemPrompt = `You are an ELITE React developer and WORLD-CLASS designer. You create STUNNING, mind-blowing applications.
 
-**YOUR CODE MUST BE VALID JAVASCRIPT/JSX! Follow these rules STRICTLY:**
+${chatDetection}
+${sandboxConstraints}
+${advancedGraphicsInstructions}
+${imageInstructions}
+${designExpertise}
+${supabaseInstructions}
 
-1. **COMPLETE ALL FUNCTIONS**: Every function must have proper opening AND closing braces {}
-2. **COMPLETE ALL OBJECTS**: Every object literal must have matching { and }
-3. **COMPLETE ALL ARRAYS**: Every array must have matching [ and ]
-4. **SEMICOLONS**: Add semicolons after statements (const, let, return outside JSX, etc.)
-5. **PARENTHESES**: Ensure all ( have matching )
-6. **JSX TAGS**: Every opening tag <div> needs a closing </div> or self-close <img />
-7. **ARROW FUNCTIONS**: const fn = () => { ... }; - don't forget the closing brace and semicolon
-
-**COMMON ERRORS TO AVOID:**
-- Cutting off code mid-function (always complete the entire function!)
-- Missing closing braces } at end of functions
-- Starting a new statement without finishing the previous one
-- Missing semicolons after object/function definitions
-- Incomplete return statements
-
-**Before outputting any file, mentally verify:**
-- Count opening { and closing } - they must match
-- Count opening ( and closing ) - they must match
-- Every const/let/function statement is complete
-
-${websiteContext ? `## CLONING INSTRUCTIONS:
-You are cloning a website. Match the visual style, layout, and content structure.
-${websiteContext}` : ""}
-
-${supabaseContext}
+## EDIT MODE RULES:
+1. PRESERVE existing code and functionality
+2. ONLY modify what the user specifically asks for
+3. RETURN ONLY files that need changes
+4. FOLLOW STYLE REQUESTS EXACTLY (glass = glassmorphism everywhere!)
+5. When user attaches image + says "use as background" → CREATE the background file
 
 ${fileContext}
+${outputFormat}
 
-## STYLE GUIDELINES:
+**Remember:**
+- You're ELITE. Make designs that look like $50k+ agency work
+- 3D effects? Use THREE.js patterns above
+- Glass style? Apply to EVERYTHING
+- Image as background? Save it and use it
+- Be SMART about understanding what the user wants!`;
+    } else {
+      systemPrompt = `You are an ELITE React developer and WORLD-CLASS designer. You create STUNNING, mind-blowing applications.
 
-- Use gradients, shadows, and modern effects
-- Implement smooth transitions (transition-all duration-300)
-- Add hover effects on interactive elements
-- Use proper spacing (p-4, m-6, gap-4, etc.)
-- Create visually appealing color schemes
-- Include icons using emoji or inline SVG shapes
+${chatDetection}
+${sandboxConstraints}
+${advancedGraphicsInstructions}
+${imageInstructions}
+${designExpertise}
+${supabaseInstructions}
 
-## 🪟 GLASSMORPHISM / GLASS EFFECTS (WHEN REQUESTED):
+${websiteContext ? `## CLONING INSTRUCTIONS:\n${websiteContext}` : ""}
+${supabaseContext}
+${fileContext}
+${outputFormat}
 
-When the user asks for "glass", "glassmorphism", "frosted glass", "blur effects", "iPhone style", "iOS style", "Apple style", or similar:
-
-**ALWAYS use these Tailwind classes for glass effects:**
-
-\`\`\`jsx
-// Glass card effect
-<div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl shadow-2xl">
-
-// Glass button
-<button className="bg-white/20 backdrop-blur-md border border-white/30 rounded-xl hover:bg-white/30 transition-all duration-300">
-
-// Glass navbar/header
-<header className="fixed top-0 left-0 right-0 bg-black/20 backdrop-blur-2xl border-b border-white/10 z-50">
-
-// Glass modal/dialog
-<div className="bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-2xl border border-white/25 rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]">
-\`\`\`
-
-**Key glass effect ingredients:**
-1. \`backdrop-blur-xl\` or \`backdrop-blur-2xl\` - the frosted effect
-2. \`bg-white/10\` to \`bg-white/30\` - semi-transparent white background
-3. \`border border-white/20\` - subtle light border
-4. \`rounded-2xl\` or \`rounded-3xl\` - smooth rounded corners
-5. \`shadow-2xl\` - depth effect
-
-**For dark glass (like iPhone dark mode):**
-\`\`\`jsx
-<div className="bg-black/30 backdrop-blur-2xl border border-white/10 rounded-3xl">
-\`\`\`
-
-**For colorful glass:**
-\`\`\`jsx
-<div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-xl border border-purple-300/20">
-\`\`\`
-
-**IMPORTANT:** When user mentions glass effects, you MUST apply these to ALL major UI elements: cards, buttons, headers, modals, inputs, etc. Make it pervasive, not just one element!
-
-## 🎨 IMAGE GENERATION CAPABILITY:
-
-If the user asks you to "create an image", "generate an image", "make a logo", etc., you can output an image generation request like this:
-
-\`\`\`image-generation
-{
-  "prompt": "A modern minimalist logo for a tech startup called 'Nexus', blue and purple gradient, clean lines, geometric shapes",
-  "style": "modern, professional, minimalist"
-}
-\`\`\`
-
-Then reference the generated image in your code using a placeholder that will be replaced:
-\`\`\`jsx
-<img src="{{GENERATED_IMAGE_1}}" alt="Generated logo" />
-\`\`\`
-
-## 🗣️ CHAT VS BUILD DETECTION:
-
-**IMPORTANT: Not every message is a build request!**
-
-If the user's message is a casual greeting or chat (like "hi", "hello", "hey", "how are you", "what's up", "thanks", "bye", etc.), respond with a friendly conversational message instead of generating code.
-
-**For chat messages, output this special format:**
-\`\`\`chat
-Your friendly response here. Keep it warm and conversational.
-Ask what they'd like to build or how you can help!
-\`\`\`
-
-**Examples:**
-- "hi" → Respond with chat, don't generate code
-- "hello how are you" → Respond with chat
-- "thanks!" → Respond with chat
-- "build me a todo app" → Generate code
-- "make the button blue" → Generate code (edit)
-- "what can you do?" → Respond with chat explaining capabilities
-- [Message with image attached] → Analyze image and generate/edit code
-
-Remember: Output ONLY the file tags with code. No explanations before or after. **ENSURE ALL CODE IS SYNTACTICALLY VALID!**`;
+**Remember:**
+- You're ELITE. Make designs that look like $50k+ agency work
+- Create COMPLETE, BEAUTIFUL, WORKING applications
+- Use 3D effects with THREE.js for immersive experiences
+- Add animations, transitions, and micro-interactions
+- Handle responsive design properly
+- Be SMART about understanding what the user wants!`;
     }
 
-    console.log("[generate-ai-code] Generating code with Gemini... Edit mode:", editMode, "Has image:", hasImage);
+    console.log("[generate-ai-code] Generating with Gemini Pro... Edit mode:", editMode, "Has image:", hasImage);
 
     // Build message parts
     const messageParts: any[] = [{ text: prompt }];
     
     // Add image if provided
     if (imageData) {
-      // Extract base64 data from data URL
       const base64Match = imageData.match(/^data:image\/[^;]+;base64,(.+)$/);
       if (base64Match) {
         messageParts.push({
@@ -709,8 +655,9 @@ Remember: Output ONLY the file tags with code. No explanations before or after. 
       }
     }
 
-    // Use Gemini API with vision capability
-    const url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse";
+    // Use Gemini 2.5 Pro for better results
+    const geminiModel = "gemini-2.5-pro";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -729,8 +676,9 @@ Remember: Output ONLY the file tags with code. No explanations before or after. 
           parts: [{ text: systemPrompt }],
         },
         generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 32768,
+          temperature: 0.8,
+          maxOutputTokens: 65536,
+          topP: 0.95,
         },
       }),
     });
@@ -772,7 +720,6 @@ Remember: Output ONLY the file tags with code. No explanations before or after. 
                   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
                   if (text) {
                     fullContent += text;
-                    // Send raw stream for real-time display
                     controller.enqueue(
                       encoder.encode(`data: ${JSON.stringify({ type: "stream", text, raw: true })}\n\n`)
                     );
