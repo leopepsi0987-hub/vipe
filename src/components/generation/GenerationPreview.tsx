@@ -33,9 +33,14 @@ export function GenerationPreview({
 
   // Use sandbox-proxy to avoid X-Frame-Options restrictions from E2B
   const getSandboxUrl = useCallback((url: string): string => {
+    // Ensure URL has https:// protocol
+    let fullUrl = url;
+    if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+      fullUrl = `https://${fullUrl}`;
+    }
     // Use our edge function proxy to bypass iframe restrictions
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    return `${supabaseUrl}/functions/v1/sandbox-proxy?url=${encodeURIComponent(url)}`;
+    return `${supabaseUrl}/functions/v1/sandbox-proxy?url=${encodeURIComponent(fullUrl)}`;
   }, []);
 
   // Reset states when URL changes
