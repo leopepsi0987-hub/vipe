@@ -30,6 +30,8 @@ export function GenerationPreview({
   const maxRetries = 8;
   const retryDelay = 2000; // 2 seconds between retries
 
+  const hasFiles = useMemo(() => !!files && Object.keys(files).length > 0, [files]);
+
   // Use direct sandbox URL - E2B sandboxes allow embedding
   const getSandboxUrl = useCallback((url: string): string => {
     // Return URL directly - E2B sandboxes are designed to be embedded
@@ -200,8 +202,6 @@ export function GenerationPreview({
       </div>
     );
   }
-
-  const hasFiles = useMemo(() => !!files && Object.keys(files).length > 0, [files]);
 
   // Prefer in-app preview (srcDoc bundling) to avoid iframe/X-Frame issues from external sandboxes.
   if (hasFiles) {
