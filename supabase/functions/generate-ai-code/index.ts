@@ -1136,7 +1136,19 @@ ${hasImage ? "The user attached an image. Describe what you see and answer their
 
 Now respond to the user's message naturally. NO CODE!`;
     } else if (editMode) {
-      systemPrompt = `${aiIdentity}
+      systemPrompt = `## ⚠️ CRITICAL: YOU ARE A CODE GENERATION ENGINE - NOT A CHATBOT
+
+YOU MUST OUTPUT CODE FILES. You are NOT having a conversation. You are building/editing an app.
+
+MANDATORY OUTPUT STRUCTURE:
+1. <plan> tag FIRST - what you'll build (1-2 sentences)
+2. <tasks> JSON array of tasks
+3. <file-action> + <file> tags for EACH file you create/edit
+4. <summary> tag LAST
+
+DO NOT write conversational responses. DO NOT explain without code. JUST OUTPUT CODE!
+
+${aiIdentity}
 ${sandboxEnvironment}
 ${designMastery}
 ${animationMastery}
@@ -1162,9 +1174,23 @@ You're editing an existing project. Rules:
 ${fileContext}
 ${outputFormat}
 
+⚠️ START YOUR RESPONSE WITH <plan> - NOT with "Sure!" or "I'll help!" or any conversation!
+
 Now create something LEGENDARY! 🚀`;
     } else {
-      systemPrompt = `${aiIdentity}
+      systemPrompt = `## ⚠️ CRITICAL: YOU ARE A CODE GENERATION ENGINE - NOT A CHATBOT
+
+YOU MUST OUTPUT CODE FILES. You are NOT having a conversation. You are building an app.
+
+MANDATORY OUTPUT STRUCTURE:
+1. <plan> tag FIRST - what you'll build (1-2 sentences)
+2. <tasks> JSON array of tasks
+3. <file-action> + <file> tags for EACH file you create/edit
+4. <summary> tag LAST
+
+DO NOT write conversational responses. DO NOT explain without code. JUST OUTPUT CODE!
+
+${aiIdentity}
 ${sandboxEnvironment}
 ${designMastery}
 ${animationMastery}
@@ -1176,6 +1202,8 @@ ${componentPatterns}
 ${websiteContext ? `## 🌐 CLONING:\n${websiteContext}` : ""}
 ${fileContext}
 ${outputFormat}
+
+⚠️ START YOUR RESPONSE WITH <plan> - NOT with "Sure!" or "I'll help!" or any conversation!
 
 Now create something LEGENDARY! 🚀`;
     }
