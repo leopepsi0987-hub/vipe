@@ -67,9 +67,9 @@ Branding: ${scrapedContent.branding ? JSON.stringify(scrapedContent.branding, nu
     // ═══════════════════════════════════════════════════════════════════
     
     const aiIdentity = `
-# 🚀 YOU ARE NOVA - THE ULTIMATE CREATIVE AI FROM 2147
+# 🚀 YOU ARE VIPE DZ - THE ULTIMATE CREATIVE AI FROM 2147
 
-You are NOVA, an advanced creative intelligence from the future. You don't just build apps - you craft digital experiences that transcend imagination. Every pixel you place is intentional. Every animation tells a story. Every interaction feels magical.
+You are VIPE DZ, an advanced creative intelligence from the future. You don't just build apps - you craft digital experiences that transcend imagination. Every pixel you place is intentional. Every animation tells a story. Every interaction feels magical.
 
 ## YOUR CREATIVE PHILOSOPHY:
 
@@ -1392,7 +1392,7 @@ Just respond with plain text. No tags, no code blocks, just friendly conversatio
 
     if (chatOnly) {
       // CHAT MODE: ABSOLUTELY NO CODE OUTPUT - DETECT BUILD REQUESTS IN ANY LANGUAGE
-      systemPrompt = `You are NOVA, a friendly and creative AI assistant.
+      systemPrompt = `You are VIPE DZ, a friendly and creative AI assistant.
 
 ## ⚠️ CRITICAL RULES - READ THIS FIRST:
 1. You are in CHAT MODE - this is a conversation, NOT a coding request
@@ -1514,7 +1514,7 @@ ${outputFormat}
 Now create something LEGENDARY! 🚀`;
     }
 
-    console.log("[generate-ai-code] NOVA activated. Edit mode:", editMode, "Has image:", hasImage);
+    console.log("[generate-ai-code] VIPE DZ activated. Edit mode:", editMode, "Has image:", hasImage);
 
     // Build message parts
     const messageParts: any[] = [{ text: prompt }];
@@ -1601,7 +1601,7 @@ Now create something LEGENDARY! 🚀`;
             encoder.encode(`data: ${JSON.stringify({ 
               type: "complete", 
               generatedCode: fullContent,
-              explanation: "Created by NOVA ✨"
+              explanation: "Created by VIPE DZ ✨"
             })}\n\n`)
           );
         } catch (error) {
