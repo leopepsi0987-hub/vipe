@@ -1,8 +1,19 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Send, Loader2, Globe, Database, CheckCircle, ImagePlus, X } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Globe, Database, CheckCircle, ImagePlus, X, Circle, FileText, FilePen, Eye, ChevronDown, ChevronUp } from "lucide-react";
+
+interface Task {
+  id: string;
+  title: string;
+  status: "pending" | "in-progress" | "done";
+}
+
+interface FileAction {
+  type: "reading" | "editing" | "edited";
+  path: string;
+}
 
 interface ChatMessage {
   id: string;
@@ -14,6 +25,10 @@ interface ChatMessage {
     appliedFiles?: string[];
     isSupabaseInfo?: boolean;
     imageUrl?: string;
+    tasks?: Task[];
+    fileActions?: FileAction[];
+    thinkingTime?: number;
+    isThinking?: boolean;
   };
 }
 
@@ -35,6 +50,149 @@ interface GenerationSidebarProps {
   urlScreenshot?: string | null;
   supabaseConnection?: SupabaseConnection | null;
   onOpenSupabaseModal?: () => void;
+}
+
+function TaskItem({ task }: { task: Task }) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      {task.status === "done" ? (
+        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+      ) : task.status === "in-progress" ? (
+        <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
+      ) : (
+        <Circle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      )}
+      <span className={task.status === "done" ? "text-muted-foreground" : "text-foreground"}>
+        {task.title}
+      </span>
+    </div>
+  );
+}
+
+function FileActionItem({ action }: { action: FileAction }) {
+  const fileName = action.path.split("/").pop() || action.path;
+  
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      {action.type === "reading" ? (
+        <Eye className="w-3.5 h-3.5 flex-shrink-0" />
+      ) : action.type === "editing" ? (
+        <FilePen className="w-3.5 h-3.5 flex-shrink-0" />
+      ) : (
+        <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+      )}
+      <span className="capitalize">{action.type === "editing" ? "Editing" : action.type === "reading" ? "Read" : "Edited"}</span>
+      <span className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">{fileName}</span>
+    </div>
+  );
+}
+
+function AIMessageContent({ message }: { message: ChatMessage }) {
+  const [showDetails, setShowDetails] = useState(true);
+  const tasks = message.metadata?.tasks || [];
+  const fileActions = message.metadata?.fileActions || [];
+  const thinkingTime = message.metadata?.thinkingTime;
+  const isThinking = message.metadata?.isThinking;
+  
+  const hasTasks = tasks.length > 0;
+  const hasFileActions = fileActions.length > 0;
+  const hasMetadata = hasTasks || hasFileActions;
+
+  return (
+    <div className="space-y-3">
+      {/* Thinking indicator */}
+      {(isThinking || thinkingTime) && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center">
+            {isThinking ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <span className="text-xs">💭</span>
+            )}
+          </div>
+          <span>
+            {isThinking ? "Thinking..." : `Thought for ${thinkingTime}s`}
+          </span>
+        </div>
+      )}
+      
+      {/* Plan/Content */}
+      {message.content && (
+        <p className="whitespace-pre-wrap">{message.content}</p>
+      )}
+      
+      {/* Tasks Panel */}
+      {hasTasks && (
+        <div className="bg-background/50 rounded-xl border border-border/50 overflow-hidden">
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-muted/30 transition-colors"
+          >
+            <span className="font-medium text-sm">Tasks</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {tasks.filter(t => t.status === "done").length}/{tasks.length}
+              </span>
+              {showDetails ? (
+                <ChevronUp className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              )}
+            </div>
+          </button>
+          
+          {showDetails && (
+            <div className="px-4 pb-3 space-y-2">
+              {tasks.map((task) => (
+                <TaskItem key={task.id} task={task} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* File Actions */}
+      {hasFileActions && showDetails && (
+        <div className="space-y-1.5">
+          {fileActions.map((action, i) => (
+            <FileActionItem key={`${action.path}-${i}`} action={action} />
+          ))}
+        </div>
+      )}
+      
+      {/* Toggle details button */}
+      {hasMetadata && (
+        <button
+          onClick={() => setShowDetails(!showDetails)}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+        >
+          {showDetails ? "Hide" : "Show"} details
+        </button>
+      )}
+      
+      {/* Applied Files */}
+      {message.metadata?.appliedFiles && message.metadata.appliedFiles.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-border/20">
+          <p className="text-xs opacity-70 mb-1">Files created:</p>
+          <div className="flex flex-wrap gap-1">
+            {message.metadata.appliedFiles.slice(0, 5).map((file) => (
+              <span
+                key={file}
+                className="text-xs bg-black/10 rounded px-1.5 py-0.5"
+              >
+                {file.split("/").pop()}
+              </span>
+            ))}
+            {message.metadata.appliedFiles.length > 5 && (
+              <span className="text-xs opacity-70">
+                +{message.metadata.appliedFiles.length - 5} more
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function GenerationSidebar({
@@ -183,27 +341,33 @@ export function GenerationSidebar({
                   </div>
                 )}
                 
-                <p className="whitespace-pre-wrap">{message.content}</p>
-                
-                {message.metadata?.appliedFiles && message.metadata.appliedFiles.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-border/20">
-                    <p className="text-xs opacity-70 mb-1">Files created:</p>
-                    <div className="flex flex-wrap gap-1">
-                      {message.metadata.appliedFiles.slice(0, 5).map((file) => (
-                        <span
-                          key={file}
-                          className="text-xs bg-black/10 rounded px-1.5 py-0.5"
-                        >
-                          {file.split("/").pop()}
-                        </span>
-                      ))}
-                      {message.metadata.appliedFiles.length > 5 && (
-                        <span className="text-xs opacity-70">
-                          +{message.metadata.appliedFiles.length - 5} more
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                {message.type === "ai" ? (
+                  <AIMessageContent message={message} />
+                ) : (
+                  <>
+                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    
+                    {message.metadata?.appliedFiles && message.metadata.appliedFiles.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-border/20">
+                        <p className="text-xs opacity-70 mb-1">Files created:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {message.metadata.appliedFiles.slice(0, 5).map((file) => (
+                            <span
+                              key={file}
+                              className="text-xs bg-black/10 rounded px-1.5 py-0.5"
+                            >
+                              {file.split("/").pop()}
+                            </span>
+                          ))}
+                          {message.metadata.appliedFiles.length > 5 && (
+                            <span className="text-xs opacity-70">
+                              +{message.metadata.appliedFiles.length - 5} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

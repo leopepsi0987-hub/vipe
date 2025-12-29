@@ -16,6 +16,17 @@ interface SandboxData {
   url: string;
 }
 
+interface Task {
+  id: string;
+  title: string;
+  status: "pending" | "in-progress" | "done";
+}
+
+interface FileAction {
+  type: "reading" | "editing" | "edited";
+  path: string;
+}
+
 interface ChatMessage {
   id: string;
   content: string;
@@ -27,6 +38,10 @@ interface ChatMessage {
     isSupabaseInfo?: boolean;
     supabaseConnection?: SupabaseConnection;
     imageUrl?: string;
+    tasks?: Task[];
+    fileActions?: FileAction[];
+    thinkingTime?: number;
+    isThinking?: boolean;
   };
 }
 
@@ -438,6 +453,12 @@ export default function GenerationPage() {
 
     // Track if we've shown the plan message (to avoid duplicates)
     let planShown = false;
+    let planMessageId: string | null = null;
+    const startTime = Date.now();
+    
+    // Track current tasks and file actions
+    let currentTasks: Array<{ id: string; title: string; status: "pending" | "in-progress" | "done" }> = [];
+    let fileActions: Array<{ type: "reading" | "editing" | "edited"; path: string }> = [];
 
     setIsGenerating(true);
     if (!chatOnly) {
@@ -534,6 +555,28 @@ export default function GenerationPage() {
       const decoder = new TextDecoder();
       let fullContent = "";
 
+      // Helper to update the plan message with current tasks/file actions
+      const updatePlanMessage = (planContent: string) => {
+        const thinkingTime = Math.round((Date.now() - startTime) / 1000);
+        setChatMessages((prev) =>
+          prev.map((m) =>
+            m.id === planMessageId
+              ? {
+                  ...m,
+                  content: planContent,
+                  metadata: {
+                    ...m.metadata,
+                    tasks: [...currentTasks],
+                    fileActions: [...fileActions],
+                    thinkingTime,
+                    isThinking: false,
+                  },
+                }
+              : m
+          )
+        );
+      };
+
       if (reader) {
         let textBuffer = "";
 
@@ -570,17 +613,90 @@ export default function GenerationPage() {
                     )
                   );
                 } else {
-                  // Extract and display <plan> tag content as a chat message
+                  // Extract and display <plan> tag content as a chat message with tasks
                   const planMatch = fullContent.match(/<plan>([\s\S]*?)<\/plan>/);
                   if (planMatch && !planShown) {
                     planShown = true;
-                    addMessage(planMatch[1].trim(), "ai");
+                    planMessageId = crypto.randomUUID();
+                    const newMsg: ChatMessage = {
+                      id: planMessageId,
+                      content: planMatch[1].trim(),
+                      type: "ai",
+                      timestamp: new Date(),
+                      metadata: {
+                        isThinking: true,
+                        thinkingTime: Math.round((Date.now() - startTime) / 1000),
+                      },
+                    };
+                    setChatMessages((prev) => [...prev, newMsg]);
                   }
                   
-                  // Only show code in the code panel (strip plan/summary)
+                  // Parse tasks from <tasks> tag
+                  const tasksMatch = fullContent.match(/<tasks>\s*(\[[\s\S]*?\])\s*<\/tasks>/);
+                  if (tasksMatch) {
+                    try {
+                      currentTasks = JSON.parse(tasksMatch[1]);
+                      if (planMessageId) {
+                        updatePlanMessage(planMatch?.[1]?.trim() || "");
+                      }
+                    } catch {}
+                  }
+                  
+                  // Parse task updates
+                  const taskUpdateRegex = /<task-update\s+id="([^"]+)"\s+status="([^"]+)"\s*\/>/g;
+                  let taskMatch;
+                  while ((taskMatch = taskUpdateRegex.exec(fullContent)) !== null) {
+                    const taskId = taskMatch[1];
+                    const newStatus = taskMatch[2] as "pending" | "in-progress" | "done";
+                    const taskIndex = currentTasks.findIndex((t) => t.id === taskId);
+                    if (taskIndex !== -1 && currentTasks[taskIndex].status !== newStatus) {
+                      currentTasks[taskIndex].status = newStatus;
+                      if (planMessageId) {
+                        updatePlanMessage(planMatch?.[1]?.trim() || "");
+                      }
+                    }
+                  }
+                  
+                  // Parse file actions
+                  const fileActionRegex = /<file-action\s+type="([^"]+)"\s+path="([^"]+)"\s*\/>/g;
+                  let fileMatch;
+                  const seenActions = new Set(fileActions.map((a) => `${a.type}:${a.path}`));
+                  while ((fileMatch = fileActionRegex.exec(fullContent)) !== null) {
+                    const actionType = fileMatch[1] as "reading" | "editing";
+                    const actionPath = fileMatch[2];
+                    const key = `${actionType}:${actionPath}`;
+                    if (!seenActions.has(key)) {
+                      seenActions.add(key);
+                      fileActions.push({ type: actionType, path: actionPath });
+                      if (planMessageId) {
+                        updatePlanMessage(planMatch?.[1]?.trim() || "");
+                      }
+                    }
+                  }
+                  
+                  // Update file actions to "edited" when file is complete
+                  const fileRegex = /<file path="([^"]+)">[\s\S]*?<\/file>/g;
+                  let completedFileMatch;
+                  while ((completedFileMatch = fileRegex.exec(fullContent)) !== null) {
+                    const filePath = completedFileMatch[1];
+                    const actionIndex = fileActions.findIndex(
+                      (a) => a.path === filePath && a.type === "editing"
+                    );
+                    if (actionIndex !== -1) {
+                      fileActions[actionIndex].type = "edited";
+                      if (planMessageId) {
+                        updatePlanMessage(planMatch?.[1]?.trim() || "");
+                      }
+                    }
+                  }
+                  
+                  // Only show code in the code panel (strip plan/summary/tasks/etc)
                   const codeOnly = fullContent
                     .replace(/<plan>[\s\S]*?<\/plan>/g, "")
                     .replace(/<summary>[\s\S]*?<\/summary>/g, "")
+                    .replace(/<tasks>[\s\S]*?<\/tasks>/g, "")
+                    .replace(/<task-update[^>]*\/>/g, "")
+                    .replace(/<file-action[^>]*\/>/g, "")
                     .trim();
                   setStreamedCode(codeOnly);
                   parseFilesFromCode(codeOnly, isEdit);
