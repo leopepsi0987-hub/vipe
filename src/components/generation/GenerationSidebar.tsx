@@ -2,7 +2,8 @@ import { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Send, Loader2, Globe, Database, CheckCircle, ImagePlus, X, Circle, FileText, FilePen, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Send, Loader2, Globe, Database, CheckCircle, ImagePlus, X, Circle, FileText, FilePen, Eye, ChevronDown, ChevronUp, MessageCircle, Code2 } from "lucide-react";
 
 interface Task {
   id: string;
@@ -50,6 +51,9 @@ interface GenerationSidebarProps {
   urlScreenshot?: string | null;
   supabaseConnection?: SupabaseConnection | null;
   onOpenSupabaseModal?: () => void;
+  // New: mode toggle
+  aiMode: "chat" | "build";
+  onModeChange: (mode: "chat" | "build") => void;
 }
 
 function TaskItem({ task }: { task: Task }) {
@@ -207,6 +211,8 @@ export function GenerationSidebar({
   urlScreenshot,
   supabaseConnection,
   onOpenSupabaseModal,
+  aiMode,
+  onModeChange,
 }: GenerationSidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
@@ -293,6 +299,22 @@ export function GenerationSidebar({
             </>
           )}
         </Button>
+      </div>
+
+      {/* Chat/Build Mode Toggle */}
+      <div className="px-4 py-3 border-b border-border">
+        <Tabs value={aiMode} onValueChange={(v) => onModeChange(v as "chat" | "build")} className="w-full">
+          <TabsList className="w-full grid grid-cols-2">
+            <TabsTrigger value="chat" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <MessageCircle className="w-3.5 h-3.5" />
+              Chat
+            </TabsTrigger>
+            <TabsTrigger value="build" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Code2 className="w-3.5 h-3.5" />
+              Build
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Screenshot Preview */}
