@@ -301,71 +301,81 @@ export default function GenerationPage() {
     const t = (p || "").trim().toLowerCase();
     if (!t) return true;
 
-    // FIRST CHECK: Strong "chat" indicators - these ALWAYS mean chat
-    const strongChatPatterns = [
-      /^(hi|hello|hey|yo|sup|howdy|hola)\b/,
-      /\?$/,  // Ends with a question mark = it's a question
-      /is it (safe|ok|okay|good|fine)/,
-      /can i (send|give|share|use)/,
-      /should i/,
-      /what (is|are|do|does|should|can|will)/,
-      /how (do|does|can|should|to)/,
-      /who (are|is)/,
-      /why (do|does|is|are|should)/,
-      /\bapi\s*key\b/,
-      /\bsafe\b/,
-      /\bthanks?\b/,
-      /\bthank you\b/,
-      /\bwhat do you think\b/,
-      /\bexplain\b/,
-      /\bhelp me understand\b/,
-      /\bi have a question\b/,
-      /\bquestion\b/,
-    ];
-    if (strongChatPatterns.some((pattern) => pattern.test(t))) return true;
-
     // Strong "build" indicators - explicit commands to create
+    // Check these FIRST - if user wants to build, let them build!
     const buildKeywords = [
-      "build me",
-      "create a",
-      "create an",
-      "make me",
-      "make a",
-      "make an",
-      "design a",
-      "design an",
-      "implement a",
-      "implement an",
-      "code a",
-      "code an",
-      "add a ",
-      "add an ",
-      "add the ",
-      "remove the",
-      "change the",
-      "update the",
-      "fix the",
-      "edit the",
-      "clone this",
-      "clone the",
+      "build",
+      "create",
+      "creat", // typo
+      "make",
+      "design",
+      "implement",
+      "code",
+      "add",
+      "remove",
+      "change",
+      "update",
+      "fix",
+      "edit",
+      "clone",
       "replicate",
       "landing page",
       "dashboard",
       "website",
       "web app",
+      "webapp",
       "application",
+      "app",
+      "page",
+      "component",
+      "button",
+      "form",
+      "navbar",
+      "header",
+      "footer",
+      "hero",
+      "card",
+      "list",
+      "table",
+      "modal",
+      "sidebar",
+      "menu",
+      "todo",
+      "hello world",
+      "blank",
+      "simple",
+      "basic",
+      "start",
     ];
     if (buildKeywords.some((k) => t.includes(k))) return false;
 
-    // If it's short (under 100 chars) and no explicit build command, treat as chat
-    if (t.length <= 100) return true;
+    // Strong "chat" indicators - these mean chat
+    const strongChatPatterns = [
+      /^(hi|hello|hey|yo|sup|howdy|hola)$/,  // ONLY exact greetings
+      /^(hi|hello|hey)\s*[!.,]*$/,           // Just "hi!" or "hello."
+      /is it (safe|ok|okay|good|fine)/,
+      /can i (send|give|share|use)/,
+      /should i/,
+      /what (is|are|do|does|should|can|will)\s+(a|an|the|your|my)/,
+      /how (do|does|can|should)\s+(i|you|we)/,
+      /who (are|is)\s+(you|your)/,
+      /why (do|does|is|are|should)/,
+      /\bapi\s*key\b/,
+      /\bsafe\b/,
+      /^thanks?$/,
+      /^thank you$/,
+      /\bwhat do you think\b/,
+      /^explain\b/,
+      /\bhelp me understand\b/,
+      /\bi have a question\b/,
+    ];
+    if (strongChatPatterns.some((pattern) => pattern.test(t))) return true;
 
-    // Default: if nothing matched, check for generic build words as last resort
-    const genericBuildWords = ["build", "create", "make", "design", "code"];
-    if (genericBuildWords.some((k) => t.includes(k))) return false;
+    // If ends with question mark AND doesn't have build words, it's chat
+    if (t.endsWith("?") && !buildKeywords.some((k) => t.includes(k))) return true;
 
-    // Default to chat for anything ambiguous
-    return true;
+    // Default: assume user wants to build something!
+    return false;
   };
 
   const createSandbox = async (): Promise<SandboxData | null> => {
