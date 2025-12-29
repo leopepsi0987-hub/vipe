@@ -6,10 +6,12 @@ import { GenerationSidebar } from "@/components/generation/GenerationSidebar";
 import { GenerationPreview } from "@/components/generation/GenerationPreview";
 import { GenerationCodePanel } from "@/components/generation/GenerationCodePanel";
 import { SupabaseConnectionModal } from "@/components/SupabaseConnectionModal";
+import { VisualEditor } from "@/components/VisualEditor";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ArrowLeft, Send, Database, CheckCircle } from "lucide-react";
+import { Loader2, ArrowLeft, Send, Database, CheckCircle, Edit3 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface SandboxData {
   sandboxId: string;
@@ -114,6 +116,16 @@ export default function GenerationPage() {
   
   // AI mode: chat (conversation only) or build (code generation)
   const [aiMode, setAiMode] = useState<"chat" | "build">("build");
+  
+  // Visual editor state
+  const [showVisualEditor, setShowVisualEditor] = useState(false);
+  
+  // Project ID (for saving to projects table)
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [projectName, setProjectName] = useState<string>("Untitled Project");
+  
+  // Auth
+  const { user } = useAuth();
 
   // Redirect to unique URL if on /generation
   useEffect(() => {
@@ -122,116 +134,138 @@ export default function GenerationPage() {
     }
   }, [urlSessionId, sessionId, navigate]);
 
-  // Load session data from database
+  // Load project data from database (using projects table instead of sessions)
   useEffect(() => {
     if (!sessionId || hasLoadedSession.current) return;
     hasLoadedSession.current = true;
 
-    const loadSession = async () => {
+    const loadProject = async () => {
       try {
         setInitialLoading(true);
 
-        // Load session info (sandbox data)
-        const { data: sessionData } = await supabase
-          .from("generation_sessions")
+        // First check if this session ID maps to an existing project
+        const { data: projectData } = await supabase
+          .from("projects")
           .select("*")
-          .eq("session_id", sessionId)
+          .eq("slug", sessionId)
           .maybeSingle();
 
-        if (sessionData) {
-          if (sessionData.sandbox_id && sessionData.sandbox_url) {
-            setSandboxData({
-              sandboxId: sessionData.sandbox_id,
-              url: sessionData.sandbox_url,
-            });
+        if (projectData) {
+          setProjectId(projectData.id);
+          setProjectName(projectData.name);
+          
+          // Load files from project_files
+          const { data: filesData } = await supabase
+            .from("project_files")
+            .select("*")
+            .eq("project_id", projectData.id);
+
+          if (filesData && filesData.length > 0) {
+            const loadedFiles: GenerationFile[] = filesData.map((f: any) => ({
+              path: f.file_path,
+              content: f.content,
+              type: f.file_path.split(".").pop() || "javascript",
+              completed: true,
+            }));
+            setGenerationFiles(loadedFiles);
+            
+            // Rebuild streamed code from files
+            const codeStr = loadedFiles.map(f => `<file path="${f.path}">\n${f.content}\n</file>`).join("\n\n");
+            setStreamedCode(codeStr);
           }
           
-          // Load supabase connection from session
-          if (sessionData.supabase_connection) {
-            const conn = sessionData.supabase_connection as unknown as SupabaseConnection;
+          // Load supabase connection from project_data
+          const { data: connData } = await supabase
+            .from("project_data")
+            .select("value")
+            .eq("project_id", projectData.id)
+            .eq("key", "supabase_connection")
+            .maybeSingle();
+
+          if (connData) {
+            const conn = connData.value as unknown as SupabaseConnection;
             setSupabaseConnection(conn);
           }
-        }
-
-        // Load messages
-        const { data: messagesData } = await supabase
-          .from("generation_messages")
-          .select("*")
-          .eq("session_id", sessionId)
-          .order("created_at", { ascending: true });
-
-        if (messagesData && messagesData.length > 0) {
-          const loadedMessages: ChatMessage[] = messagesData.map((m: any) => ({
-            id: m.id,
-            content: m.content,
-            type: m.type as ChatMessage["type"],
-            timestamp: new Date(m.created_at),
-            metadata: m.metadata,
-          }));
-          setChatMessages(loadedMessages);
           
-          // Check for supabase connection in messages
-          const supabaseMsg = loadedMessages.find(m => m.metadata?.isSupabaseInfo && m.metadata?.supabaseConnection);
-          if (supabaseMsg?.metadata?.supabaseConnection) {
-            setSupabaseConnection(supabaseMsg.metadata.supabaseConnection);
+          // Load sandbox data from project_data
+          const { data: sandboxDataStored } = await supabase
+            .from("project_data")
+            .select("value")
+            .eq("project_id", projectData.id)
+            .eq("key", "sandbox_data")
+            .maybeSingle();
+
+          if (sandboxDataStored) {
+            const sandbox = sandboxDataStored.value as unknown as SandboxData;
+            setSandboxData(sandbox);
+          }
+          
+          // Load chat messages from project_data
+          const { data: messagesDataStored } = await supabase
+            .from("project_data")
+            .select("value")
+            .eq("project_id", projectData.id)
+            .eq("key", "chat_messages")
+            .maybeSingle();
+
+          if (messagesDataStored && Array.isArray(messagesDataStored.value)) {
+            const loadedMessages: ChatMessage[] = (messagesDataStored.value as any[]).map((m: any) => ({
+              ...m,
+              timestamp: new Date(m.timestamp),
+            }));
+            setChatMessages(loadedMessages);
+            
+            // Check for supabase connection in messages
+            const supabaseMsg = loadedMessages.find(m => m.metadata?.isSupabaseInfo && m.metadata?.supabaseConnection);
+            if (supabaseMsg?.metadata?.supabaseConnection) {
+              setSupabaseConnection(supabaseMsg.metadata.supabaseConnection);
+            }
+          } else {
+            // No messages - add welcome message
+            setChatMessages([{
+              id: "welcome",
+              content: "Welcome to VIPE DZ! Enter a URL to clone or describe what you want to build.",
+              type: "system",
+              timestamp: new Date(),
+            }]);
           }
         } else {
-          // No messages - add welcome message
+          // New session - check if user is logged in to create a project
+          if (user) {
+            // Create a new project for this session
+            const { data: newProject, error: createError } = await supabase
+              .from("projects")
+              .insert({
+                user_id: user.id,
+                name: "Untitled Project",
+                slug: sessionId,
+              })
+              .select()
+              .single();
+
+            if (newProject && !createError) {
+              setProjectId(newProject.id);
+              setProjectName(newProject.name);
+            }
+          }
+          
+          // No existing project - show welcome message
           setChatMessages([{
             id: "welcome",
-            content: "Welcome! Enter a URL to clone or describe what you want to build.",
+            content: "Welcome to VIPE DZ! Enter a URL to clone or describe what you want to build.",
             type: "system",
             timestamp: new Date(),
           }]);
         }
-
-        // Load files
-        const { data: filesData } = await supabase
-          .from("generation_files")
-          .select("*")
-          .eq("session_id", sessionId);
-
-        if (filesData && filesData.length > 0) {
-          const loadedFiles: GenerationFile[] = filesData.map((f: any) => ({
-            path: f.file_path,
-            content: f.content,
-            type: f.file_type || "javascript",
-            completed: true,
-          }));
-          setGenerationFiles(loadedFiles);
-          
-          // Rebuild streamed code from files
-          const codeStr = loadedFiles.map(f => `<file path="${f.path}">\n${f.content}\n</file>`).join("\n\n");
-          setStreamedCode(codeStr);
-        }
-
-        // Also try to load supabase connection from project_data (legacy)
-        // Only run this if sessionId is a UUID; otherwise Postgres will throw.
-        const isUuid = (value: string) =>
-          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
-
-        if (isUuid(sessionId)) {
-          const { data: connData } = await supabase
-            .from("project_data")
-            .select("value")
-            .eq("project_id", sessionId)
-            .eq("key", "supabase_connection")
-            .maybeSingle();
-
-          if (connData && !supabaseConnection) {
-            const conn = connData.value as unknown as SupabaseConnection;
-            setSupabaseConnection(conn);
-          }
-        }
       } catch (error) {
-        console.error("Error loading session:", error);
+        console.error("Error loading project:", error);
       } finally {
         setInitialLoading(false);
       }
     };
 
-    loadSession();
-  }, [sessionId]);
+    loadProject();
+  }, [sessionId, user]);
 
   // Auto-scroll chat
   useEffect(() => {
@@ -259,21 +293,41 @@ export default function GenerationPage() {
       metadata,
     };
     
-    setChatMessages((prev) => [...prev, newMessage]);
-
-    // Save to database (don't await to avoid blocking UI)
-    supabase
-      .from("generation_messages")
-      .insert({
-        id: newMessage.id,
-        session_id: sessionId,
-        content: newMessage.content,
-        type: newMessage.type,
-        metadata: newMessage.metadata as any,
-      })
-      .then(({ error }) => {
-        if (error) console.error("Error saving message:", error);
-      });
+    setChatMessages((prev) => {
+      const updated = [...prev, newMessage];
+      
+      // Save messages to project_data (non-blocking)
+      if (projectId) {
+        supabase
+          .from("project_data")
+          .upsert({
+            project_id: projectId,
+            key: "chat_messages",
+            value: updated.map(m => ({
+              ...m,
+              timestamp: m.timestamp.toISOString(),
+            })) as any,
+          }, { onConflict: "project_id,key" })
+          .then(({ error }) => {
+            if (error) console.error("Error saving messages:", error);
+          });
+      }
+      
+      return updated;
+    });
+  };
+  
+  // Save sandbox data to project_data
+  const saveSandboxData = async (sandbox: SandboxData) => {
+    if (!projectId) return;
+    
+    await supabase
+      .from("project_data")
+      .upsert({
+        project_id: projectId,
+        key: "sandbox_data",
+        value: sandbox as any,
+      }, { onConflict: "project_id,key" });
   };
 
   // Handle Supabase connection callback
@@ -400,14 +454,8 @@ export default function GenerationPage() {
       setSandboxData(sandbox);
       addMessage(`Sandbox ready! ID: ${data.sandboxId}`, "system");
       
-      // Save session to database
-      await supabase
-        .from("generation_sessions")
-        .upsert({
-          session_id: sessionId,
-          sandbox_id: sandbox.sandboxId,
-          sandbox_url: sandbox.url,
-        }, { onConflict: "session_id" });
+      // Save sandbox data to project_data
+      await saveSandboxData(sandbox);
       
       return sandbox;
     } catch (error) {
@@ -877,21 +925,22 @@ export default function GenerationPage() {
         setGenerationFiles(newFiles);
       }
 
-      // Save files to database (batch upsert)
-      const filesToSave = (finalFiles! || newFiles).map(f => ({
-        session_id: sessionId,
-        file_path: f.path,
-        content: f.content,
-        file_type: f.type,
-      }));
+      // Save files to project_files (batch upsert)
+      if (projectId) {
+        const filesToSave = (finalFiles! || newFiles).map(f => ({
+          project_id: projectId,
+          file_path: f.path,
+          content: f.content,
+        }));
 
-      // Use upsert to handle both new and updated files
-      supabase
-        .from("generation_files")
-        .upsert(filesToSave, { onConflict: "session_id,file_path" })
-        .then(({ error }) => {
-          if (error) console.error("Error saving files:", error);
-        });
+        // Use upsert to handle both new and updated files
+        supabase
+          .from("project_files")
+          .upsert(filesToSave, { onConflict: "project_id,file_path" })
+          .then(({ error }) => {
+            if (error) console.error("Error saving files:", error);
+          });
+      }
     }
   };
 
@@ -1059,6 +1108,79 @@ export default function GenerationPage() {
       handleSubmit();
     }
   };
+  
+  // Handle visual editor updates
+  const handleVisualEditorUpdate = (newHtml: string) => {
+    // For now, we'll update the index.html file in generationFiles
+    const indexFileIndex = generationFiles.findIndex(f => f.path === "index.html" || f.path === "src/App.jsx");
+    
+    if (indexFileIndex >= 0) {
+      const updatedFiles = [...generationFiles];
+      updatedFiles[indexFileIndex] = {
+        ...updatedFiles[indexFileIndex],
+        content: newHtml,
+      };
+      setGenerationFiles(updatedFiles);
+      
+      // Update streamed code
+      const codeStr = updatedFiles.map(f => `<file path="${f.path}">\n${f.content}\n</file>`).join("\n\n");
+      setStreamedCode(codeStr);
+      
+      // Save to project_files
+      if (projectId) {
+        supabase
+          .from("project_files")
+          .upsert({
+            project_id: projectId,
+            file_path: updatedFiles[indexFileIndex].path,
+            content: newHtml,
+          }, { onConflict: "project_id,file_path" })
+          .then(({ error }) => {
+            if (error) console.error("Error saving visual edit:", error);
+          });
+      }
+      
+      // Apply to sandbox
+      if (sandboxData) {
+        supabase.functions.invoke("apply-code", {
+          body: {
+            sandboxId: sandboxData.sandboxId,
+            files: [{ path: updatedFiles[indexFileIndex].path, content: newHtml }],
+          },
+        }).then(({ error }) => {
+          if (error) console.error("Error applying visual edit to sandbox:", error);
+        });
+      }
+    }
+  };
+  
+  // Get HTML for visual editor
+  const getVisualEditorHtml = (): string => {
+    const indexFile = generationFiles.find(f => f.path === "index.html");
+    if (indexFile) return indexFile.content;
+    
+    // Try to build HTML from App.jsx
+    const appFile = generationFiles.find(f => f.path === "src/App.jsx");
+    if (appFile) {
+      return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIPE DZ App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    ${appFile.content}
+  </script>
+</body>
+</html>`;
+    }
+    
+    return "";
+  };
 
   // Show loading state while loading session
   if (initialLoading) {
@@ -1066,7 +1188,7 @@ export default function GenerationPage() {
       <div className="h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading your session...</p>
+          <p className="text-muted-foreground">Loading your project...</p>
         </div>
       </div>
     );
@@ -1115,12 +1237,25 @@ export default function GenerationPage() {
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
-              Code
+            Code
             </button>
+            
+            {/* Visual Edit Button */}
+            {generationFiles.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowVisualEditor(true)}
+                className="gap-1.5"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                Visual Edit
+              </Button>
+            )}
             
             {sandboxData && (
               <span className="ml-auto text-xs text-muted-foreground">
-                Sandbox: {sandboxData.sandboxId}
+                {projectName}
               </span>
             )}
           </div>
@@ -1281,9 +1416,18 @@ export default function GenerationPage() {
       <SupabaseConnectionModal
         open={showSupabaseModal}
         onOpenChange={setShowSupabaseModal}
-        projectId={sessionId}
+        projectId={projectId || sessionId}
         onConnected={handleSupabaseConnected}
       />
+      
+      {/* Visual Editor */}
+      {showVisualEditor && (
+        <VisualEditor
+          html={getVisualEditorHtml()}
+          onUpdate={handleVisualEditorUpdate}
+          onClose={() => setShowVisualEditor(false)}
+        />
+      )}
     </div>
   );
 }

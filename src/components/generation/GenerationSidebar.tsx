@@ -277,7 +277,7 @@ export function GenerationSidebar({
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
             <span className="text-white font-bold text-sm">V</span>
           </div>
-          <span className="font-semibold text-foreground">Vipe</span>
+          <span className="font-semibold text-foreground">VIPE DZ</span>
         </div>
         
         {/* Supabase Connect Button */}

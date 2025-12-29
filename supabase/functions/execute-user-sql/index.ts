@@ -39,14 +39,24 @@ serve(async (req) => {
       .eq("session_id", sessionId)
       .maybeSingle();
 
-    // Also try to get supabase connection from generation_sessions
-    const { data: genSession } = await supabase
-      .from("generation_sessions")
-      .select("supabase_connection")
-      .eq("session_id", sessionId)
+    // Try to find project by slug first
+    const { data: projectBySlug } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("slug", sessionId)
+      .maybeSingle();
+    
+    const actualProjectId = projectBySlug?.id || sessionId;
+
+    // Get supabase connection from project_data
+    const { data: connData } = await supabase
+      .from("project_data")
+      .select("value")
+      .eq("project_id", actualProjectId)
+      .eq("key", "supabase_connection")
       .maybeSingle();
 
-    const connection = genSession?.supabase_connection as any;
+    const connection = connData?.value as any;
     const targetProjectId = supabaseProjectId || connection?.supabaseProjectId;
 
     if (!targetProjectId) {
