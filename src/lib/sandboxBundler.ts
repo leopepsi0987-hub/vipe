@@ -2484,6 +2484,13 @@ export function generateBundledHTML(files: FileMap, baseUrl: string = ""): strin
   <script crossorigin src="${baseUrl}/vendor/react-dom18.umd.js"><\/script>
   <script src="${baseUrl}/vendor/babel-standalone.min.js"><\/script>
 
+  <!-- THREE.js for 3D graphics -->
+  <script src="https://unpkg.com/three@0.170.0/build/three.min.js"><\/script>
+  
+  <!-- GSAP for animations -->
+  <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js"><\/script>
+  <script src="https://unpkg.com/gsap@3.12.5/dist/ScrollTrigger.min.js"><\/script>
+
   <script src="${baseUrl}/vendor/tailwindcdn.js"><\/script>
   <script>
     tailwind.config = {
