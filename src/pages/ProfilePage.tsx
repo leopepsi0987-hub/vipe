@@ -156,7 +156,7 @@ export default function ProfilePage() {
               {editing ? (
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Display Name</Label>
+                    <Label className="text-xs text-muted-foreground">{t("displayName")}</Label>
                     <Input
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
@@ -165,7 +165,7 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Username</Label>
+                    <Label className="text-xs text-muted-foreground">{t("username")}</Label>
                     <Input
                       value={username}
                       onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
@@ -174,14 +174,14 @@ export default function ProfilePage() {
                     />
                   </div>
                   <div>
-                    <Label className="text-xs text-muted-foreground">Bio</Label>
+                    <Label className="text-xs text-muted-foreground">{t("bio")}</Label>
                     <Textarea
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                       className="glass-input rounded-lg mt-1 resize-none"
                       rows={3}
                       maxLength={200}
-                      placeholder="Tell us about yourself..."
+                      placeholder={t("bio")}
                     />
                   </div>
                 </div>
@@ -194,7 +194,7 @@ export default function ProfilePage() {
                   )}
                   <div className="flex items-center gap-2 mt-3 text-sm text-muted-foreground">
                     <Calendar className="w-4 h-4" />
-                    Joined {new Date(profile?.created_at || "").toLocaleDateString()}
+                    {t("joined")} {new Date(profile?.created_at || "").toLocaleDateString()}
                   </div>
                 </>
               )}
@@ -211,7 +211,7 @@ export default function ProfilePage() {
                     disabled={loading}
                   >
                     <X className="w-4 h-4 mr-1" />
-                    Cancel
+                    {t("cancel")}
                   </Button>
                   <Button
                     size="sm"
@@ -224,7 +224,7 @@ export default function ProfilePage() {
                     ) : (
                       <>
                         <Save className="w-4 h-4 mr-1" />
-                        Save
+                        {t("save")}
                       </>
                     )}
                   </Button>
@@ -237,7 +237,7 @@ export default function ProfilePage() {
                   className="glass-button"
                 >
                   <Edit2 className="w-4 h-4 mr-1" />
-                  Edit Profile
+                  {t("editProfile")}
                 </Button>
               )}
             </div>
@@ -247,10 +247,10 @@ export default function ProfilePage() {
         {/* Stats */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           {[
-            { label: "Projects", value: projects.length },
-            { label: "Published", value: publishedProjects.length },
-            { label: "Following", value: 0 },
-            { label: "Followers", value: 0 },
+            { label: t("projects"), value: projects.length },
+            { label: t("published"), value: publishedProjects.length },
+            { label: t("following"), value: 0 },
+            { label: t("followers"), value: 0 },
           ].map((stat) => (
             <div key={stat.label} className="glass-card rounded-xl p-4 text-center">
               <p className="text-2xl font-bold text-foreground">{stat.value}</p>
@@ -263,12 +263,12 @@ export default function ProfilePage() {
         <div className="glass-card rounded-2xl p-6">
           <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
             <FolderOpen className="w-5 h-5 text-primary" />
-            Published Projects
+            {t("publishedProjects")}
           </h2>
           
           {publishedProjects.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
-              No published projects yet
+              {t("noPublishedProjects")}
             </p>
           ) : (
             <div className="grid gap-4">
