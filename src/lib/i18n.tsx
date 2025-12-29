@@ -23,18 +23,18 @@ export const translations = {
     buildWithAI: "Build beautiful apps with AI assistance",
     
     // Sidebar
-    projects: "Projects",
-    noProjects: "No projects yet",
-    newProject: "New Project",
+    projects: "Apps",
+    noProjects: "No apps yet",
+    newProject: "New App",
     rename: "Rename",
     delete: "Delete",
     signOut: "Sign Out",
     
     // Dashboard
-    selectProject: "Select a project",
-    selectProjectDesc: "Choose a project from the sidebar or create a new one",
-    projectCreated: "Project created!",
-    projectDeleted: "Project deleted",
+    selectProject: "Select an app",
+    selectProjectDesc: "Choose an app from the sidebar or create a new one",
+    projectCreated: "App created!",
+    projectDeleted: "App deleted",
     signedOut: "Signed out",
     
     // Editor/Chat
@@ -93,6 +93,45 @@ export const translations = {
     done: "Done! Your app is ready. 🚀",
     oops: "Oops, something went wrong! Try again? 😅",
     buildStopped: "Build stopped",
+    
+    // Builder Page
+    builder: "Builder",
+    generateNewApp: "Generate New App",
+    createAndManage: "Create and manage your AI-powered apps",
+    noAppsYet: "No apps yet",
+    generateFirst: "Generate your first app to get started",
+    generateFirstApp: "Generate First App",
+    createWithAI: "Create with AI",
+    published: "Published",
+    
+    // Generation Page
+    enterUrl: "Enter URL or describe what to build...",
+    pasteUrl: "Paste a URL, describe your app, or attach a screenshot",
+    creatingEnvironment: "Creating sandbox environment...",
+    analyzingUrl: "Analyzing website...",
+    generatingCode: "Generating code...",
+    applyingChanges: "Applying changes...",
+    
+    // Mobile tabs
+    chatTab: "Chat",
+    previewTab: "Preview",
+    
+    // Video
+    skip: "Skip",
+    
+    // Profile
+    profile: "Profile",
+    editProfile: "Edit Profile",
+    myApps: "My Apps",
+    posts: "Posts",
+    followers: "Followers",
+    following: "Following",
+    
+    // Social
+    like: "Like",
+    comment: "Comment",
+    share: "Share",
+    postApp: "Post App",
   },
   dz: {
     // Auth
@@ -113,18 +152,18 @@ export const translations = {
     buildWithAI: "ابني تطبيقات جميلة بالذكاء الاصطناعي",
     
     // Sidebar
-    projects: "البروجيات",
-    noProjects: "ما كاين حتى بروجي",
-    newProject: "بروجي جديد",
+    projects: "التطبيقات",
+    noProjects: "ما كاين حتى تطبيق",
+    newProject: "تطبيق جديد",
     rename: "بدّل الإسم",
     delete: "امسح",
     signOut: "اخرج",
     
     // Dashboard
-    selectProject: "اختار بروجي",
-    selectProjectDesc: "اختار بروجي من الجنب ولا دير واحد جديد",
-    projectCreated: "تم إنشاء البروجي!",
-    projectDeleted: "تم مسح البروجي",
+    selectProject: "اختار تطبيق",
+    selectProjectDesc: "اختار تطبيق من الجنب ولا دير واحد جديد",
+    projectCreated: "تم إنشاء التطبيق!",
+    projectDeleted: "تم مسح التطبيق",
     signedOut: "خرجت",
     
     // Editor/Chat
@@ -183,6 +222,45 @@ export const translations = {
     done: "خلصنا! التطبيق جاهز 🚀",
     oops: "أوه كاين مشكل! عاود حاول 😅",
     buildStopped: "وقفنا البناء",
+    
+    // Builder Page
+    builder: "البناء",
+    generateNewApp: "ولّد تطبيق جديد",
+    createAndManage: "دير وتحكم في تطبيقاتك بالذكاء الاصطناعي",
+    noAppsYet: "ما كاين حتى تطبيق",
+    generateFirst: "ولّد أول تطبيق تاعك",
+    generateFirstApp: "ولّد أول تطبيق",
+    createWithAI: "ابني بالذكاء الاصطناعي",
+    published: "منشور",
+    
+    // Generation Page
+    enterUrl: "دخّل URL ولا وصف واش تحب تبني...",
+    pasteUrl: "حط URL، وصف التطبيق، ولا زيد سكرينشوت",
+    creatingEnvironment: "راني ندير البيئة...",
+    analyzingUrl: "راني نحلل الموقع...",
+    generatingCode: "راني نكتب الكود...",
+    applyingChanges: "راني نطبق التغييرات...",
+    
+    // Mobile tabs
+    chatTab: "الشات",
+    previewTab: "المعاينة",
+    
+    // Video
+    skip: "تخطى",
+    
+    // Profile
+    profile: "البروفايل",
+    editProfile: "عدّل البروفايل",
+    myApps: "تطبيقاتي",
+    posts: "المنشورات",
+    followers: "المتابعين",
+    following: "نتابع",
+    
+    // Social
+    like: "عجبني",
+    comment: "تعليق",
+    share: "شارك",
+    postApp: "انشر التطبيق",
   },
 };
 
