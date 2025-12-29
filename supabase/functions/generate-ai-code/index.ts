@@ -11,15 +11,30 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, model, context, scrapedContent, isEdit, existingFiles, supabaseConnection, sessionId, imageData } = await req.json();
+    const {
+      prompt,
+      model,
+      context,
+      scrapedContent,
+      isEdit,
+      existingFiles,
+      supabaseConnection,
+      sessionId,
+      imageData,
+      mode,
+    } = await req.json();
+
     const GEMINI_API_KEY = Deno.env.get("GOOGLE_GEMINI_API_KEY");
 
     if (!GEMINI_API_KEY) {
       throw new Error("GOOGLE_GEMINI_API_KEY is not configured");
     }
 
+    const requestedMode = mode === "chat" ? "chat" : "code";
+    const chatOnly = requestedMode === "chat";
+
     const hasExistingFiles = existingFiles && Object.keys(existingFiles).length > 0;
-    const editMode = isEdit || hasExistingFiles;
+    const editMode = !chatOnly && (isEdit || hasExistingFiles);
     const hasImage = !!imageData;
 
     // Build context
@@ -1057,10 +1072,25 @@ IMPORTANT: When in doubt, if the message is SHORT (under 10 words) and doesn't e
     // ═══════════════════════════════════════════════════════════════════
     
     const supabaseInstructions = getSupabaseInstructions(supabaseConnection);
-    
+
     let systemPrompt: string;
-    
-    if (editMode) {
+
+    if (chatOnly) {
+      // CHAT MODE: never output <file> tags, never write code unless explicitly asked.
+      systemPrompt = `${aiIdentity}
+
+## 💬 CHAT-ONLY MODE
+You are having a conversation with the user.
+- Respond as plain text only.
+- DO NOT output any <file> tags.
+- DO NOT output code blocks.
+- Be helpful and concise.
+
+${hasImage ? "The user attached an image. You should describe what you see and answer their question." : ""}
+
+${supabaseInstructions}
+`;
+    } else if (editMode) {
       systemPrompt = `${aiIdentity}
 ${sandboxEnvironment}
 ${designMastery}
