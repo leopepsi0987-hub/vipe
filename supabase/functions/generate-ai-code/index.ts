@@ -1044,13 +1044,26 @@ Just respond with plain text. No tags, no code blocks, just friendly conversatio
 ---
 
 **CRITICAL VALIDATION FOR CODE:**
-1. ✅ Complete ALL functions with proper { }
-2. ✅ Match ALL parentheses ( )
-3. ✅ Close ALL JSX tags
-4. ✅ Include ALL necessary imports
-5. ✅ Export default for main component
-6. ✅ Use className not class
-7. ✅ Self-close void elements: <img />, <input />, <br />
+1. ✅ Use REAL JSX tags: <div>, <p>, <span> - NEVER use HTML entities like &lt;div&gt;
+2. ✅ Complete ALL functions with proper { }
+3. ✅ Match ALL parentheses ( )
+4. ✅ Close ALL JSX tags properly: <div>...</div> or <br />
+5. ✅ Include ALL necessary imports
+6. ✅ Export default for main component
+7. ✅ Use className not class
+8. ✅ Self-close void elements: <img />, <input />, <br />
+9. ✅ In .map() callbacks, ALWAYS add key prop: {items.map((item, i) => <div key={i}>...</div>)}
+10. ✅ Wrap adjacent JSX elements in a parent: <> ... </> or <div>...</div>
+
+**COMMON JSX MISTAKES TO AVOID:**
+❌ WRONG: {items.map(item => {item.name})}
+✅ CORRECT: {items.map(item => <span key={item.id}>{item.name}</span>)}
+
+❌ WRONG: <p>{text}</p><p>{text2}</p> (no parent)
+✅ CORRECT: <><p>{text}</p><p>{text2}</p></> (wrapped in fragment)
+
+❌ WRONG: &lt;div&gt; (HTML entities)
+✅ CORRECT: <div> (actual JSX tags)
 `;
 
 
