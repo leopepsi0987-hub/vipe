@@ -35,15 +35,16 @@ export function GenerationPreview({
   const getSandboxUrl = useCallback((url: string): string => {
     // Ensure URL has https:// protocol
     let fullUrl = url;
-    if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
+    if (!fullUrl.startsWith("http://") && !fullUrl.startsWith("https://")) {
       fullUrl = `https://${fullUrl}`;
     }
-    // Use our edge function proxy to bypass iframe restrictions
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    return `${supabaseUrl}/functions/v1/sandbox-proxy?url=${encodeURIComponent(fullUrl)}`;
-  }, []);
 
-  // Reset states when URL changes
+    // Ensure backend URL is https (avoid mixed-content issues)
+    let backendBase = import.meta.env.VITE_SUPABASE_URL || "";
+    backendBase = backendBase.replace(/^http:\/\//, "https://");
+
+    return `${backendBase}/functions/v1/sandbox-proxy?url=${encodeURIComponent(fullUrl)}`;
+  }, []);
   useEffect(() => {
     setIframeError(false);
     setRetryCount(0);
@@ -68,9 +69,10 @@ export function GenerationPreview({
     if (!sandboxUrl || !iframeRef.current || isLoading) return;
 
     try {
-      // Try to fetch the URL directly to check if it's ready
-      const response = await fetch(sandboxUrl, { method: 'HEAD', mode: 'no-cors' });
-      
+      // Check readiness via our proxy (CORS-enabled) to avoid direct E2B cross-origin failures
+      const response = await fetch(getSandboxUrl(sandboxUrl), { cache: "no-store" });
+      if (!response.ok) throw new Error(`Proxy not ready: ${response.status}`);
+
       // Check iframe content for error messages
       const iframe = iframeRef.current;
       try {
