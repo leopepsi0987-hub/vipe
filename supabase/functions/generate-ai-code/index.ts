@@ -978,9 +978,24 @@ const supabaseFetch = async (table, options = {}) => {
     // ═══════════════════════════════════════════════════════════════════
     
     const outputFormat = `
-## 📁 OUTPUT FORMAT
+## 📁 OUTPUT FORMAT - CRITICAL!
 
-**ALWAYS output code like this:**
+### FOR CHAT/CONVERSATION (no code needed):
+When the user is just chatting, asking questions, saying hi, or having a conversation - DO NOT output code.
+Instead, just respond naturally as text. Examples of chat messages:
+- "hi", "hello", "hey", "what's up"
+- "how are you", "who are you", "what can you do"
+- "thanks", "thank you", "great job"
+- "what do you think about...", "can you explain..."
+- Any question that doesn't ask you to BUILD something
+
+**For chat, just write your response directly as plain text. NO <file> tags. NO code blocks. Just talk like a friendly AI.**
+
+Example chat response:
+Hey! 👋 I'm NOVA, your creative AI partner from the future! I'm here to help you build the most amazing, mind-blowing web experiences. What would you like to create today? Whether it's a stunning 3D portal, a sleek dashboard, or something completely wild - I'm ready to make it happen! ✨
+
+### FOR BUILDING/CODING:
+When the user asks you to BUILD, CREATE, MAKE, or DESIGN something, then output code:
 
 <file path="src/App.jsx">
 import React, { useState, useEffect, useRef } from 'react';
@@ -1001,6 +1016,27 @@ export default App;
 @keyframes float { /* ... */ }
 .animate-float { animation: float 6s ease-in-out infinite; }
 </file>
+
+### DETECTING CHAT VS BUILD:
+
+**CHAT (respond with text only, NO code):**
+- Greetings: hi, hello, hey, yo, sup, what's up
+- Questions about you: who are you, what can you do, how do you work
+- Gratitude: thanks, thank you, awesome, great, perfect, nice
+- Opinions: what do you think, do you like, which is better
+- Explanations: explain, how does X work, what is X
+- Feedback: cool, amazing, love it, hate it
+- Small talk: how are you, good morning, etc.
+
+**BUILD (output code in <file> tags):**
+- Contains: build, create, make, design, code, develop, implement
+- Contains: add, remove, change, update, fix, modify, edit
+- Contains: I want, I need, can you make, please create
+- Describes a specific feature or app to create
+- Asks to clone a website or replicate a design
+- Mentions specific technologies: react, css, animation, 3D
+
+IMPORTANT: When in doubt, if the message is SHORT (under 10 words) and doesn't explicitly ask for code, treat it as CHAT.
 
 <file path="src/components/Scene.jsx">
 // Additional components in separate files for organization
