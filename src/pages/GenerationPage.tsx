@@ -93,6 +93,9 @@ export default function GenerationPage() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const hasLoadedSession = useRef(false);
+  
+  // Mobile view mode: chat or preview (must be before any early returns)
+  const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
 
   // Redirect to unique URL if on /generation
   useEffect(() => {
@@ -938,9 +941,6 @@ export default function GenerationPage() {
       </div>
     );
   }
-
-  // Mobile view mode: chat or preview
-  const [mobileView, setMobileView] = useState<"chat" | "preview">("chat");
 
   return (
     <div className="h-screen flex bg-background overflow-hidden">
