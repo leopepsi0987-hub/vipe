@@ -132,6 +132,111 @@ export const translations = {
     comment: "Comment",
     share: "Share",
     postApp: "Post App",
+    
+    // Navigation
+    home: "Home",
+    explore: "Explore",
+    notifications: "Notifications",
+    messages: "Messages",
+    settings: "Settings",
+    help: "Help",
+    about: "About",
+    
+    // Tasks
+    tasks: "Tasks",
+    pending: "Pending",
+    inProgress: "In Progress",
+    completed: "Completed",
+    
+    // File Actions
+    reading: "Reading",
+    editing: "Editing",
+    edited: "Edited",
+    creating: "Creating",
+    created: "Created",
+    
+    // AI Status
+    thinking: "Thinking...",
+    thoughtFor: "Thought for",
+    seconds: "seconds",
+    processing: "Processing...",
+    analyzing: "Analyzing...",
+    
+    // Forms
+    username: "Username",
+    displayName: "Display Name",
+    bio: "Bio",
+    avatar: "Avatar",
+    update: "Update",
+    submit: "Submit",
+    confirm: "Confirm",
+    
+    // Errors
+    errorOccurred: "An error occurred",
+    notFound: "Not found",
+    unauthorized: "Unauthorized",
+    forbidden: "Forbidden",
+    serverError: "Server error",
+    networkError: "Network error",
+    
+    // Success
+    success: "Success",
+    saved: "Saved",
+    updated: "Updated",
+    deleted: "Deleted",
+    copied: "Copied",
+    
+    // Time
+    justNow: "Just now",
+    minutesAgo: "minutes ago",
+    hoursAgo: "hours ago",
+    daysAgo: "days ago",
+    
+    // Actions
+    edit: "Edit",
+    view: "View",
+    download: "Download",
+    upload: "Upload",
+    refresh: "Refresh",
+    search: "Search",
+    filter: "Filter",
+    sort: "Sort",
+    
+    // Pricing
+    pricing: "Pricing",
+    free: "Free",
+    pro: "Pro",
+    enterprise: "Enterprise",
+    subscribe: "Subscribe",
+    upgrade: "Upgrade",
+    
+    // Privacy & Terms
+    privacy: "Privacy",
+    terms: "Terms",
+    refund: "Refund",
+    
+    // Misc Extended
+    welcome: "Welcome",
+    getStarted: "Get Started",
+    learnMore: "Learn More",
+    seeMore: "See More",
+    showLess: "Show Less",
+    hideDetails: "Hide",
+    showDetails: "Show",
+    noResults: "No results",
+    empty: "Empty",
+    
+    // Connection
+    connected: "Connected",
+    disconnected: "Disconnected",
+    connecting: "Connecting...",
+    connectDB: "Connect DB",
+    
+    // Sandbox
+    sandbox: "Sandbox",
+    sandboxReady: "Sandbox ready",
+    sandboxExpired: "Sandbox expired",
+    creatingSandbox: "Creating sandbox...",
   },
   dz: {
     // Auth
@@ -261,6 +366,111 @@ export const translations = {
     comment: "تعليق",
     share: "شارك",
     postApp: "انشر التطبيق",
+    
+    // Navigation
+    home: "الرئيسية",
+    explore: "استكشف",
+    notifications: "الإشعارات",
+    messages: "الرسائل",
+    settings: "الإعدادات",
+    help: "المساعدة",
+    about: "حول",
+    
+    // Tasks
+    tasks: "المهام",
+    pending: "في الانتظار",
+    inProgress: "قيد التنفيذ",
+    completed: "مكتمل",
+    
+    // File Actions
+    reading: "راني نقرأ",
+    editing: "راني نعدّل",
+    edited: "تم التعديل",
+    creating: "راني ندير",
+    created: "تم الإنشاء",
+    
+    // AI Status
+    thinking: "راني نفكر...",
+    thoughtFor: "فكرت لمدة",
+    seconds: "ثواني",
+    processing: "راني نخدم...",
+    analyzing: "راني نحلل...",
+    
+    // Forms
+    username: "اسم المستخدم",
+    displayName: "الإسم الظاهر",
+    bio: "السيرة",
+    avatar: "الصورة الشخصية",
+    update: "حدّث",
+    submit: "أرسل",
+    confirm: "أكّد",
+    
+    // Errors
+    errorOccurred: "كاين مشكل",
+    notFound: "ما لقيناهش",
+    unauthorized: "ما عندكش الصلاحية",
+    forbidden: "ممنوع",
+    serverError: "مشكل في السيرفر",
+    networkError: "مشكل في الاتصال",
+    
+    // Success
+    success: "نجاح",
+    saved: "تم الحفظ",
+    updated: "تم التحديث",
+    deleted: "تم المسح",
+    copied: "تم النسخ",
+    
+    // Time
+    justNow: "دابا",
+    minutesAgo: "دقائق من قبل",
+    hoursAgo: "ساعات من قبل",
+    daysAgo: "أيام من قبل",
+    
+    // Actions
+    edit: "عدّل",
+    view: "شوف",
+    download: "حمّل",
+    upload: "رفع",
+    refresh: "حدّث",
+    search: "ابحث",
+    filter: "فلتر",
+    sort: "رتّب",
+    
+    // Pricing
+    pricing: "الأسعار",
+    free: "مجاني",
+    pro: "برو",
+    enterprise: "مؤسسات",
+    subscribe: "اشترك",
+    upgrade: "ترقية",
+    
+    // Privacy & Terms
+    privacy: "الخصوصية",
+    terms: "الشروط",
+    refund: "استرجاع",
+    
+    // Misc Extended
+    welcome: "مرحبا",
+    getStarted: "ابدأ",
+    learnMore: "تعلم أكثر",
+    seeMore: "شوف أكثر",
+    showLess: "شوف أقل",
+    hideDetails: "خبّي",
+    showDetails: "بيّن",
+    noResults: "ما كاين نتائج",
+    empty: "فارغ",
+    
+    // Connection
+    connected: "متصل",
+    disconnected: "منفصل",
+    connecting: "راني نتصل...",
+    connectDB: "اتصل بالقاعدة",
+    
+    // Sandbox
+    sandbox: "ساندبوكس",
+    sandboxReady: "الساندبوكس جاهز",
+    sandboxExpired: "انتهت صلاحية الساندبوكس",
+    creatingSandbox: "راني ندير ساندبوكس...",
   },
 };
 
