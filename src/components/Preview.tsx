@@ -405,7 +405,7 @@ export function Preview({
                       <TooltipContent>
                         <p>
                           {window.crossOriginIsolated
-                            ? "Real Vite dev server (like Lovable)"
+                            ? "Real Vite dev server (like VIPE DZ)"
                             : "Requires COOP/COEP (only works in a normal top-level tab)"}
                         </p>
                       </TooltipContent>
@@ -495,7 +495,7 @@ export function Preview({
             <div className="space-y-2">
               <Label htmlFor="slug">Custom URL</Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">vipe.lovable.app/app/</span>
+                <span className="text-sm text-muted-foreground">vipedz.app/app/</span>
                 <Input
                   id="slug"
                   value={customSlug}
