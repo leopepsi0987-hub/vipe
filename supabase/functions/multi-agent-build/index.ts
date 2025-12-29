@@ -353,7 +353,7 @@ CURRENT APP: ${currentCode ? `Has existing code (${currentCode.length} chars)` :
             // Send chat response without building
             sendEvent({ 
               type: "chat_response", 
-              message: intentResult.response || "Hey! I'm Vipe. Tell me what you'd like to build and I'll create it for you! 🚀"
+              message: intentResult.response || "Hey! I'm VIPE DZ. Tell me what you'd like to build and I'll create it for you! 🚀"
             });
 
             sendEvent({ type: "[DONE]" });
