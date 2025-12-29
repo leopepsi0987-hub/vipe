@@ -289,7 +289,7 @@ export function GenerationPreview({
           Ready to Build
         </h3>
         <p className="text-sm text-muted-foreground max-w-xs">
-          Enter a URL to clone or describe what you want to build
+          Enter a URL to clone or describe what you want to build with VIPE DZ
         </p>
       </div>
     </div>

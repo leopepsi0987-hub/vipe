@@ -227,29 +227,26 @@ serve(async (req) => {
         supabaseProjectId,
       };
 
-      // Store connection in generation_sessions for the generation page
-      const { error: upsertGenError } = await supabase
-        .from("generation_sessions")
-        .upsert({
-          session_id: projectId,
-          supabase_connection: connectionData,
-        }, { onConflict: "session_id" });
-
-      if (upsertGenError) {
-        console.log("[supabase-oauth] Could not store in generation_sessions:", upsertGenError.message);
-      } else {
-        console.log("[supabase-oauth] Stored connection in generation_sessions for:", projectId);
-      }
-
-      // Also try to store in project_data if it's a real project (may fail due to FK constraint)
+      // Store connection in project_data for the generation page
+      // Try to find a project with this slug first
+      const { data: projectBySlug } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("slug", projectId)
+        .maybeSingle();
+      
+      const actualProjectId = projectBySlug?.id || projectId;
+      
       const { error: upsertPdError } = await supabase.from("project_data").upsert({
-        project_id: projectId,
+        project_id: actualProjectId,
         key: "supabase_connection",
         value: connectionData,
       }, { onConflict: "project_id,key" });
       
       if (upsertPdError) {
-        console.log("[supabase-oauth] Could not store in project_data (expected for generation sessions):", upsertPdError.message);
+        console.log("[supabase-oauth] Could not store in project_data:", upsertPdError.message);
+      } else {
+        console.log("[supabase-oauth] Stored connection in project_data for:", actualProjectId);
       }
 
       // Keep OAuth session for later SQL execution - update with fresh token
