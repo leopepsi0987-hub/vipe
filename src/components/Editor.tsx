@@ -64,6 +64,10 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const { t, isRTL } = useI18n();
+
+  // Version history
+  const { versions, loading: versionsLoading, saveVersion, refreshVersions } = useVersionHistory(project.id);
+
   // Project files (React project mode)
   const { files, applyOperations, updateFile } = useProjectFiles(project.id);
 

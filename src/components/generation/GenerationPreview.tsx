@@ -49,6 +49,15 @@ export function GenerationPreview({
 
     return `${backendBase}/functions/v1/sandbox-proxy?url=${encodeURIComponent(fullUrl)}`;
   }, []);
+
+  // Handle refresh - needs to be defined before checkAndRetry
+  const handleRefresh = useCallback(() => {
+    setIframeError(false);
+    if (iframeRef.current && sandboxUrl) {
+      iframeRef.current.src = getSandboxUrl(sandboxUrl) + `?t=${Date.now()}`;
+    }
+  }, [iframeRef, sandboxUrl, getSandboxUrl]);
+
   useEffect(() => {
     setIframeError(false);
     setRetryCount(0);
@@ -136,13 +145,6 @@ export function GenerationPreview({
       return () => clearTimeout(timer);
     }
   }, [sandboxUrl, isLoading]);
-
-  const handleRefresh = useCallback(() => {
-    setIframeError(false);
-    if (iframeRef.current && sandboxUrl) {
-      iframeRef.current.src = getSandboxUrl(sandboxUrl) + `?t=${Date.now()}`;
-    }
-  }, [iframeRef, sandboxUrl, getSandboxUrl]);
 
   const handleOpenExternal = () => {
     if (sandboxUrl) {
