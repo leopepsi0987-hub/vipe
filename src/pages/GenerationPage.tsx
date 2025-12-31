@@ -444,7 +444,7 @@ export default function GenerationPage() {
   const createSandbox = async (): Promise<SandboxData | null> => {
     try {
       addMessage("Creating sandbox environment...", "system");
-      
+
       const { data, error } = await supabase.functions.invoke("create-sandbox", {
         body: {},
       });
@@ -456,18 +456,46 @@ export default function GenerationPage() {
         sandboxId: data.sandboxId,
         url: data.url,
       };
-      
+
       setSandboxData(sandbox);
       addMessage(`Sandbox ready! ID: ${data.sandboxId}`, "system");
-      
+
       // Save sandbox data to project_data
       await saveSandboxData(sandbox);
-      
+
       return sandbox;
     } catch (error) {
       console.error("[generation] Sandbox error:", error);
-      addMessage(`Failed to create sandbox: ${error instanceof Error ? error.message : "Unknown error"}`, "system");
+      addMessage(
+        `Failed to create sandbox: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "system",
+      );
       return null;
+    }
+  };
+
+  const recoverSandbox = async () => {
+    if (!projectId) {
+      toast.error("Project not ready yet");
+      return;
+    }
+
+    try {
+      addMessage("Recovering preview server…", "system");
+      const { data, error } = await supabase.functions.invoke("restart-sandbox", {
+        body: { projectId },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Failed to recover sandbox");
+
+      const sandbox: SandboxData = { sandboxId: data.sandboxId, url: data.url };
+      setSandboxData(sandbox);
+      await saveSandboxData(sandbox);
+      addMessage("Preview server recovered.", "system");
+    } catch (e) {
+      console.error("[generation] recoverSandbox error", e);
+      toast.error("Failed to recover preview");
     }
   };
 
@@ -1299,10 +1327,12 @@ export default function GenerationPage() {
               <GenerationPreview
                 sandboxUrl={sandboxData?.url || null}
                 sandboxId={sandboxData?.sandboxId || null}
+                projectId={projectId}
                 iframeRef={iframeRef}
                 isLoading={isGenerating || isScrapingUrl}
                 screenshot={urlScreenshot}
                 files={Object.fromEntries(generationFiles.map((f) => [f.path, f.content]))}
+                onRecoverSandbox={recoverSandbox}
               />
             ) : (
               <GenerationCodePanel
@@ -1436,10 +1466,12 @@ export default function GenerationPage() {
             <GenerationPreview
               sandboxUrl={sandboxData?.url || null}
               sandboxId={sandboxData?.sandboxId || null}
+              projectId={projectId}
               iframeRef={iframeRef}
               isLoading={isGenerating || isScrapingUrl}
               screenshot={urlScreenshot}
               files={Object.fromEntries(generationFiles.map((f) => [f.path, f.content]))}
+              onRecoverSandbox={recoverSandbox}
             />
           )}
         </div>
