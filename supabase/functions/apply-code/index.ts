@@ -87,7 +87,8 @@ serve(async (req) => {
 
     // Apply file operations
     if (Array.isArray(files) && files.length > 0) {
-      const writes: Array<{ path: string; data: string }> = [];
+      // Use a Map to deduplicate files by path (last occurrence wins)
+      const writesMap = new Map<string, { path: string; data: string; originalPath: string; action: string }>();
 
       for (const file of files as FileOperation[]) {
         const action = file.action || "update";
@@ -102,6 +103,8 @@ serve(async (req) => {
           } catch {
             // ignore missing files
           }
+          // Also remove from writesMap if it was queued for write
+          writesMap.delete(normalizedPath);
           continue;
         }
 
@@ -112,14 +115,20 @@ serve(async (req) => {
           content = content.replace(/@import\s+['\"]tailwindcss['\"];?\s*/g, "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n");
         }
 
-        writes.push({ path: normalizedPath, data: content });
+        // Overwrite any previous entry for this path (deduplication)
+        writesMap.set(normalizedPath, { path: normalizedPath, data: content, originalPath: file.path, action });
+      }
 
-        if (action === "create") results.filesCreated.push(file.path);
-        else results.filesUpdated.push(file.path);
+      // Build final arrays from deduplicated map
+      const writes: Array<{ path: string; data: string }> = [];
+      for (const entry of writesMap.values()) {
+        writes.push({ path: entry.path, data: entry.data });
+        if (entry.action === "create") results.filesCreated.push(entry.originalPath);
+        else results.filesUpdated.push(entry.originalPath);
       }
 
       if (writes.length > 0) {
-        console.log(`[apply-code] Writing ${writes.length} files...`);
+        console.log(`[apply-code] Writing ${writes.length} deduplicated files...`);
         await sandbox.files.write(writes);
       }
 
