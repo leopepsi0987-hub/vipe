@@ -7,19 +7,23 @@ import { toast } from "sonner";
 interface GenerationPreviewProps {
   sandboxUrl: string | null;
   sandboxId: string | null;
+  projectId?: string | null;
   iframeRef: RefObject<HTMLIFrameElement>;
   isLoading: boolean;
   screenshot?: string | null;
   files?: Record<string, string>;
+  onRecoverSandbox?: () => Promise<void>;
 }
 
 export function GenerationPreview({
   sandboxUrl,
   sandboxId,
+  projectId,
   iframeRef,
   isLoading,
   screenshot,
   files,
+  onRecoverSandbox,
 }: GenerationPreviewProps) {
   const [iframeError, setIframeError] = useState(false);
   const [isRestarting, setIsRestarting] = useState(false);
@@ -69,50 +73,60 @@ export function GenerationPreview({
     if (!sandboxUrl || !iframeRef.current || isLoading) return;
 
     try {
-      // Check readiness via our proxy (CORS-enabled) to avoid direct E2B cross-origin failures
+      // Check readiness via our proxy (CORS-enabled)
       const response = await fetch(getSandboxUrl(sandboxUrl), { cache: "no-store" });
+      const html = await response.text().catch(() => "");
+
+      // If sandbox expired, rehydrate automatically
+      const isExpired = html.includes("Sandbox Expired") || html.includes("Sandbox Not Found") || html.includes("wasn't found");
+      if (isExpired && onRecoverSandbox) {
+        setIsAutoRetrying(false);
+        setRetryCount(0);
+        await onRecoverSandbox();
+        return;
+      }
+
       if (!response.ok) throw new Error(`Proxy not ready: ${response.status}`);
 
-      // Check iframe content for error messages
-      const iframe = iframeRef.current;
-      try {
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-        const bodyText = iframeDoc?.body?.innerText || '';
-        
-        // If we see error indicators, retry
-        if (bodyText.includes('Starting Server') || bodyText.includes('Closed Port') || bodyText.includes('BLURRED')) {
-          if (retryCount < maxRetries) {
-            setIsAutoRetrying(true);
-            setRetryCount(prev => prev + 1);
-            retryTimerRef.current = setTimeout(() => {
-              handleRefresh();
-              // Schedule next check
-              setTimeout(checkAndRetry, retryDelay);
-            }, retryDelay);
-          } else {
-            setIsAutoRetrying(false);
+      // If we see our proxy "Starting Server" page too long, retry then recover
+      const isStarting = html.includes("Starting Server") || html.includes("Closed Port") || html.includes("Connection refused");
+      if (isStarting) {
+        if (retryCount < maxRetries) {
+          setIsAutoRetrying(true);
+          setRetryCount((prev) => prev + 1);
+          retryTimerRef.current = setTimeout(() => {
+            handleRefresh();
+            setTimeout(checkAndRetry, retryDelay);
+          }, retryDelay);
+        } else {
+          setIsAutoRetrying(false);
+          if (onRecoverSandbox) {
+            await onRecoverSandbox();
           }
-          return;
         }
-      } catch {
-        // Cross-origin, can't check content - that's okay
+        return;
       }
 
       // If response is OK, we're good
       setIsAutoRetrying(false);
       setRetryCount(0);
     } catch {
-      // Network error, try again
+      // Network error, try again then recover
       if (retryCount < maxRetries) {
         setIsAutoRetrying(true);
-        setRetryCount(prev => prev + 1);
+        setRetryCount((prev) => prev + 1);
         retryTimerRef.current = setTimeout(() => {
           handleRefresh();
           setTimeout(checkAndRetry, retryDelay);
         }, retryDelay);
+      } else {
+        setIsAutoRetrying(false);
+        if (onRecoverSandbox) {
+          await onRecoverSandbox();
+        }
       }
     }
-  }, [sandboxUrl, iframeRef, isLoading, retryCount]);
+  }, [sandboxUrl, iframeRef, isLoading, retryCount, onRecoverSandbox, handleRefresh, getSandboxUrl]);
 
   // Start auto-retry when sandbox URL changes and we're not loading
   useEffect(() => {
@@ -152,11 +166,21 @@ export function GenerationPreview({
         },
       });
 
+      // If sandbox is gone, fully rehydrate
+      if ((error as any)?.status === 410 || data?.error === "SANDBOX_EXPIRED") {
+        if (onRecoverSandbox) {
+          await onRecoverSandbox();
+        } else {
+          throw new Error("Sandbox expired");
+        }
+        return;
+      }
+
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || "Failed to restart server");
 
       toast.success("Server restarted!");
-      
+
       // Start auto-retry after restart
       setIsAutoRetrying(true);
       setTimeout(() => {

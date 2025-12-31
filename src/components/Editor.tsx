@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useI18n, LanguageToggle } from "@/lib/i18n";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
+import { generateBundledHTML } from "@/lib/sandboxBundler";
 
 interface QuickAction {
   id: string;
@@ -63,11 +64,52 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
   const { t, isRTL } = useI18n();
-  // Version history
-  const { versions, loading: versionsLoading, saveVersion, refreshVersions } = useVersionHistory(project.id);
-
   // Project files (React project mode)
   const { files, applyOperations, updateFile } = useProjectFiles(project.id);
+
+  // Auto-save: keep projects.html_code in sync with project_files so projects always appear in Builder.
+  const htmlAutosaveTimerRef = useRef<number | null>(null);
+  const latestFilesRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    latestFilesRef.current = files;
+
+    if (!files || Object.keys(files).length === 0) return;
+
+    if (htmlAutosaveTimerRef.current) {
+      window.clearTimeout(htmlAutosaveTimerRef.current);
+    }
+
+    htmlAutosaveTimerRef.current = window.setTimeout(() => {
+      try {
+        const baseUrl = window.location.origin;
+        const bundled = generateBundledHTML(latestFilesRef.current, baseUrl);
+        onUpdateCode(bundled);
+      } catch (e) {
+        console.warn("[Editor] Failed to bundle for autosave", e);
+      }
+    }, 1200);
+
+    return () => {
+      if (htmlAutosaveTimerRef.current) window.clearTimeout(htmlAutosaveTimerRef.current);
+    };
+  }, [files, onUpdateCode]);
+
+  useEffect(() => {
+    const flush = () => {
+      if (!latestFilesRef.current || Object.keys(latestFilesRef.current).length === 0) return;
+      try {
+        const baseUrl = window.location.origin;
+        const bundled = generateBundledHTML(latestFilesRef.current, baseUrl);
+        onUpdateCode(bundled);
+      } catch {
+        // ignore
+      }
+    };
+
+    window.addEventListener("beforeunload", flush);
+    return () => window.removeEventListener("beforeunload", flush);
+  }, [onUpdateCode]);
 
   // Keyboard shortcuts
   useEffect(() => {

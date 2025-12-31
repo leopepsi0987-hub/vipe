@@ -119,6 +119,11 @@ export function Preview({
   const [selectedFile, setSelectedFile] = useState<string>(defaultFile);
   const [editedFiles, setEditedFiles] = useState<Record<string, string>>({});
 
+  // Auto-save edited file content (debounced)
+  const autoSaveTimerRef = useRef<number | null>(null);
+  const latestPendingRef = useRef<{ path: string; content: string } | null>(null);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+
   // Reset selected file when files change
   useEffect(() => {
     if (files && !files[selectedFile]) {
@@ -138,6 +143,57 @@ export function Preview({
     const edited = editedFiles[selectedFile];
     return edited !== undefined && edited !== files[selectedFile];
   }, [files, selectedFile, editedFiles]);
+
+  // Debounced auto-save for file mode
+  useEffect(() => {
+    if (!isFileMode || !onFileChange) return;
+    if (!selectedFile) return;
+
+    const pending = editedFiles[selectedFile];
+    if (pending === undefined) return;
+    if (!files) return;
+    if (pending === files[selectedFile]) return;
+
+    latestPendingRef.current = { path: selectedFile, content: pending };
+    setAutoSaveStatus("saving");
+
+    if (autoSaveTimerRef.current) window.clearTimeout(autoSaveTimerRef.current);
+
+    autoSaveTimerRef.current = window.setTimeout(() => {
+      const latest = latestPendingRef.current;
+      if (!latest) return;
+
+      try {
+        onFileChange(latest.path, latest.content);
+        setEditedFiles((prev) => {
+          const next = { ...prev };
+          delete next[latest.path];
+          return next;
+        });
+        setAutoSaveStatus("saved");
+        window.setTimeout(() => setAutoSaveStatus("idle"), 1200);
+      } catch {
+        setAutoSaveStatus("idle");
+      }
+    }, 900);
+
+    return () => {
+      if (autoSaveTimerRef.current) window.clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [editedFiles, selectedFile, isFileMode, onFileChange, files]);
+
+  // Flush pending autosave when leaving the page
+  useEffect(() => {
+    const flush = () => {
+      if (!onFileChange) return;
+      const latest = latestPendingRef.current;
+      if (!latest) return;
+      onFileChange(latest.path, latest.content);
+    };
+
+    window.addEventListener("beforeunload", flush);
+    return () => window.removeEventListener("beforeunload", flush);
+  }, [onFileChange]);
 
   const deviceConfig = {
     desktop: { width: "100%", height: "100%" },

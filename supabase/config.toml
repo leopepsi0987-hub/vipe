@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.execute-user-sql]
 verify_jwt = false
+
+[functions.restart-sandbox]
+verify_jwt = true
