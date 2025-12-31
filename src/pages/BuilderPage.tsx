@@ -4,6 +4,8 @@ import { useProjects } from "@/hooks/useProjects";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
+import { AuthPage } from "@/components/AuthPage";
 import {
   Plus,
   FolderOpen,
@@ -25,6 +27,7 @@ import { cn } from "@/lib/utils";
 
 export default function BuilderPage() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const { t, isRTL } = useI18n();
   const { projects, loading, createProject, deleteProject } = useProjects();
 
@@ -48,7 +51,7 @@ export default function BuilderPage() {
     navigate(`/project/${id}`);
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <MainLayout>
         <div className="flex items-center justify-center h-[60vh]">
@@ -56,6 +59,10 @@ export default function BuilderPage() {
         </div>
       </MainLayout>
     );
+  }
+
+  if (!user) {
+    return <AuthPage />;
   }
 
   return (
