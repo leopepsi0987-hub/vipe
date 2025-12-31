@@ -7,11 +7,13 @@ import { GenerationPreview } from "@/components/generation/GenerationPreview";
 import { GenerationCodePanel } from "@/components/generation/GenerationCodePanel";
 import { SupabaseConnectionModal } from "@/components/SupabaseConnectionModal";
 import { VisualEditor } from "@/components/VisualEditor";
+import { AuthPage } from "@/components/AuthPage";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, ArrowLeft, Send, Database, CheckCircle, Edit3 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { generateBundledHTML } from "@/lib/sandboxBundler";
 
 interface SandboxData {
   sandboxId: string;
@@ -125,7 +127,10 @@ export default function GenerationPage() {
   const [projectName, setProjectName] = useState<string>("Untitled Project");
   
   // Auth
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+
+  // Auth is required for saving (projects are user-owned). We'll gate rendering below,
+  // and delay loading until auth is ready.
 
   // Redirect to unique URL if on /generation
   useEffect(() => {
@@ -136,6 +141,7 @@ export default function GenerationPage() {
 
   // Load project data from database (using projects table instead of sessions)
   useEffect(() => {
+    if (authLoading || !user) return;
     if (!sessionId || hasLoadedSession.current) return;
     hasLoadedSession.current = true;
 
@@ -940,6 +946,18 @@ export default function GenerationPage() {
           .then(({ error }) => {
             if (error) console.error("Error saving files:", error);
           });
+
+        // Update the project preview HTML so it shows up correctly in /builder
+        const fileMap: Record<string, string> = {};
+        for (const f of (finalFiles! || newFiles)) fileMap[f.path] = f.content;
+        const bundledHtml = generateBundledHTML(fileMap, window.location.origin);
+        supabase
+          .from("projects")
+          .update({ html_code: bundledHtml, updated_at: new Date().toISOString() })
+          .eq("id", projectId)
+          .then(({ error }) => {
+            if (error) console.error("Error updating project html:", error);
+          });
       }
     }
   };
@@ -1181,6 +1199,21 @@ export default function GenerationPage() {
     
     return "";
   };
+
+  if (authLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading your account...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
 
   // Show loading state while loading session
   if (initialLoading) {
