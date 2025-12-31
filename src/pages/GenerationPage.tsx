@@ -920,7 +920,14 @@ export default function GenerationPage() {
 
     while ((match = fileRegex.exec(code)) !== null) {
       const filePath = match[1];
-      const fileContent = match[2].trim();
+      let fileContent = match[2].trim();
+      
+      // Strip markdown code fences that AI sometimes includes (e.g., "```html ... ```")
+      fileContent = fileContent
+        .replace(/^```\w*\s*\n?/g, "")
+        .replace(/\n?```\s*$/g, "")
+        .trim();
+      
       const ext = filePath.split(".").pop() || "";
       
       newFiles.push({

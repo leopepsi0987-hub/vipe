@@ -111,6 +111,12 @@ serve(async (req) => {
         // Fix common Tailwind v4 import that breaks Vite/Tailwind v3 setups.
         // '@import "tailwindcss"' triggers a resolver file lookup and crashes the dev server.
         let content = file.content ?? "";
+
+        // Strip markdown code fences that AI sometimes includes (e.g., "```html ... ```")
+        if (typeof content === "string") {
+          content = content.replace(/^```\w*\s*\n?/g, "").replace(/\n?```\s*$/g, "").trim();
+        }
+
         if (typeof content === "string" && (content.includes("@import 'tailwindcss'") || content.includes('@import "tailwindcss"'))) {
           content = content.replace(/@import\s+['\"]tailwindcss['\"];?\s*/g, "@tailwind base;\n@tailwind components;\n@tailwind utilities;\n\n");
         }
