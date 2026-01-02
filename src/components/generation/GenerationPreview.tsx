@@ -1,8 +1,10 @@
-import { RefObject, useState, useEffect, useRef, useCallback } from "react";
-import { Loader2, RefreshCw, ExternalLink, Play } from "lucide-react";
+import { RefObject, useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Loader2, RefreshCw, ExternalLink, Play, Zap, Globe, Monitor, Tablet, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { SandboxPreview } from "@/components/SandboxPreview";
+import { cn } from "@/lib/utils";
 
 interface GenerationPreviewProps {
   sandboxUrl: string | null;
@@ -14,6 +16,9 @@ interface GenerationPreviewProps {
   files?: Record<string, string>;
   onRecoverSandbox?: () => Promise<void>;
 }
+
+type DeviceMode = "desktop" | "tablet" | "mobile";
+type PreviewEngine = "local" | "sandbox";
 
 export function GenerationPreview({
   sandboxUrl,
@@ -29,34 +34,40 @@ export function GenerationPreview({
   const [isRestarting, setIsRestarting] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [isAutoRetrying, setIsAutoRetrying] = useState(false);
+  const [previewEngine, setPreviewEngine] = useState<PreviewEngine>("local"); // Default to local bundler
+  const [deviceMode, setDeviceMode] = useState<DeviceMode>("desktop");
   const retryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const maxRetries = 10;
-  const retryDelay = 1500; // 1.5 seconds between retries
+  const retryDelay = 1500;
 
-  
+  const hasFiles = files && Object.keys(files).length > 0;
+
+  const deviceConfig = {
+    desktop: { width: "100%", height: "100%" },
+    tablet: { width: "768px", height: "1024px" },
+    mobile: { width: "375px", height: "667px" },
+  };
 
   // Use sandbox-proxy to avoid X-Frame-Options restrictions from E2B
   const getSandboxUrl = useCallback((url: string): string => {
-    // Ensure URL has https:// protocol
     let fullUrl = url;
     if (!fullUrl.startsWith("http://") && !fullUrl.startsWith("https://")) {
       fullUrl = `https://${fullUrl}`;
     }
 
-    // Ensure backend URL is https (avoid mixed-content issues)
     let backendBase = import.meta.env.VITE_SUPABASE_URL || "";
     backendBase = backendBase.replace(/^http:\/\//, "https://");
 
     return `${backendBase}/functions/v1/sandbox-proxy?url=${encodeURIComponent(fullUrl)}`;
   }, []);
 
-  // Handle refresh - needs to be defined before checkAndRetry
   const handleRefresh = useCallback(() => {
     setIframeError(false);
-    if (iframeRef.current && sandboxUrl) {
+    if (previewEngine === "sandbox" && iframeRef.current && sandboxUrl) {
       iframeRef.current.src = getSandboxUrl(sandboxUrl) + `?t=${Date.now()}`;
     }
-  }, [iframeRef, sandboxUrl, getSandboxUrl]);
+    // For local engine, SandboxPreview handles refresh internally
+  }, [iframeRef, sandboxUrl, getSandboxUrl, previewEngine]);
 
   useEffect(() => {
     setIframeError(false);
@@ -68,7 +79,6 @@ export function GenerationPreview({
     }
   }, [sandboxUrl]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (retryTimerRef.current) {
@@ -77,16 +87,14 @@ export function GenerationPreview({
     };
   }, []);
 
-  // Auto-retry mechanism - check if iframe loaded properly
   const checkAndRetry = useCallback(async () => {
+    if (previewEngine !== "sandbox") return;
     if (!sandboxUrl || !iframeRef.current || isLoading) return;
 
     try {
-      // Check readiness via our proxy (CORS-enabled)
       const response = await fetch(getSandboxUrl(sandboxUrl), { cache: "no-store" });
       const html = await response.text().catch(() => "");
 
-      // If sandbox expired, rehydrate automatically
       const isExpired = html.includes("Sandbox Expired") || html.includes("Sandbox Not Found") || html.includes("wasn't found");
       if (isExpired && onRecoverSandbox) {
         setIsAutoRetrying(false);
@@ -97,7 +105,6 @@ export function GenerationPreview({
 
       if (!response.ok) throw new Error(`Proxy not ready: ${response.status}`);
 
-      // If we see our proxy "Starting Server" page too long, retry then recover
       const isStarting = html.includes("Starting Server") || html.includes("Closed Port") || html.includes("Connection refused");
       if (isStarting) {
         if (retryCount < maxRetries) {
@@ -116,11 +123,9 @@ export function GenerationPreview({
         return;
       }
 
-      // If response is OK, we're good
       setIsAutoRetrying(false);
       setRetryCount(0);
     } catch {
-      // Network error, try again then recover
       if (retryCount < maxRetries) {
         setIsAutoRetrying(true);
         setRetryCount((prev) => prev + 1);
@@ -135,16 +140,14 @@ export function GenerationPreview({
         }
       }
     }
-  }, [sandboxUrl, iframeRef, isLoading, retryCount, onRecoverSandbox, handleRefresh, getSandboxUrl]);
+  }, [sandboxUrl, iframeRef, isLoading, retryCount, onRecoverSandbox, handleRefresh, getSandboxUrl, previewEngine]);
 
-  // Start auto-retry when sandbox URL changes and we're not loading
   useEffect(() => {
-    if (sandboxUrl && !isLoading) {
-      // Give initial load a moment, then start checking
+    if (previewEngine === "sandbox" && sandboxUrl && !isLoading) {
       const timer = setTimeout(checkAndRetry, 3000);
       return () => clearTimeout(timer);
     }
-  }, [sandboxUrl, isLoading]);
+  }, [sandboxUrl, isLoading, previewEngine]);
 
   const handleOpenExternal = () => {
     if (sandboxUrl) {
@@ -164,11 +167,10 @@ export function GenerationPreview({
       const { data, error } = await supabase.functions.invoke("apply-code", {
         body: {
           sandboxId,
-          files: [], // Empty files = just restart Vite
+          files: [],
         },
       });
 
-      // If sandbox is gone, fully rehydrate
       if ((error as any)?.status === 410 || data?.error === "SANDBOX_EXPIRED") {
         if (onRecoverSandbox) {
           await onRecoverSandbox();
@@ -183,7 +185,6 @@ export function GenerationPreview({
 
       toast.success("Server restarted!");
 
-      // Start auto-retry after restart
       setIsAutoRetrying(true);
       setTimeout(() => {
         handleRefresh();
@@ -198,7 +199,7 @@ export function GenerationPreview({
   };
 
   // Loading state with screenshot background
-  if (isLoading && !sandboxUrl) {
+  if (isLoading && !sandboxUrl && !hasFiles) {
     return (
       <div className="relative w-full h-full bg-slate-900">
         {screenshot && (
@@ -236,59 +237,217 @@ export function GenerationPreview({
     );
   }
 
-  // ALWAYS prefer E2B sandbox iframe when available - it's the actual running dev server!
-  if (sandboxUrl) {
+  // If we have files, use LOCAL bundler by default (same as /project page) - THIS IS THE FIX!
+  if (hasFiles && previewEngine === "local") {
+    return (
+      <div className="relative w-full h-full flex flex-col">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-3 py-2 bg-card/80 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-destructive/80" />
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+            </div>
+            <span className="text-xs text-muted-foreground ml-2">Local Preview</span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            {/* Preview Engine Toggle */}
+            <div className="flex bg-secondary rounded-md p-0.5 mr-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn("h-6 px-2 rounded-sm text-xs gap-1", "bg-background shadow-sm")}
+                onClick={() => {
+                  toast.info("Already in Fast mode");
+                }}
+              >
+                <Zap className="w-3 h-3" />
+                Fast
+              </Button>
+              {sandboxUrl && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 rounded-sm text-xs gap-1"
+                  onClick={() => {
+                    setPreviewEngine("sandbox");
+                    toast.success("Sandbox mode", { description: "Real Vite dev server (slower startup)" });
+                  }}
+                >
+                  <Globe className="w-3 h-3" />
+                  Full
+                </Button>
+              )}
+            </div>
+
+            {/* Device Mode */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-7 w-7", deviceMode === "desktop" && "bg-secondary")}
+              onClick={() => setDeviceMode("desktop")}
+            >
+              <Monitor className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-7 w-7", deviceMode === "tablet" && "bg-secondary")}
+              onClick={() => setDeviceMode("tablet")}
+            >
+              <Tablet className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn("h-7 w-7", deviceMode === "mobile" && "bg-secondary")}
+              onClick={() => setDeviceMode("mobile")}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+            </Button>
+
+            <div className="w-px h-4 bg-border mx-1" />
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={handleRefresh}
+            >
+              <RefreshCw className="w-3 h-3" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Preview Area */}
+        <div className="flex-1 flex items-center justify-center bg-muted/30 p-4 overflow-hidden">
+          <div
+            className="bg-background rounded-lg overflow-hidden shadow-lg border border-border transition-all duration-300"
+            style={{
+              width: deviceConfig[deviceMode].width,
+              height: deviceConfig[deviceMode].height,
+              maxWidth: "100%",
+              maxHeight: "100%",
+            }}
+          >
+            <SandboxPreview files={files} className="w-full h-full" useESM={false} />
+          </div>
+        </div>
+
+        {/* Loading overlay during regeneration */}
+        {isLoading && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center">
+            <div className="bg-card rounded-lg p-4 shadow-xl flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <span className="text-sm font-medium">Updating...</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Sandbox mode (external E2B server) - fallback option
+  if (sandboxUrl && previewEngine === "sandbox") {
     const iframeSrc = getSandboxUrl(sandboxUrl);
 
     return (
-      <div className="relative w-full h-full">
-        <iframe
-          ref={iframeRef}
-          src={iframeSrc}
-          className="w-full h-full border-none bg-white"
-          title="Sandbox Preview"
-          allow="clipboard-write"
-        />
+      <div className="relative w-full h-full flex flex-col">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between px-3 py-2 bg-card/80 border-b border-border">
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-destructive/80" />
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
+            </div>
+            <span className="text-xs text-muted-foreground ml-2">Sandbox Preview</span>
+          </div>
 
-        {/* Floating controls */}
-        <div className="absolute bottom-4 right-4 flex gap-2 items-center">
-          {isAutoRetrying && (
-            <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
-              Waiting for server... ({retryCount}/{maxRetries})
-            </span>
-          )}
-          <Button
-            size="sm"
-            variant="secondary"
-            className="shadow-lg"
-            onClick={handleRestartServer}
-            disabled={isRestarting || !sandboxId}
-          >
-            {isRestarting ? (
-              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-            ) : (
-              <Play className="w-4 h-4 mr-1" />
+          <div className="flex items-center gap-1">
+            {/* Preview Engine Toggle */}
+            {hasFiles && (
+              <div className="flex bg-secondary rounded-md p-0.5 mr-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 rounded-sm text-xs gap-1"
+                  onClick={() => {
+                    setPreviewEngine("local");
+                    toast.success("Local mode", { description: "Instant preview with client-side bundler" });
+                  }}
+                >
+                  <Zap className="w-3 h-3" />
+                  Fast
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={cn("h-6 px-2 rounded-sm text-xs gap-1", "bg-background shadow-sm")}
+                  onClick={() => {
+                    toast.info("Already in Full mode");
+                  }}
+                >
+                  <Globe className="w-3 h-3" />
+                  Full
+                </Button>
+              </div>
             )}
-            Restart Server
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="shadow-lg"
-            onClick={handleRefresh}
-          >
-            <RefreshCw className="w-4 h-4 mr-1" />
-            Refresh
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="shadow-lg"
-            onClick={handleOpenExternal}
-          >
-            <ExternalLink className="w-4 h-4 mr-1" />
-            Open
-          </Button>
+          </div>
+        </div>
+
+        {/* iframe */}
+        <div className="flex-1 relative">
+          <iframe
+            ref={iframeRef}
+            src={iframeSrc}
+            className="w-full h-full border-none bg-white"
+            title="Sandbox Preview"
+            allow="clipboard-write"
+          />
+
+          {/* Floating controls */}
+          <div className="absolute bottom-4 right-4 flex gap-2 items-center">
+            {isAutoRetrying && (
+              <span className="text-xs text-muted-foreground bg-background/80 px-2 py-1 rounded">
+                Waiting for server... ({retryCount}/{maxRetries})
+              </span>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="shadow-lg"
+              onClick={handleRestartServer}
+              disabled={isRestarting || !sandboxId}
+            >
+              {isRestarting ? (
+                <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4 mr-1" />
+              )}
+              Restart Server
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="shadow-lg"
+              onClick={handleRefresh}
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              Refresh
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="shadow-lg"
+              onClick={handleOpenExternal}
+            >
+              <ExternalLink className="w-4 h-4 mr-1" />
+              Open
+            </Button>
+          </div>
         </div>
 
         {/* Loading overlay during regeneration */}
