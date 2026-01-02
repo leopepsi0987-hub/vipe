@@ -988,6 +988,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               isPublished={project.is_published}
               slug={project.slug}
               sandboxUrl={sandboxData?.url}
+              sandboxId={sandboxData?.sandboxId}
               onPublish={onPublish}
               onUpdatePublished={onUpdatePublished}
               activeView={previewView}
@@ -1250,6 +1251,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             isPublished={project.is_published}
             slug={project.slug}
             sandboxUrl={sandboxData?.url}
+            sandboxId={sandboxData?.sandboxId}
             onPublish={onPublish}
             onUpdatePublished={onUpdatePublished}
             activeView={previewView}
