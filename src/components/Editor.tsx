@@ -11,7 +11,7 @@ import { Project } from "@/hooks/useProjects";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, History, Eye, Code, Globe } from "lucide-react";
+import { MessageSquare, Database, History, Eye, Code, Globe, Loader2, CheckCircle, FileCode } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,23 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useI18n, LanguageToggle } from "@/lib/i18n";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
+
+// Task and file action types for streaming display
+interface Task {
+  id: string;
+  title: string;
+  status: "pending" | "in-progress" | "done";
+}
+
+interface FileAction {
+  type: "reading" | "editing" | "edited";
+  path: string;
+}
+
+interface SandboxData {
+  sandboxId: string;
+  url: string;
+}
 
 interface QuickAction {
   id: string;
@@ -33,6 +50,12 @@ interface Message {
   imageUrl?: string;
   hasCode?: boolean;
   actions?: QuickAction[];
+  metadata?: {
+    tasks?: Task[];
+    fileActions?: FileAction[];
+    thinkingTime?: number;
+    isThinking?: boolean;
+  };
 }
 
 interface EditorProps {
@@ -59,6 +82,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [pendingSql, setPendingSql] = useState("");
   const [isExecutingSql, setIsExecutingSql] = useState(false);
+
+  // Sandbox state for live preview (same as Generation page)
+  const [sandboxData, setSandboxData] = useState<SandboxData | null>(null);
+  const [currentTasks, setCurrentTasks] = useState<Task[]>([]);
+  const [currentFileActions, setCurrentFileActions] = useState<FileAction[]>([]);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -133,7 +161,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   useEffect(() => {
     setMessages([]); // Clear messages immediately when switching projects
     setStreamingContent("");
+    setSandboxData(null);
+    setCurrentTasks([]);
+    setCurrentFileActions([]);
     loadMessages();
+    loadSandboxData();
   }, [project.id]);
 
   const loadMessages = async () => {
@@ -153,6 +185,96 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
       }
     } catch (error) {
       // No messages saved yet, that's fine
+    }
+  };
+
+  // Load sandbox data from project_data
+  const loadSandboxData = async () => {
+    try {
+      const { data } = await supabase
+        .from("project_data")
+        .select("value")
+        .eq("project_id", project.id)
+        .eq("key", "sandbox_data")
+        .maybeSingle();
+
+      if (data?.value) {
+        const sandbox = data.value as unknown as SandboxData;
+        if (sandbox.sandboxId && sandbox.url) {
+          setSandboxData(sandbox);
+        }
+      }
+    } catch (error) {
+      console.log("No sandbox data found");
+    }
+  };
+
+  // Save sandbox data
+  const saveSandboxData = async (sandbox: SandboxData) => {
+    try {
+      const { data: existing } = await supabase
+        .from("project_data")
+        .select("id")
+        .eq("project_id", project.id)
+        .eq("key", "sandbox_data")
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("project_data").update({ value: sandbox as any }).eq("id", existing.id);
+      } else {
+        await supabase.from("project_data").insert({
+          project_id: project.id,
+          key: "sandbox_data",
+          value: sandbox as any,
+        });
+      }
+    } catch (error) {
+      console.error("Error saving sandbox data:", error);
+    }
+  };
+
+  // Create sandbox for live preview
+  const createSandbox = async (): Promise<SandboxData | null> => {
+    try {
+      const { data, error } = await supabase.functions.invoke("create-sandbox", {
+        body: {},
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Failed to create sandbox");
+
+      const sandbox: SandboxData = {
+        sandboxId: data.sandboxId,
+        url: data.url,
+      };
+
+      setSandboxData(sandbox);
+      await saveSandboxData(sandbox);
+      return sandbox;
+    } catch (error) {
+      console.error("[Editor] Sandbox creation error:", error);
+      return null;
+    }
+  };
+
+  // Recover sandbox if expired
+  const recoverSandbox = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("restart-sandbox", {
+        body: { projectId: project.id },
+      });
+
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "Failed to recover sandbox");
+
+      const sandbox: SandboxData = { sandboxId: data.sandboxId, url: data.url };
+      setSandboxData(sandbox);
+      await saveSandboxData(sandbox);
+      return sandbox;
+    } catch (e) {
+      console.error("[Editor] recoverSandbox error", e);
+      toast.error("Failed to recover preview");
+      return null;
     }
   };
 
@@ -202,6 +324,28 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     };
     checkSupabaseConnection();
   }, [project.id]);
+
+  // Parse files from AI streamed content (same as Generation page)
+  const parseFilesFromContent = (content: string): Array<{ path: string; content: string }> => {
+    const files: Array<{ path: string; content: string }> = [];
+    const fileRegex = /<file\s+path="([^"]+)">([\s\S]*?)<\/file>/g;
+    let match;
+
+    while ((match = fileRegex.exec(content)) !== null) {
+      const filePath = match[1];
+      let fileContent = match[2].trim();
+
+      // Strip markdown code fences that AI sometimes includes
+      fileContent = fileContent
+        .replace(/^```\w*\s*\n?/g, "")
+        .replace(/\n?```\s*$/g, "")
+        .trim();
+
+      files.push({ path: filePath, content: fileContent });
+    }
+
+    return files;
+  };
 
   const streamSseToText = async (response: Response, onDelta: (delta: string) => void) => {
     const reader = response.body?.getReader();
@@ -325,8 +469,22 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         return;
       }
 
-      // build mode (React project) - generate file operations and apply them
-      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
+      // BUILD MODE - Use generate-ai-code (same as Generation page)
+      // This gives us: sandbox creation, file streaming with tasks/actions, image understanding
+      
+      // Ensure sandbox exists
+      let sandbox = sandboxData;
+      if (!sandbox) {
+        sandbox = await createSandbox();
+        if (!sandbox) {
+          throw new Error("Failed to create sandbox environment");
+        }
+      }
+
+      const hasExistingFiles = Object.keys(files).length > 0;
+
+      // Use generate-ai-code for full capabilities
+      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-code`;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -336,8 +494,14 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         },
         body: JSON.stringify({
           prompt: promptForBuild,
-          projectId: project.id,
-          currentFiles: files,
+          mode: "code",
+          isEdit: hasExistingFiles,
+          existingFiles: hasExistingFiles ? files : undefined,
+          supabaseConnection: hasConnectedSupabase ? { connected: true } : null,
+          imageData: imageUrl,
+          context: {
+            sandboxId: sandbox.sandboxId,
+          },
         }),
         signal: abortControllerRef.current?.signal,
       });
@@ -347,38 +511,180 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         throw new Error(errorData.error || "Build failed");
       }
 
-      // We stream into a single JSON string, but we DON'T show it in chat while streaming.
-      const fullContent = await streamSseToText(response, () => {});
+      // Stream with task/file action parsing (same as Generation page)
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
 
-      let parsed: any;
-      try {
-        parsed = JSON.parse(fullContent);
-      } catch {
-        // Common failure: model includes code fences or leading text
-        const trimmed = fullContent
-          .replace(/^```json\s*/i, "")
-          .replace(/```\s*$/i, "")
-          .trim();
-        parsed = JSON.parse(trimmed);
-      }
+      const decoder = new TextDecoder();
+      let fullContent = "";
+      let textBuffer = "";
+      let tasks: Task[] = [];
+      let fileActions: FileAction[] = [];
+      const startTime = Date.now();
+      let planMessageId: string | null = null;
+      let planShown = false;
 
-      const ops = Array.isArray(parsed?.files) ? parsed.files : [];
-      if (ops.length === 0) {
-        throw new Error("Build returned no file operations");
-      }
-
-      await applyOperations(ops);
-
-      const assistantMessage: Message = {
-        id: crypto.randomUUID(),
+      // Create initial building message
+      const buildingMessageId = crypto.randomUUID();
+      const buildingMessage: Message = {
+        id: buildingMessageId,
         role: "assistant",
-        content: parsed?.message || "Done! Applied changes to your React project.",
-        hasCode: true,
+        content: "Building...",
+        metadata: { tasks: [], fileActions: [], isThinking: true },
       };
+      setMessages([...newMessages, buildingMessage]);
 
-      const finalMessages = [...newMessages, assistantMessage];
-      setMessages(finalMessages);
-      saveMessages(finalMessages);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const delta = parsed.choices?.[0]?.delta?.content;
+            if (delta) {
+              fullContent += delta;
+              setStreamingContent(fullContent);
+
+              // Parse plan
+              if (!planShown) {
+                const planMatch = fullContent.match(/<plan>([\s\S]*?)<\/plan>/);
+                if (planMatch) {
+                  planShown = true;
+                  planMessageId = buildingMessageId;
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === buildingMessageId
+                        ? { ...m, content: planMatch[1].trim(), metadata: { ...m.metadata, isThinking: false } }
+                        : m
+                    )
+                  );
+                }
+              }
+
+              // Parse tasks
+              const tasksMatch = fullContent.match(/<tasks>([\s\S]*?)<\/tasks>/);
+              if (tasksMatch) {
+                try {
+                  tasks = JSON.parse(tasksMatch[1]);
+                  setCurrentTasks(tasks);
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === buildingMessageId ? { ...m, metadata: { ...m.metadata, tasks } } : m
+                    )
+                  );
+                } catch {}
+              }
+
+              // Parse task updates
+              const taskUpdates = fullContent.matchAll(/<task-update\s+id="([^"]+)"\s+status="([^"]+)"\s*\/>/g);
+              for (const match of taskUpdates) {
+                const [, id, status] = match;
+                tasks = tasks.map((t) => (t.id === id ? { ...t, status: status as Task["status"] } : t));
+              }
+              setCurrentTasks(tasks);
+
+              // Parse file actions
+              const fileActionMatches = fullContent.matchAll(
+                /<file-action\s+type="([^"]+)"\s+path="([^"]+)"\s*\/>/g
+              );
+              for (const match of fileActionMatches) {
+                const [, type, path] = match;
+                if (!fileActions.find((a) => a.path === path && a.type === type)) {
+                  fileActions.push({ type: type as FileAction["type"], path });
+                }
+              }
+              setCurrentFileActions(fileActions);
+
+              // Update message with current tasks and file actions
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === buildingMessageId
+                    ? {
+                        ...m,
+                        metadata: {
+                          ...m.metadata,
+                          tasks: [...tasks],
+                          fileActions: [...fileActions],
+                          thinkingTime: Math.round((Date.now() - startTime) / 1000),
+                        },
+                      }
+                    : m
+                )
+              );
+            }
+          } catch {
+            // ignore partial JSON
+          }
+        }
+      }
+
+      // Parse files from streamed content and apply
+      const parsedFiles = parseFilesFromContent(fullContent);
+      
+      if (parsedFiles.length > 0) {
+        // Apply to project_files database
+        const ops = parsedFiles.map((f) => ({
+          path: f.path,
+          action: "create" as const,
+          content: f.content,
+        }));
+        await applyOperations(ops);
+
+        // Apply to sandbox
+        try {
+          await supabase.functions.invoke("apply-code", {
+            body: {
+              sandboxId: sandbox.sandboxId,
+              files: parsedFiles.map((f) => ({ path: f.path, content: f.content })),
+            },
+          });
+        } catch (e) {
+          console.warn("[Editor] Failed to apply to sandbox:", e);
+        }
+      }
+
+      // Parse summary
+      const summaryMatch = fullContent.match(/<summary>([\s\S]*?)<\/summary>/);
+      const summary = summaryMatch ? summaryMatch[1].trim() : "Done! Applied changes to your project.";
+
+      // Update final message
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === buildingMessageId
+            ? {
+                ...m,
+                content: planShown ? m.content + "\n\n" + summary : summary,
+                hasCode: true,
+                metadata: {
+                  ...m.metadata,
+                  tasks: tasks.map((t) => ({ ...t, status: "done" as const })),
+                  isThinking: false,
+                  thinkingTime: Math.round((Date.now() - startTime) / 1000),
+                },
+              }
+            : m
+        )
+      );
+
+      // Save final messages
+      setMessages((prev) => {
+        saveMessages(prev);
+        return prev;
+      });
       setStreamingContent("");
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
