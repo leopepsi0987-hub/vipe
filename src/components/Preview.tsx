@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   Code,
@@ -17,7 +17,6 @@ import {
   ChevronDown,
   Zap,
   Box,
-  Play,
 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import { toast } from "sonner";
@@ -32,7 +31,6 @@ import { SandboxPreview } from "./SandboxPreview";
 import { WebContainerPreview } from "./WebContainerPreview";
 import { FileExplorer } from "./FileExplorer";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
-import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,9 +51,6 @@ interface PreviewProps {
   projectName?: string;
   isPublished?: boolean;
   slug?: string | null;
-  sandboxUrl?: string | null;
-  sandboxId?: string | null;
-  onRecoverSandbox?: () => Promise<{ sandboxId: string; url: string } | null>;
   onPublish?: (customSlug?: string, bundledHtml?: string) => Promise<any>;
   onUpdatePublished?: (bundledHtml?: string) => Promise<any>;
   activeView?: "preview" | "code";
@@ -96,9 +91,6 @@ export function Preview({
   projectName,
   isPublished,
   slug,
-  sandboxUrl,
-  sandboxId,
-  onRecoverSandbox,
   onPublish,
   onUpdatePublished,
   activeView = "preview",
@@ -114,10 +106,6 @@ export function Preview({
   const [publishing, setPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [localView, setLocalView] = useState<"preview" | "code">(activeView);
-
-  const [sandboxFrameKey, setSandboxFrameKey] = useState(0);
-  const [isSyncingSandbox, setIsSyncingSandbox] = useState(false);
-  const [isRestartingSandbox, setIsRestartingSandbox] = useState(false);
 
   const [showPublishDialog, setShowPublishDialog] = useState(false);
   const [customSlug, setCustomSlug] = useState("");
@@ -241,12 +229,6 @@ export function Preview({
   }, [html, isFileMode]);
 
   const handleRefresh = () => {
-    if (sandboxUrl) {
-      setSandboxFrameKey((k) => k + 1);
-      toast.info("Preview refreshed");
-      return;
-    }
-
     if (isFileMode) {
       toast.info("Preview refreshed");
       return;
@@ -261,8 +243,9 @@ export function Preview({
 
   const copyLink = () => {
     if (!slug) return;
-    // Use vipe.lovable.app for the published app URL
-    const url = `https://vipe.lovable.app/app/${slug}`;
+    // Use current host for the published app URL
+    const baseUrl = window.location.origin;
+    const url = `${baseUrl}/app/${slug}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("Link copied!");
@@ -292,122 +275,6 @@ export function Preview({
     } finally {
       setPublishing(false);
     }
-  };
-
-  const getSandboxProxyUrl = useCallback((url: string): string => {
-    let fullUrl = url;
-    if (!fullUrl.startsWith("http://") && !fullUrl.startsWith("https://")) {
-      fullUrl = `https://${fullUrl}`;
-    }
-
-    let backendBase = import.meta.env.VITE_SUPABASE_URL || "";
-    backendBase = backendBase.replace(/^http:\/\//, "https://");
-
-    return `${backendBase}/functions/v1/sandbox-proxy?url=${encodeURIComponent(fullUrl)}`;
-  }, []);
-
-  const handleSyncToSandbox = useCallback(async () => {
-    if (!files || Object.keys(files).length === 0) {
-      toast.error("Nothing to sync yet");
-      return;
-    }
-
-    try {
-      setIsSyncingSandbox(true);
-
-      let sid = sandboxId;
-      if (!sid) {
-        if (!onRecoverSandbox) {
-          toast.error("Preview environment is not ready yet");
-          return;
-        }
-        toast.info("Starting preview environment…");
-        const recovered = await onRecoverSandbox();
-        sid = recovered?.sandboxId;
-      }
-
-      if (!sid) {
-        toast.error("Failed to start preview environment");
-        return;
-      }
-
-      const payload = Object.entries(files).map(([path, content]) => ({
-        path,
-        content,
-        action: "update" as const,
-      }));
-
-      const { data, error } = await supabase.functions.invoke("apply-code", {
-        body: { sandboxId: sid, files: payload },
-      });
-
-      if (error) {
-        const msg = error.message || "";
-        // In case the sandbox expired between renders
-        if (msg.includes("410") || msg.toUpperCase().includes("SANDBOX_EXPIRED")) {
-          if (onRecoverSandbox) {
-            toast.info("Preview expired — restarting…");
-            const recovered = await onRecoverSandbox();
-            if (recovered?.sandboxId) {
-              const retry = await supabase.functions.invoke("apply-code", {
-                body: { sandboxId: recovered.sandboxId, files: payload },
-              });
-              if (retry.error) throw retry.error;
-              if (!retry.data?.success) throw new Error(retry.data?.error || "Failed to sync to sandbox");
-              toast.success("Synced to sandbox");
-              setSandboxFrameKey((k) => k + 1);
-              return;
-            }
-          }
-        }
-        throw error;
-      }
-      if (!data?.success) throw new Error(data?.error || "Failed to sync to sandbox");
-
-      toast.success("Synced to sandbox");
-      setSandboxFrameKey((k) => k + 1);
-    } catch (e) {
-      console.error("[Preview] Sync to sandbox failed", e);
-      toast.error(e instanceof Error ? e.message : "Sandbox sync failed");
-    } finally {
-      setIsSyncingSandbox(false);
-    }
-  }, [sandboxId, files, onRecoverSandbox]);
-
-  const handleRestartSandbox = useCallback(async () => {
-    try {
-      setIsRestartingSandbox(true);
-
-      if (!onRecoverSandbox) {
-        toast.error("Restart is not available yet");
-        return;
-      }
-
-      toast.info("Restarting preview environment…");
-      const recovered = await onRecoverSandbox();
-      if (!recovered?.sandboxId) throw new Error("Failed to restart preview environment");
-
-      toast.success("Preview restarted");
-      setSandboxFrameKey((k) => k + 1);
-    } catch (e) {
-      console.error("[Preview] Restart sandbox failed", e);
-      toast.error(e instanceof Error ? e.message : "Failed to restart preview");
-    } finally {
-      setIsRestartingSandbox(false);
-    }
-  }, [onRecoverSandbox]);
-
-  const sandboxIframeSrc = useMemo(() => {
-    if (!sandboxUrl) return null;
-    const base = getSandboxProxyUrl(sandboxUrl);
-    const joiner = base.includes("?") ? "&" : "?";
-    return `${base}${joiner}t=${sandboxFrameKey}`;
-  }, [sandboxUrl, getSandboxProxyUrl, sandboxFrameKey]);
-
-  const handleOpenSandbox = () => {
-    if (!sandboxUrl) return;
-    const full = sandboxUrl.startsWith("http") ? sandboxUrl : `https://${sandboxUrl}`;
-    window.open(full, "_blank");
   };
 
   const handleUpdate = async () => {
@@ -684,7 +551,7 @@ export function Preview({
             <div className="space-y-2">
               <Label htmlFor="slug">Custom URL</Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">vipe.lovable.app/app/</span>
+                <span className="text-sm text-muted-foreground">vipedz.app/app/</span>
                 <Input
                   id="slug"
                   value={customSlug}
@@ -714,48 +581,7 @@ export function Preview({
               className="bg-background rounded-xl overflow-hidden shadow-lg border border-border"
               style={{ width: deviceConfig[deviceMode].width, height: deviceConfig[deviceMode].height }}
             >
-              {/* Priority: E2B sandbox URL (during dev) > file mode previews > HTML iframe */}
-              {/* Note: We don't embed published apps in iframe due to X-Frame-Options restrictions */}
-              {/* Instead, users can click "Copy Link" to view the published app in a new tab */}
-              {sandboxIframeSrc ? (
-                <div className="relative w-full h-full">
-                  <iframe
-                    key={sandboxFrameKey}
-                    src={sandboxIframeSrc}
-                    className="w-full h-full"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                    title="Sandbox Preview"
-                    allow="clipboard-write"
-                  />
-
-                    <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-8 gap-1.5"
-                        onClick={handleRestartSandbox}
-                        disabled={isRestartingSandbox}
-                      >
-                        {isRestartingSandbox ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                        Restart
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-8 gap-1.5"
-                        onClick={handleSyncToSandbox}
-                        disabled={isSyncingSandbox}
-                      >
-                        {isSyncingSandbox ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                        Sync
-                      </Button>
-                      <Button size="sm" variant="secondary" className="h-8 gap-1.5" onClick={handleOpenSandbox}>
-                        <Link2 className="w-4 h-4" />
-                        Open
-                      </Button>
-                    </div>
-                </div>
-              ) : isFileMode ? (
+              {isFileMode ? (
                 previewEngine === "webcontainer" ? (
                   <WebContainerPreview files={files ?? {}} className="w-full h-full" />
                 ) : previewEngine === "esm" ? (

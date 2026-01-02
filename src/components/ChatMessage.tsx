@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { Copy, Check, ThumbsUp, ThumbsDown, Eye, Code, Database, Settings, RotateCcw, FileCode, Loader2, CheckCircle, Circle } from "lucide-react";
+import { Copy, Check, ThumbsUp, ThumbsDown, Eye, Code, Database, Settings, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
@@ -11,17 +11,6 @@ export interface QuickAction {
   icon?: string;
 }
 
-interface Task {
-  id: string;
-  title: string;
-  status: "pending" | "in-progress" | "done";
-}
-
-interface FileAction {
-  type: "reading" | "editing" | "edited";
-  path: string;
-}
-
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
@@ -29,12 +18,6 @@ interface ChatMessageProps {
   isStreaming?: boolean;
   hasCode?: boolean;
   actions?: QuickAction[];
-  metadata?: {
-    tasks?: Task[];
-    fileActions?: FileAction[];
-    thinkingTime?: number;
-    isThinking?: boolean;
-  };
   onViewPreview?: () => void;
   onViewCode?: () => void;
   onActionSelect?: (actionId: string) => void;
@@ -48,7 +31,6 @@ export function ChatMessage({
   isStreaming, 
   hasCode,
   actions,
-  metadata,
   onViewPreview,
   onViewCode,
   onActionSelect,
@@ -77,28 +59,6 @@ export function ChatMessage({
       case 'database': return <Database className="w-4 h-4" />;
       case 'settings': return <Settings className="w-4 h-4" />;
       default: return null;
-    }
-  };
-
-  const getTaskStatusIcon = (status: Task["status"]) => {
-    switch (status) {
-      case "done":
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
-      case "in-progress":
-        return <Loader2 className="w-4 h-4 text-primary animate-spin" />;
-      default:
-        return <Circle className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
-  const getFileActionIcon = (type: FileAction["type"]) => {
-    switch (type) {
-      case "edited":
-        return <CheckCircle className="w-3 h-3 text-green-500" />;
-      case "editing":
-        return <Loader2 className="w-3 h-3 text-amber-500 animate-spin" />;
-      default:
-        return <FileCode className="w-3 h-3 text-muted-foreground" />;
     }
   };
 
@@ -134,20 +94,12 @@ export function ChatMessage({
 
           {/* Content */}
           <div className="flex-1 min-w-0 space-y-2">
-            {/* Role Label with thinking time */}
+            {/* Role Label */}
             <div className={cn(
-              "flex items-center gap-2 text-sm font-semibold text-foreground",
-              isRTL && "text-right font-arabic flex-row-reverse"
+              "text-sm font-semibold text-foreground",
+              isRTL && "text-right font-arabic"
             )}>
-              <span>{isUser ? t("you") : "Vipe"}</span>
-              {metadata?.thinkingTime && !metadata.isThinking && (
-                <span className="text-xs font-normal text-muted-foreground">
-                  ({metadata.thinkingTime}s)
-                </span>
-              )}
-              {metadata?.isThinking && (
-                <Loader2 className="w-3 h-3 animate-spin text-primary" />
-              )}
+              {isUser ? t("you") : "Vipe"}
             </div>
 
             {/* Image if present */}
@@ -171,47 +123,6 @@ export function ChatMessage({
                 <span className="inline-block w-2 h-5 ml-1 bg-foreground/70 animate-pulse rounded-sm" />
               )}
             </div>
-
-            {/* Tasks display (like Generation page) */}
-            {metadata?.tasks && metadata.tasks.length > 0 && (
-              <div className="mt-3 space-y-1.5">
-                {metadata.tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className={cn(
-                      "flex items-center gap-2 text-sm transition-opacity",
-                      task.status === "done" ? "opacity-60" : "opacity-100"
-                    )}
-                  >
-                    {getTaskStatusIcon(task.status)}
-                    <span
-                      className={cn(
-                        task.status === "done" && "line-through text-muted-foreground"
-                      )}
-                    >
-                      {task.title}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* File actions display (like Generation page) */}
-            {metadata?.fileActions && metadata.fileActions.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {metadata.fileActions.slice(-5).map((action, idx) => (
-                  <div
-                    key={`${action.path}-${idx}`}
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-secondary/50 text-xs font-mono"
-                  >
-                    {getFileActionIcon(action.type)}
-                    <span className="text-muted-foreground truncate max-w-[150px]">
-                      {action.path.split("/").pop()}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
 
             {/* SQL indicator */}
             {hasSqlBlock && !isStreaming && (

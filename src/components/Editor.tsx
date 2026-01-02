@@ -11,7 +11,7 @@ import { Project } from "@/hooks/useProjects";
 import { useVersionHistory } from "@/hooks/useVersionHistory";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { MessageSquare, Database, History, Eye, Code, Globe, Loader2, CheckCircle, FileCode } from "lucide-react";
+import { MessageSquare, Database, History, Eye, Code, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BuildingOverlay } from "./BuildingOverlay";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,23 +19,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useI18n, LanguageToggle } from "@/lib/i18n";
 import { useProjectFiles } from "@/hooks/useProjectFiles";
 import { generateBundledHTML } from "@/lib/sandboxBundler";
-
-// Task and file action types for streaming display
-interface Task {
-  id: string;
-  title: string;
-  status: "pending" | "in-progress" | "done";
-}
-
-interface FileAction {
-  type: "reading" | "editing" | "edited";
-  path: string;
-}
-
-interface SandboxData {
-  sandboxId: string;
-  url: string;
-}
 
 interface QuickAction {
   id: string;
@@ -50,12 +33,6 @@ interface Message {
   imageUrl?: string;
   hasCode?: boolean;
   actions?: QuickAction[];
-  metadata?: {
-    tasks?: Task[];
-    fileActions?: FileAction[];
-    thinkingTime?: number;
-    isThinking?: boolean;
-  };
 }
 
 interface EditorProps {
@@ -82,11 +59,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const [showSqlModal, setShowSqlModal] = useState(false);
   const [pendingSql, setPendingSql] = useState("");
   const [isExecutingSql, setIsExecutingSql] = useState(false);
-
-  // Sandbox state for live preview (same as Generation page)
-  const [sandboxData, setSandboxData] = useState<SandboxData | null>(null);
-  const [currentTasks, setCurrentTasks] = useState<Task[]>([]);
-  const [currentFileActions, setCurrentFileActions] = useState<FileAction[]>([]);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -161,11 +133,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   useEffect(() => {
     setMessages([]); // Clear messages immediately when switching projects
     setStreamingContent("");
-    setSandboxData(null);
-    setCurrentTasks([]);
-    setCurrentFileActions([]);
     loadMessages();
-    loadSandboxData();
   }, [project.id]);
 
   const loadMessages = async () => {
@@ -185,96 +153,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
       }
     } catch (error) {
       // No messages saved yet, that's fine
-    }
-  };
-
-  // Load sandbox data from project_data
-  const loadSandboxData = async () => {
-    try {
-      const { data } = await supabase
-        .from("project_data")
-        .select("value")
-        .eq("project_id", project.id)
-        .eq("key", "sandbox_data")
-        .maybeSingle();
-
-      if (data?.value) {
-        const sandbox = data.value as unknown as SandboxData;
-        if (sandbox.sandboxId && sandbox.url) {
-          setSandboxData(sandbox);
-        }
-      }
-    } catch (error) {
-      console.log("No sandbox data found");
-    }
-  };
-
-  // Save sandbox data
-  const saveSandboxData = async (sandbox: SandboxData) => {
-    try {
-      const { data: existing } = await supabase
-        .from("project_data")
-        .select("id")
-        .eq("project_id", project.id)
-        .eq("key", "sandbox_data")
-        .maybeSingle();
-
-      if (existing) {
-        await supabase.from("project_data").update({ value: sandbox as any }).eq("id", existing.id);
-      } else {
-        await supabase.from("project_data").insert({
-          project_id: project.id,
-          key: "sandbox_data",
-          value: sandbox as any,
-        });
-      }
-    } catch (error) {
-      console.error("Error saving sandbox data:", error);
-    }
-  };
-
-  // Create sandbox for live preview
-  const createSandbox = async (): Promise<SandboxData | null> => {
-    try {
-      const { data, error } = await supabase.functions.invoke("create-sandbox", {
-        body: {},
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Failed to create sandbox");
-
-      const sandbox: SandboxData = {
-        sandboxId: data.sandboxId,
-        url: data.url,
-      };
-
-      setSandboxData(sandbox);
-      await saveSandboxData(sandbox);
-      return sandbox;
-    } catch (error) {
-      console.error("[Editor] Sandbox creation error:", error);
-      return null;
-    }
-  };
-
-  // Recover sandbox if expired
-  const recoverSandbox = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke("restart-sandbox", {
-        body: { projectId: project.id },
-      });
-
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Failed to recover sandbox");
-
-      const sandbox: SandboxData = { sandboxId: data.sandboxId, url: data.url };
-      setSandboxData(sandbox);
-      await saveSandboxData(sandbox);
-      return sandbox;
-    } catch (e) {
-      console.error("[Editor] recoverSandbox error", e);
-      toast.error("Failed to recover preview");
-      return null;
     }
   };
 
@@ -325,28 +203,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
     checkSupabaseConnection();
   }, [project.id]);
 
-  // Parse files from AI streamed content (same as Generation page)
-  const parseFilesFromContent = (content: string): Array<{ path: string; content: string }> => {
-    const files: Array<{ path: string; content: string }> = [];
-    const fileRegex = /<file\s+path="([^"]+)">([\s\S]*?)<\/file>/g;
-    let match;
-
-    while ((match = fileRegex.exec(content)) !== null) {
-      const filePath = match[1];
-      let fileContent = match[2].trim();
-
-      // Strip markdown code fences that AI sometimes includes
-      fileContent = fileContent
-        .replace(/^```\w*\s*\n?/g, "")
-        .replace(/\n?```\s*$/g, "")
-        .trim();
-
-      files.push({ path: filePath, content: fileContent });
-    }
-
-    return files;
-  };
-
   const streamSseToText = async (response: Response, onDelta: (delta: string) => void) => {
     const reader = response.body?.getReader();
     if (!reader) throw new Error("No response body");
@@ -392,11 +248,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const handleSendMessage = async (rawContent: string, imageUrl?: string) => {
     const content = rawContent.trim();
 
-    // Builder defaults to BUILD (Lovable-like). Use /chat to force chat-only.
-    const isChatCommand = /^\/chat\b/i.test(content);
-    const mode: "chat" | "build" = isChatCommand ? "chat" : "build";
+    // Explicit build commands only (prevents "hi" from triggering a build)
+    const isBuildCommand = /^\/(build|edit)\b/i.test(content);
+    const mode: "chat" | "build" = isBuildCommand ? "build" : "chat";
 
-    const promptForBuild = isChatCommand ? content.replace(/^\/chat\b\s*/i, "").trim() : content;
+    const promptForBuild = isBuildCommand ? content.replace(/^\/(build|edit)\b\s*/i, "").trim() : content;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -469,22 +325,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         return;
       }
 
-      // BUILD MODE - Use generate-ai-code (same as Generation page)
-      // This gives us: sandbox creation, file streaming with tasks/actions, image understanding
-      
-      // Ensure sandbox exists
-      let sandbox = sandboxData;
-      if (!sandbox) {
-        sandbox = await createSandbox();
-        if (!sandbox) {
-          throw new Error("Failed to create sandbox environment");
-        }
-      }
-
-      const hasExistingFiles = Object.keys(files).length > 0;
-
-      // Use generate-ai-code for full capabilities
-      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-code`;
+      // build mode (React project) - generate file operations and apply them
+      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -494,14 +336,8 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         },
         body: JSON.stringify({
           prompt: promptForBuild,
-          mode: "code",
-          isEdit: hasExistingFiles,
-          existingFiles: hasExistingFiles ? files : undefined,
-          supabaseConnection: hasConnectedSupabase ? { connected: true } : null,
-          imageData: imageUrl,
-          context: {
-            sandboxId: sandbox.sandboxId,
-          },
+          projectId: project.id,
+          currentFiles: files,
         }),
         signal: abortControllerRef.current?.signal,
       });
@@ -511,299 +347,38 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         throw new Error(errorData.error || "Build failed");
       }
 
-      // Stream with task/file action parsing (same as Generation page)
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      // We stream into a single JSON string, but we DON'T show it in chat while streaming.
+      const fullContent = await streamSseToText(response, () => {});
 
-      const decoder = new TextDecoder();
-      let fullContent = "";
-      let textBuffer = "";
-      let tasks: Task[] = [];
-      let fileActions: FileAction[] = [];
-      const startTime = Date.now();
-      let planMessageId: string | null = null;
-      let planShown = false;
+      let parsed: any;
+      try {
+        parsed = JSON.parse(fullContent);
+      } catch {
+        // Common failure: model includes code fences or leading text
+        const trimmed = fullContent
+          .replace(/^```json\s*/i, "")
+          .replace(/```\s*$/i, "")
+          .trim();
+        parsed = JSON.parse(trimmed);
+      }
 
-      // Create initial building message
-      const buildingMessageId = crypto.randomUUID();
-      const buildingMessage: Message = {
-        id: buildingMessageId,
+      const ops = Array.isArray(parsed?.files) ? parsed.files : [];
+      if (ops.length === 0) {
+        throw new Error("Build returned no file operations");
+      }
+
+      await applyOperations(ops);
+
+      const assistantMessage: Message = {
+        id: crypto.randomUUID(),
         role: "assistant",
-        content: "Building...",
-        metadata: { tasks: [], fileActions: [], isThinking: true },
+        content: parsed?.message || "Done! Applied changes to your React project.",
+        hasCode: true,
       };
-      setMessages([...newMessages, buildingMessage]);
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        textBuffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            
-            // Handle generate-ai-code SSE format: {type: "stream", text}
-            // AND OpenAI format: {choices: [{delta: {content}}]}
-            let delta: string | undefined;
-
-            if (parsed.type === "stream" && typeof parsed.text === "string") {
-              // generate-ai-code sends incremental text chunks
-              delta = parsed.text;
-              fullContent += delta;
-            } else if (parsed.type === "complete") {
-              // Final complete message from generate-ai-code
-              fullContent = parsed.generatedCode || fullContent;
-            } else if (parsed.choices?.[0]?.delta?.content) {
-              // OpenAI format
-              delta = parsed.choices[0].delta.content;
-              fullContent += delta;
-            }
-
-            
-            if (fullContent) {
-              setStreamingContent(fullContent);
-
-              // Parse plan
-              if (!planShown) {
-                const planMatch = fullContent.match(/<plan>([\s\S]*?)<\/plan>/);
-                if (planMatch) {
-                  planShown = true;
-                  planMessageId = buildingMessageId;
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === buildingMessageId
-                        ? { ...m, content: planMatch[1].trim(), metadata: { ...m.metadata, isThinking: false } }
-                        : m
-                    )
-                  );
-                }
-              }
-
-              // Parse tasks
-              const tasksMatch = fullContent.match(/<tasks>([\s\S]*?)<\/tasks>/);
-              if (tasksMatch) {
-                try {
-                  tasks = JSON.parse(tasksMatch[1]);
-                  setCurrentTasks(tasks);
-                  setMessages((prev) =>
-                    prev.map((m) =>
-                      m.id === buildingMessageId ? { ...m, metadata: { ...m.metadata, tasks } } : m
-                    )
-                  );
-                } catch {}
-              }
-
-              // Parse task updates
-              const taskUpdates = fullContent.matchAll(/<task-update\s+id="([^"]+)"\s+status="([^"]+)"\s*\/>/g);
-              for (const match of taskUpdates) {
-                const [, id, status] = match;
-                tasks = tasks.map((t) => (t.id === id ? { ...t, status: status as Task["status"] } : t));
-              }
-              setCurrentTasks(tasks);
-
-              // Parse file actions
-              const fileActionMatches = fullContent.matchAll(
-                /<file-action\s+type="([^"]+)"\s+path="([^"]+)"\s*\/>/g
-              );
-              for (const match of fileActionMatches) {
-                const [, type, path] = match;
-                if (!fileActions.find((a) => a.path === path && a.type === type)) {
-                  fileActions.push({ type: type as FileAction["type"], path });
-                }
-              }
-              setCurrentFileActions(fileActions);
-
-              // Update message with current tasks and file actions
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === buildingMessageId
-                    ? {
-                        ...m,
-                        metadata: {
-                          ...m.metadata,
-                          tasks: [...tasks],
-                          fileActions: [...fileActions],
-                          thinkingTime: Math.round((Date.now() - startTime) / 1000),
-                        },
-                      }
-                    : m
-                )
-              );
-            }
-          } catch {
-            // ignore partial JSON
-          }
-        }
-      }
-
-      // Parse files from streamed content and apply
-      const parsedFiles = parseFilesFromContent(fullContent);
-
-      if (parsedFiles.length > 0) {
-        // Normalize into a map (last write wins)
-        const fileMap = new Map<string, string>();
-        for (const f of parsedFiles) fileMap.set(f.path, f.content);
-
-        // --- IMPORTANT ---
-        // The sandbox boots from index.html -> /src/main.jsx in the default template.
-        // If the AI generates TS/TSX entrypoints (App.tsx / main.tsx) but doesn't update
-        // index.html/main.jsx, the sandbox will keep showing the default "Welcome" app.
-        const hasMainTsx = fileMap.has("src/main.tsx") || fileMap.has("src/main.ts");
-        const hasMainJsx = fileMap.has("src/main.jsx") || fileMap.has("src/main.js");
-        const hasAppTsx = fileMap.has("src/App.tsx") || fileMap.has("src/App.ts");
-        const hasAppJsx = fileMap.has("src/App.jsx") || fileMap.has("src/App.js");
-
-        // If we have App.tsx but no TS entrypoint, create one.
-        if (hasAppTsx && !hasMainTsx) {
-          fileMap.set(
-            "src/main.tsx",
-            `import React from "react";\nimport ReactDOM from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\n\nReactDOM.createRoot(document.getElementById("root")!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`
-          );
-        }
-
-        // If we still have only JSX entrypoint, but App.jsx is missing while App.tsx exists,
-        // update main.jsx to import "./App" (Vite can resolve TSX).
-        if (hasMainJsx && hasAppTsx && !hasAppJsx) {
-          const mainPath = fileMap.has("src/main.jsx") ? "src/main.jsx" : "src/main.js";
-          const cur = fileMap.get(mainPath) || "";
-          const patched = cur.replace(/from\s+['"]\.\/App\.(jsx|js)['"]/g, 'from "./App"');
-          if (patched.trim()) fileMap.set(mainPath, patched);
-        }
-
-        // Ensure index.html points to the correct entry.
-        const preferredEntry = fileMap.has("src/main.tsx") ? "/src/main.tsx" : "/src/main.jsx";
-        if (!fileMap.has("index.html")) {
-          fileMap.set(
-            "index.html",
-            `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>${project.name || "VIPE DZ App"}</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"${preferredEntry}\"></script>\n  </body>\n</html>\n`
-          );
-        } else if (fileMap.has("src/main.tsx")) {
-          const idx = fileMap.get("index.html") || "";
-          const patched = idx
-            .replace(/src=\"\/src\/main\.(jsx|js)\"/g, 'src="/src/main.tsx"')
-            .replace(/src='\/src\/main\.(jsx|js)'/g, "src='/src/main.tsx'");
-          fileMap.set("index.html", patched);
-        }
-
-        // Apply to project_files database (upsert)
-        const ops = Array.from(fileMap.entries()).map(([path, content]) => ({
-          path,
-          action: "update" as const,
-          content,
-        }));
-        await applyOperations(ops);
-
-        // Apply to sandbox (and surface failures)
-        try {
-          const payloadFiles = Array.from(fileMap.entries()).map(([path, content]) => ({
-            path,
-            content,
-            action: "update" as const,
-          }));
-
-          const attemptApply = async (sandboxId: string) => {
-            const { data, error } = await supabase.functions.invoke("apply-code", {
-              body: {
-                sandboxId,
-                files: payloadFiles,
-              },
-            });
-
-            if (error) throw error;
-            if (!data?.success) throw new Error(data?.error || "apply-code failed");
-            return data;
-          };
-
-          try {
-            await attemptApply(sandbox.sandboxId);
-          } catch (err: any) {
-            // If sandbox expired / out-of-sync, rebuild sandbox from latest project files and retry once.
-            const message = String(err?.message || err);
-            console.warn("[Editor] apply-code failed, retrying via restart-sandbox:", message);
-
-            const recovered = await recoverSandbox();
-            if (!recovered) throw err;
-
-            await attemptApply(recovered.sandboxId);
-          }
-
-          // Cache-bust the iframe so it reloads the latest code immediately
-          setSandboxData((prev) => {
-            if (!prev) return prev;
-            const base = prev.url.split("?")[0];
-            return { ...prev, url: `${base}?v=${Date.now()}` };
-          });
-        } catch (e) {
-          console.error("[Editor] Failed to apply to sandbox:", e);
-          toast.error("Preview sync failed", {
-            description: "Your files saved, but the live preview didn't update. Tap refresh or rebuild preview.",
-          });
-        }
-      }
-
-      // Parse summary
-      const summaryMatch = fullContent.match(/<summary>([\s\S]*?)<\/summary>/);
-      const summary = summaryMatch ? summaryMatch[1].trim() : "Done! Applied changes to your project.";
-
-      // Update final message
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === buildingMessageId
-            ? {
-                ...m,
-                content: planShown ? m.content + "\n\n" + summary : summary,
-                hasCode: true,
-                metadata: {
-                  ...m.metadata,
-                  tasks: tasks.map((t) => ({ ...t, status: "done" as const })),
-                  isThinking: false,
-                  thinkingTime: Math.round((Date.now() - startTime) / 1000),
-                },
-              }
-            : m
-        )
-      );
-
-      // Auto-publish after successful build if not already published
-      if (parsedFiles.length > 0 && !project.is_published) {
-        try {
-          const bundledHtml = generateBundledHTML(latestFilesRef.current, window.location.origin);
-          const result = await onPublish(undefined, bundledHtml);
-          if (result?.slug) {
-            toast.success("App auto-published!", {
-              description: `Live at vipe.lovable.app/app/${result.slug}`,
-              action: {
-                label: "Copy Link",
-                onClick: () => {
-                  navigator.clipboard.writeText(`https://vipe.lovable.app/app/${result.slug}`);
-                  toast.success("Link copied!");
-                },
-              },
-            });
-          }
-        } catch (pubError) {
-          console.warn("[Editor] Auto-publish failed:", pubError);
-        }
-      }
-
-      // Save final messages
-      setMessages((prev) => {
-        saveMessages(prev);
-        return prev;
-      });
+      const finalMessages = [...newMessages, assistantMessage];
+      setMessages(finalMessages);
+      saveMessages(finalMessages);
       setStreamingContent("");
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
@@ -958,11 +533,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       role="assistant"
                       content={streamingContent || t("building")}
                       isStreaming
-                      metadata={{
-                        tasks: currentTasks,
-                        fileActions: currentFileActions,
-                        isThinking: currentTasks.length === 0,
-                      }}
                     />
                   )}
                 </div>
@@ -987,9 +557,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               projectName={project.name}
               isPublished={project.is_published}
               slug={project.slug}
-              sandboxUrl={sandboxData?.url}
-              sandboxId={sandboxData?.sandboxId}
-              onRecoverSandbox={recoverSandbox}
               onPublish={onPublish}
               onUpdatePublished={onUpdatePublished}
               activeView={previewView}
@@ -1198,11 +765,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       role="assistant"
                       content={streamingContent || t("building")}
                       isStreaming
-                      metadata={{
-                        tasks: currentTasks,
-                        fileActions: currentFileActions,
-                        isThinking: currentTasks.length === 0,
-                      }}
                     />
                   )}
                 </div>
@@ -1251,9 +813,6 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             projectName={project.name}
             isPublished={project.is_published}
             slug={project.slug}
-            sandboxUrl={sandboxData?.url}
-            sandboxId={sandboxData?.sandboxId}
-            onRecoverSandbox={recoverSandbox}
             onPublish={onPublish}
             onUpdatePublished={onUpdatePublished}
             activeView={previewView}
