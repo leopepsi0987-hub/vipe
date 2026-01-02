@@ -245,9 +245,8 @@ export function Preview({
 
   const copyLink = () => {
     if (!slug) return;
-    // Use current host for the published app URL
-    const baseUrl = window.location.origin;
-    const url = `${baseUrl}/app/${slug}`;
+    // Use vipe.lovable.app for the published app URL
+    const url = `https://vipe.lovable.app/app/${slug}`;
     navigator.clipboard.writeText(url);
     setCopied(true);
     toast.success("Link copied!");
@@ -553,7 +552,7 @@ export function Preview({
             <div className="space-y-2">
               <Label htmlFor="slug">Custom URL</Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">vipedz.app/app/</span>
+                <span className="text-sm text-muted-foreground">vipe.lovable.app/app/</span>
                 <Input
                   id="slug"
                   value={customSlug}

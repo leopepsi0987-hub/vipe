@@ -31,8 +31,9 @@ export default function BuilderPage() {
   const { t, isRTL } = useI18n();
   const { projects, loading, createProject, deleteProject } = useProjects();
 
-  const handleCreateProject = async () => {
-    const project = await createProject();
+  // Generate new app = create project and navigate to unified Project page
+  const handleGenerateApp = async () => {
+    const project = await createProject("New App");
     if (project) {
       toast.success(t("projectCreated"));
       navigate(`/project/${project.id}`);
@@ -81,7 +82,7 @@ export default function BuilderPage() {
           </div>
           
           <Button
-            onClick={() => navigate("/generation")}
+            onClick={handleGenerateApp}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700"
           >
             <Sparkles className="w-4 h-4 mr-2" />
@@ -97,7 +98,7 @@ export default function BuilderPage() {
             </div>
             <h2 className="text-xl font-semibold text-foreground mb-2">{t("noProjectsYet")}</h2>
             <p className="text-muted-foreground mb-6">{t("generateFirstToStart")}</p>
-            <Button onClick={() => navigate("/generation")} className="bg-gradient-to-r from-purple-600 to-pink-600">
+            <Button onClick={handleGenerateApp} className="bg-gradient-to-r from-purple-600 to-pink-600">
               <Sparkles className="w-4 h-4 mr-2" />
               {t("generateFirstApp")}
             </Button>
@@ -106,7 +107,7 @@ export default function BuilderPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Generate New App Card */}
             <button
-              onClick={() => navigate("/generation")}
+              onClick={handleGenerateApp}
               className="glass-card rounded-xl p-6 border-2 border-dashed border-border hover:border-primary/50 transition-colors flex flex-col items-center justify-center min-h-[200px] group"
             >
               <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
