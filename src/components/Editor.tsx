@@ -325,8 +325,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         return;
       }
 
-      // build mode (React project) - generate file operations and apply them
-      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-code`;
+      // build mode (React project) - use the powerful generate-ai-code (VIPE DZ)
+      const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-ai-code`;
+
+      // Build existing files map for edit context
+      const hasExistingFiles = Object.keys(files).length > 0;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -336,8 +339,13 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         },
         body: JSON.stringify({
           prompt: promptForBuild,
-          projectId: project.id,
-          currentFiles: files,
+          mode: "code",
+          isEdit: hasExistingFiles,
+          existingFiles: hasExistingFiles ? files : undefined,
+          sessionId: project.id,
+          context: {
+            projectId: project.id,
+          },
         }),
         signal: abortControllerRef.current?.signal,
       });
@@ -347,32 +355,101 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         throw new Error(errorData.error || "Build failed");
       }
 
-      // We stream into a single JSON string, but we DON'T show it in chat while streaming.
-      const fullContent = await streamSseToText(response, () => {});
+      // Stream the response and parse file blocks
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body");
 
-      let parsed: any;
-      try {
-        parsed = JSON.parse(fullContent);
-      } catch {
-        // Common failure: model includes code fences or leading text
-        const trimmed = fullContent
-          .replace(/^```json\s*/i, "")
-          .replace(/```\s*$/i, "")
-          .trim();
-        parsed = JSON.parse(trimmed);
+      const decoder = new TextDecoder();
+      let fullContent = "";
+      let textBuffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        textBuffer += decoder.decode(value, { stream: true });
+
+        let newlineIndex: number;
+        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, newlineIndex);
+          textBuffer = textBuffer.slice(newlineIndex + 1);
+
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (line.startsWith(":") || line.trim() === "") continue;
+          if (!line.startsWith("data: ")) continue;
+
+          const jsonStr = line.slice(6).trim();
+          if (jsonStr === "[DONE]") continue;
+
+          try {
+            const data = JSON.parse(jsonStr);
+            if (data.type === "stream" && data.text) {
+              fullContent += data.text;
+              // Show streaming progress
+              setStreamingContent(fullContent);
+            } else if (data.type === "complete") {
+              fullContent = data.generatedCode || fullContent;
+            }
+          } catch {
+            // Incomplete JSON - wait for more data
+          }
+        }
       }
 
-      const ops = Array.isArray(parsed?.files) ? parsed.files : [];
+      // Parse file blocks from the response
+      const fileRegex = /<file path="([^"]+)">([^]*?)<\/file>/g;
+      const ops: Array<{ path: string; action: "create" | "update"; content: string }> = [];
+      let match;
+
+      while ((match = fileRegex.exec(fullContent)) !== null) {
+        const filePath = match[1];
+        let fileContent = match[2].trim();
+        
+        // Strip markdown code fences that AI sometimes includes
+        fileContent = fileContent
+          .replace(/^```\w*\s*\n?/g, "")
+          .replace(/\n?```\s*$/g, "")
+          .trim();
+
+        ops.push({
+          path: filePath,
+          action: hasExistingFiles ? "update" : "create",
+          content: fileContent,
+        });
+      }
+
+      if (ops.length === 0) {
+        // Fallback: try parsing as JSON (legacy format)
+        try {
+          const trimmed = fullContent
+            .replace(/^```json\s*/i, "")
+            .replace(/```\s*$/i, "")
+            .replace(/<plan>[\s\S]*?<\/plan>/g, "")
+            .replace(/<summary>[\s\S]*?<\/summary>/g, "")
+            .trim();
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed?.files)) {
+            ops.push(...parsed.files);
+          }
+        } catch {
+          throw new Error("Build returned no file operations");
+        }
+      }
+
       if (ops.length === 0) {
         throw new Error("Build returned no file operations");
       }
 
       await applyOperations(ops);
 
+      // Extract summary message
+      const summaryMatch = fullContent.match(/<summary>([\s\S]*?)<\/summary>/);
+      const summaryText = summaryMatch?.[1]?.trim() || "Done! Applied changes to your React project.";
+
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: "assistant",
-        content: parsed?.message || "Done! Applied changes to your React project.",
+        content: summaryText,
         hasCode: true,
       };
 
