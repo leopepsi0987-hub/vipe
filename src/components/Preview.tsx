@@ -582,8 +582,15 @@ export function Preview({
               className="bg-background rounded-xl overflow-hidden shadow-lg border border-border"
               style={{ width: deviceConfig[deviceMode].width, height: deviceConfig[deviceMode].height }}
             >
-              {/* Priority: E2B sandbox URL > file mode previews > HTML iframe */}
-              {sandboxUrl ? (
+              {/* Priority: Published app URL > E2B sandbox URL > file mode previews > HTML iframe */}
+              {isPublished && slug ? (
+                <iframe
+                  src={`https://vipe.lovable.app/app/${slug}`}
+                  className="w-full h-full"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                  title="Published App Preview"
+                />
+              ) : sandboxUrl ? (
                 <iframe
                   src={sandboxUrl}
                   className="w-full h-full"
