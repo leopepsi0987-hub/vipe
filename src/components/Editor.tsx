@@ -392,11 +392,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
   const handleSendMessage = async (rawContent: string, imageUrl?: string) => {
     const content = rawContent.trim();
 
-    // Explicit build commands only (prevents "hi" from triggering a build)
-    const isBuildCommand = /^\/(build|edit)\b/i.test(content);
-    const mode: "chat" | "build" = isBuildCommand ? "build" : "chat";
+    // Builder defaults to BUILD (Lovable-like). Use /chat to force chat-only.
+    const isChatCommand = /^\/chat\b/i.test(content);
+    const mode: "chat" | "build" = isChatCommand ? "chat" : "build";
 
-    const promptForBuild = isBuildCommand ? content.replace(/^\/(build|edit)\b\s*/i, "").trim() : content;
+    const promptForBuild = isChatCommand ? content.replace(/^\/chat\b\s*/i, "").trim() : content;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
@@ -555,17 +555,14 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           try {
             const parsed = JSON.parse(jsonStr);
             
-            // Handle generate-ai-code SSE format: {type: "stream", text, raw}
+            // Handle generate-ai-code SSE format: {type: "stream", text}
             // AND OpenAI format: {choices: [{delta: {content}}]}
             let delta: string | undefined;
-            if (parsed.type === "stream" && parsed.text) {
-              // generate-ai-code format - text is the FULL content so far (raw: true)
-              if (parsed.raw) {
-                fullContent = parsed.text;
-              } else {
-                delta = parsed.text;
-                fullContent += delta;
-              }
+
+            if (parsed.type === "stream" && typeof parsed.text === "string") {
+              // generate-ai-code sends incremental text chunks
+              delta = parsed.text;
+              fullContent += delta;
             } else if (parsed.type === "complete") {
               // Final complete message from generate-ai-code
               fullContent = parsed.generatedCode || fullContent;
@@ -574,6 +571,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               delta = parsed.choices[0].delta.content;
               fullContent += delta;
             }
+
             
             if (fullContent) {
               setStreamingContent(fullContent);
