@@ -708,20 +708,51 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         }));
         await applyOperations(ops);
 
-        // Apply to sandbox
+        // Apply to sandbox (and surface failures)
         try {
-          await supabase.functions.invoke("apply-code", {
-            body: {
-              sandboxId: sandbox.sandboxId,
-              files: Array.from(fileMap.entries()).map(([path, content]) => ({
-                path,
-                content,
-                action: "update",
-              })),
-            },
+          const payloadFiles = Array.from(fileMap.entries()).map(([path, content]) => ({
+            path,
+            content,
+            action: "update" as const,
+          }));
+
+          const attemptApply = async (sandboxId: string) => {
+            const { data, error } = await supabase.functions.invoke("apply-code", {
+              body: {
+                sandboxId,
+                files: payloadFiles,
+              },
+            });
+
+            if (error) throw error;
+            if (!data?.success) throw new Error(data?.error || "apply-code failed");
+            return data;
+          };
+
+          try {
+            await attemptApply(sandbox.sandboxId);
+          } catch (err: any) {
+            // If sandbox expired / out-of-sync, rebuild sandbox from latest project files and retry once.
+            const message = String(err?.message || err);
+            console.warn("[Editor] apply-code failed, retrying via restart-sandbox:", message);
+
+            const recovered = await recoverSandbox();
+            if (!recovered) throw err;
+
+            await attemptApply(recovered.sandboxId);
+          }
+
+          // Cache-bust the iframe so it reloads the latest code immediately
+          setSandboxData((prev) => {
+            if (!prev) return prev;
+            const base = prev.url.split("?")[0];
+            return { ...prev, url: `${base}?v=${Date.now()}` };
           });
         } catch (e) {
-          console.warn("[Editor] Failed to apply to sandbox:", e);
+          console.error("[Editor] Failed to apply to sandbox:", e);
+          toast.error("Preview sync failed", {
+            description: "Your files saved, but the live preview didn't update. Tap refresh or rebuild preview.",
+          });
         }
       }
 
