@@ -55,6 +55,7 @@ interface PreviewProps {
   slug?: string | null;
   sandboxUrl?: string | null;
   sandboxId?: string | null;
+  onRecoverSandbox?: () => Promise<{ sandboxId: string; url: string } | null>;
   onPublish?: (customSlug?: string, bundledHtml?: string) => Promise<any>;
   onUpdatePublished?: (bundledHtml?: string) => Promise<any>;
   activeView?: "preview" | "code";
@@ -97,6 +98,7 @@ export function Preview({
   slug,
   sandboxUrl,
   sandboxId,
+  onRecoverSandbox,
   onPublish,
   onUpdatePublished,
   activeView = "preview",
@@ -305,10 +307,30 @@ export function Preview({
   }, []);
 
   const handleSyncToSandbox = useCallback(async () => {
-    if (!sandboxId || !files) return;
+    if (!files || Object.keys(files).length === 0) {
+      toast.error("Nothing to sync yet");
+      return;
+    }
 
     try {
       setIsSyncingSandbox(true);
+
+      let sid = sandboxId;
+      if (!sid) {
+        if (!onRecoverSandbox) {
+          toast.error("Preview environment is not ready yet");
+          return;
+        }
+        toast.info("Starting preview environment…");
+        const recovered = await onRecoverSandbox();
+        sid = recovered?.sandboxId;
+      }
+
+      if (!sid) {
+        toast.error("Failed to start preview environment");
+        return;
+      }
+
       const payload = Object.entries(files).map(([path, content]) => ({
         path,
         content,
@@ -316,43 +338,64 @@ export function Preview({
       }));
 
       const { data, error } = await supabase.functions.invoke("apply-code", {
-        body: { sandboxId, files: payload },
+        body: { sandboxId: sid, files: payload },
       });
 
-      if (error) throw error;
+      if (error) {
+        const msg = error.message || "";
+        // In case the sandbox expired between renders
+        if (msg.includes("410") || msg.toUpperCase().includes("SANDBOX_EXPIRED")) {
+          if (onRecoverSandbox) {
+            toast.info("Preview expired — restarting…");
+            const recovered = await onRecoverSandbox();
+            if (recovered?.sandboxId) {
+              const retry = await supabase.functions.invoke("apply-code", {
+                body: { sandboxId: recovered.sandboxId, files: payload },
+              });
+              if (retry.error) throw retry.error;
+              if (!retry.data?.success) throw new Error(retry.data?.error || "Failed to sync to sandbox");
+              toast.success("Synced to sandbox");
+              setSandboxFrameKey((k) => k + 1);
+              return;
+            }
+          }
+        }
+        throw error;
+      }
       if (!data?.success) throw new Error(data?.error || "Failed to sync to sandbox");
 
       toast.success("Synced to sandbox");
       setSandboxFrameKey((k) => k + 1);
     } catch (e) {
       console.error("[Preview] Sync to sandbox failed", e);
-      toast.error("Sandbox sync failed");
+      toast.error(e instanceof Error ? e.message : "Sandbox sync failed");
     } finally {
       setIsSyncingSandbox(false);
     }
-  }, [sandboxId, files]);
+  }, [sandboxId, files, onRecoverSandbox]);
 
   const handleRestartSandbox = useCallback(async () => {
-    if (!sandboxId) return;
-
     try {
       setIsRestartingSandbox(true);
-      const { data, error } = await supabase.functions.invoke("apply-code", {
-        body: { sandboxId, files: [] },
-      });
 
-      if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "Failed to restart sandbox");
+      if (!onRecoverSandbox) {
+        toast.error("Restart is not available yet");
+        return;
+      }
 
-      toast.success("Server restarted");
+      toast.info("Restarting preview environment…");
+      const recovered = await onRecoverSandbox();
+      if (!recovered?.sandboxId) throw new Error("Failed to restart preview environment");
+
+      toast.success("Preview restarted");
       setSandboxFrameKey((k) => k + 1);
     } catch (e) {
       console.error("[Preview] Restart sandbox failed", e);
-      toast.error("Failed to restart server");
+      toast.error(e instanceof Error ? e.message : "Failed to restart preview");
     } finally {
       setIsRestartingSandbox(false);
     }
-  }, [sandboxId]);
+  }, [onRecoverSandbox]);
 
   const sandboxIframeSrc = useMemo(() => {
     if (!sandboxUrl) return null;
@@ -685,32 +728,32 @@ export function Preview({
                     allow="clipboard-write"
                   />
 
-                  <div className="absolute bottom-3 right-3 flex items-center gap-2">
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-8 gap-1.5"
-                      onClick={handleRestartSandbox}
-                      disabled={!sandboxId || isRestartingSandbox}
-                    >
-                      {isRestartingSandbox ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                      Restart
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      className="h-8 gap-1.5"
-                      onClick={handleSyncToSandbox}
-                      disabled={!sandboxId || !files || isSyncingSandbox}
-                    >
-                      {isSyncingSandbox ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                      Sync
-                    </Button>
-                    <Button size="sm" variant="secondary" className="h-8 gap-1.5" onClick={handleOpenSandbox}>
-                      <Link2 className="w-4 h-4" />
-                      Open
-                    </Button>
-                  </div>
+                    <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 gap-1.5"
+                        onClick={handleRestartSandbox}
+                        disabled={isRestartingSandbox}
+                      >
+                        {isRestartingSandbox ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                        Restart
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-8 gap-1.5"
+                        onClick={handleSyncToSandbox}
+                        disabled={isSyncingSandbox}
+                      >
+                        {isSyncingSandbox ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                        Sync
+                      </Button>
+                      <Button size="sm" variant="secondary" className="h-8 gap-1.5" onClick={handleOpenSandbox}>
+                        <Link2 className="w-4 h-4" />
+                        Open
+                      </Button>
+                    </div>
                 </div>
               ) : isFileMode ? (
                 previewEngine === "webcontainer" ? (

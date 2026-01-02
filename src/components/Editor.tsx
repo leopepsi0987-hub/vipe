@@ -989,6 +989,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               slug={project.slug}
               sandboxUrl={sandboxData?.url}
               sandboxId={sandboxData?.sandboxId}
+              onRecoverSandbox={recoverSandbox}
               onPublish={onPublish}
               onUpdatePublished={onUpdatePublished}
               activeView={previewView}
@@ -1252,6 +1253,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             slug={project.slug}
             sandboxUrl={sandboxData?.url}
             sandboxId={sandboxData?.sandboxId}
+            onRecoverSandbox={recoverSandbox}
             onPublish={onPublish}
             onUpdatePublished={onUpdatePublished}
             activeView={previewView}
