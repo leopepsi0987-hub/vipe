@@ -554,9 +554,28 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
           try {
             const parsed = JSON.parse(jsonStr);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
+            
+            // Handle generate-ai-code SSE format: {type: "stream", text, raw}
+            // AND OpenAI format: {choices: [{delta: {content}}]}
+            let delta: string | undefined;
+            if (parsed.type === "stream" && parsed.text) {
+              // generate-ai-code format - text is the FULL content so far (raw: true)
+              if (parsed.raw) {
+                fullContent = parsed.text;
+              } else {
+                delta = parsed.text;
+                fullContent += delta;
+              }
+            } else if (parsed.type === "complete") {
+              // Final complete message from generate-ai-code
+              fullContent = parsed.generatedCode || fullContent;
+            } else if (parsed.choices?.[0]?.delta?.content) {
+              // OpenAI format
+              delta = parsed.choices[0].delta.content;
               fullContent += delta;
+            }
+            
+            if (fullContent) {
               setStreamingContent(fullContent);
 
               // Parse plan
@@ -839,6 +858,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       role="assistant"
                       content={streamingContent || t("building")}
                       isStreaming
+                      metadata={{
+                        tasks: currentTasks,
+                        fileActions: currentFileActions,
+                        isThinking: currentTasks.length === 0,
+                      }}
                     />
                   )}
                 </div>
@@ -863,6 +887,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
               projectName={project.name}
               isPublished={project.is_published}
               slug={project.slug}
+              sandboxUrl={sandboxData?.url}
               onPublish={onPublish}
               onUpdatePublished={onUpdatePublished}
               activeView={previewView}
@@ -1071,6 +1096,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
                       role="assistant"
                       content={streamingContent || t("building")}
                       isStreaming
+                      metadata={{
+                        tasks: currentTasks,
+                        fileActions: currentFileActions,
+                        isThinking: currentTasks.length === 0,
+                      }}
                     />
                   )}
                 </div>
@@ -1119,6 +1149,7 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
             projectName={project.name}
             isPublished={project.is_published}
             slug={project.slug}
+            sandboxUrl={sandboxData?.url}
             onPublish={onPublish}
             onUpdatePublished={onUpdatePublished}
             activeView={previewView}

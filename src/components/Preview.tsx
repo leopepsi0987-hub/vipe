@@ -51,6 +51,7 @@ interface PreviewProps {
   projectName?: string;
   isPublished?: boolean;
   slug?: string | null;
+  sandboxUrl?: string | null;
   onPublish?: (customSlug?: string, bundledHtml?: string) => Promise<any>;
   onUpdatePublished?: (bundledHtml?: string) => Promise<any>;
   activeView?: "preview" | "code";
@@ -91,6 +92,7 @@ export function Preview({
   projectName,
   isPublished,
   slug,
+  sandboxUrl,
   onPublish,
   onUpdatePublished,
   activeView = "preview",
@@ -581,7 +583,15 @@ export function Preview({
               className="bg-background rounded-xl overflow-hidden shadow-lg border border-border"
               style={{ width: deviceConfig[deviceMode].width, height: deviceConfig[deviceMode].height }}
             >
-              {isFileMode ? (
+              {/* Priority: E2B sandbox URL > file mode previews > HTML iframe */}
+              {sandboxUrl ? (
+                <iframe
+                  src={sandboxUrl}
+                  className="w-full h-full"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+                  title="Sandbox Preview"
+                />
+              ) : isFileMode ? (
                 previewEngine === "webcontainer" ? (
                   <WebContainerPreview files={files ?? {}} className="w-full h-full" />
                 ) : previewEngine === "esm" ? (
