@@ -2473,6 +2473,9 @@ export function generateBundledHTML(files: FileMap, baseUrl: string = ""): strin
     .orb-cyan { background: radial-gradient(circle, hsl(180 100% 50% / 0.5) 0%, hsl(180 100% 50% / 0) 70%); filter: blur(60px); }
   `;
 
+  // Always use CDN URLs for vendor files so they work from any domain (including vipe.lovable.app/app/...)
+  const vendorBase = "https://vipe.lovable.app";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2480,9 +2483,10 @@ export function generateBundledHTML(files: FileMap, baseUrl: string = ""): strin
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Preview</title>
 
-  <script crossorigin src="${baseUrl}/vendor/react18.umd.js"><\/script>
-  <script crossorigin src="${baseUrl}/vendor/react-dom18.umd.js"><\/script>
-  <script src="${baseUrl}/vendor/babel-standalone.min.js"><\/script>
+  <!-- React from CDN for better reliability -->
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"><\/script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"><\/script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.5/babel.min.js"><\/script>
 
   <!-- THREE.js for 3D graphics -->
   <script src="https://unpkg.com/three@0.170.0/build/three.min.js"><\/script>
@@ -2491,7 +2495,8 @@ export function generateBundledHTML(files: FileMap, baseUrl: string = ""): strin
   <script src="https://unpkg.com/gsap@3.12.5/dist/gsap.min.js"><\/script>
   <script src="https://unpkg.com/gsap@3.12.5/dist/ScrollTrigger.min.js"><\/script>
 
-  <script src="${baseUrl}/vendor/tailwindcdn.js"><\/script>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"><\/script>
   <script>
     tailwind.config = {
       darkMode: 'class',

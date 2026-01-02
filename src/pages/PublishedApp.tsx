@@ -71,29 +71,27 @@ const PublishedApp = () => {
     );
   }
 
-  // Clean published app - full screen iframe, no branding
-  // Convert relative /vendor/ paths to absolute URLs so they work in srcDoc iframe
-  const baseUrl = window.location.origin;
-  const fixedHtml = html ? html
-    .replace(/src="\/vendor\//g, `src="${baseUrl}/vendor/`)
-    .replace(/src='\/vendor\//g, `src='${baseUrl}/vendor/`)
-    .replace(/href="\/vendor\//g, `href="${baseUrl}/vendor/`)
-    .replace(/href='\/vendor\//g, `href='${baseUrl}/vendor/`)
-    : "";
-
+  // The bundled HTML now uses CDN URLs for all vendor files (React, Babel, Tailwind)
+  // so it should work directly without path fixups
+  
   // Inject minimal styling if HTML doesn't have proper structure
-  const preparedHtml = fixedHtml ? (
-    fixedHtml.includes('<html') ? fixedHtml : `<!DOCTYPE html>
+  const preparedHtml = html ? (
+    html.includes('<html') ? html : `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- React from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.24.5/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { min-height: 100vh; font-family: system-ui, -apple-system, sans-serif; }
   </style>
 </head>
-<body>${fixedHtml}</body>
+<body>${html}</body>
 </html>`
   ) : "";
 

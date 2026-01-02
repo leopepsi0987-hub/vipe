@@ -582,15 +582,10 @@ export function Preview({
               className="bg-background rounded-xl overflow-hidden shadow-lg border border-border"
               style={{ width: deviceConfig[deviceMode].width, height: deviceConfig[deviceMode].height }}
             >
-              {/* Priority: Published app URL > E2B sandbox URL > file mode previews > HTML iframe */}
-              {isPublished && slug ? (
-                <iframe
-                  src={`https://vipe.lovable.app/app/${slug}`}
-                  className="w-full h-full"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
-                  title="Published App Preview"
-                />
-              ) : sandboxUrl ? (
+              {/* Priority: E2B sandbox URL (during dev) > file mode previews > HTML iframe */}
+              {/* Note: We don't embed published apps in iframe due to X-Frame-Options restrictions */}
+              {/* Instead, users can click "Copy Link" to view the published app in a new tab */}
+              {sandboxUrl ? (
                 <iframe
                   src={sandboxUrl}
                   className="w-full h-full"
