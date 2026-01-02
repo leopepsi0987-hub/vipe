@@ -653,13 +653,58 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
 
       // Parse files from streamed content and apply
       const parsedFiles = parseFilesFromContent(fullContent);
-      
+
       if (parsedFiles.length > 0) {
-        // Apply to project_files database
-        const ops = parsedFiles.map((f) => ({
-          path: f.path,
-          action: "create" as const,
-          content: f.content,
+        // Normalize into a map (last write wins)
+        const fileMap = new Map<string, string>();
+        for (const f of parsedFiles) fileMap.set(f.path, f.content);
+
+        // --- IMPORTANT ---
+        // The sandbox boots from index.html -> /src/main.jsx in the default template.
+        // If the AI generates TS/TSX entrypoints (App.tsx / main.tsx) but doesn't update
+        // index.html/main.jsx, the sandbox will keep showing the default "Welcome" app.
+        const hasMainTsx = fileMap.has("src/main.tsx") || fileMap.has("src/main.ts");
+        const hasMainJsx = fileMap.has("src/main.jsx") || fileMap.has("src/main.js");
+        const hasAppTsx = fileMap.has("src/App.tsx") || fileMap.has("src/App.ts");
+        const hasAppJsx = fileMap.has("src/App.jsx") || fileMap.has("src/App.js");
+
+        // If we have App.tsx but no TS entrypoint, create one.
+        if (hasAppTsx && !hasMainTsx) {
+          fileMap.set(
+            "src/main.tsx",
+            `import React from "react";\nimport ReactDOM from "react-dom/client";\nimport App from "./App";\nimport "./index.css";\n\nReactDOM.createRoot(document.getElementById("root")!).render(\n  <React.StrictMode>\n    <App />\n  </React.StrictMode>\n);\n`
+          );
+        }
+
+        // If we still have only JSX entrypoint, but App.jsx is missing while App.tsx exists,
+        // update main.jsx to import "./App" (Vite can resolve TSX).
+        if (hasMainJsx && hasAppTsx && !hasAppJsx) {
+          const mainPath = fileMap.has("src/main.jsx") ? "src/main.jsx" : "src/main.js";
+          const cur = fileMap.get(mainPath) || "";
+          const patched = cur.replace(/from\s+['"]\.\/App\.(jsx|js)['"]/g, 'from "./App"');
+          if (patched.trim()) fileMap.set(mainPath, patched);
+        }
+
+        // Ensure index.html points to the correct entry.
+        const preferredEntry = fileMap.has("src/main.tsx") ? "/src/main.tsx" : "/src/main.jsx";
+        if (!fileMap.has("index.html")) {
+          fileMap.set(
+            "index.html",
+            `<!DOCTYPE html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n    <title>${project.name || "VIPE DZ App"}</title>\n  </head>\n  <body>\n    <div id=\"root\"></div>\n    <script type=\"module\" src=\"${preferredEntry}\"></script>\n  </body>\n</html>\n`
+          );
+        } else if (fileMap.has("src/main.tsx")) {
+          const idx = fileMap.get("index.html") || "";
+          const patched = idx
+            .replace(/src=\"\/src\/main\.(jsx|js)\"/g, 'src="/src/main.tsx"')
+            .replace(/src='\/src\/main\.(jsx|js)'/g, "src='/src/main.tsx'");
+          fileMap.set("index.html", patched);
+        }
+
+        // Apply to project_files database (upsert)
+        const ops = Array.from(fileMap.entries()).map(([path, content]) => ({
+          path,
+          action: "update" as const,
+          content,
         }));
         await applyOperations(ops);
 
@@ -668,7 +713,11 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
           await supabase.functions.invoke("apply-code", {
             body: {
               sandboxId: sandbox.sandboxId,
-              files: parsedFiles.map((f) => ({ path: f.path, content: f.content })),
+              files: Array.from(fileMap.entries()).map(([path, content]) => ({
+                path,
+                content,
+                action: "update",
+              })),
             },
           });
         } catch (e) {
