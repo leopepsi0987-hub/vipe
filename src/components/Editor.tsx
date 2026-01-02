@@ -699,6 +699,28 @@ export function Editor({ project, onUpdateCode, onPublish, onUpdatePublished }: 
         )
       );
 
+      // Auto-publish after successful build if not already published
+      if (parsedFiles.length > 0 && !project.is_published) {
+        try {
+          const bundledHtml = generateBundledHTML(latestFilesRef.current, window.location.origin);
+          const result = await onPublish(undefined, bundledHtml);
+          if (result?.slug) {
+            toast.success("App auto-published!", {
+              description: `Live at vipe.lovable.app/app/${result.slug}`,
+              action: {
+                label: "Copy Link",
+                onClick: () => {
+                  navigator.clipboard.writeText(`https://vipe.lovable.app/app/${result.slug}`);
+                  toast.success("Link copied!");
+                },
+              },
+            });
+          }
+        } catch (pubError) {
+          console.warn("[Editor] Auto-publish failed:", pubError);
+        }
+      }
+
       // Save final messages
       setMessages((prev) => {
         saveMessages(prev);
